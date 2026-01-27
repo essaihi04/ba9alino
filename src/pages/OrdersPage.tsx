@@ -653,17 +653,30 @@ export default function OrdersPage() {
   }
 
   const getStockQuantity = (productId: string, warehouseId?: string) => {
-    // If warehouseId is provided, get stock for specific warehouse
+    const product = products.find(p => p.id === productId)
+
+    // 1) Stock table (preferred when present)
+    // If warehouseId is provided, prefer the matching warehouse row when the field exists.
     if (warehouseId) {
-      const warehouseStock = stockData.find(item => 
-        item.product_id === productId && item.warehouse_id === warehouseId
+      const warehouseStock = stockData.find(item =>
+        item.product_id === productId && (item as any).warehouse_id === warehouseId
       )
-      return warehouseStock?.quantity_available || 0
+      const qty = Number(warehouseStock?.quantity_available || 0)
+      if (qty > 0) return qty
     }
-    
+
     // Otherwise get total stock across all warehouses
     const stockItem = stockData.find(item => item.product_id === productId)
-    return stockItem?.quantity_available || 0
+    const qtyAvailable = Number(stockItem?.quantity_available || 0)
+    if (qtyAvailable > 0) return qtyAvailable
+
+    // 2) Variants stock (sum)
+    const variantsTotal = (variantsByProductId[productId] || []).reduce((sum, v) => sum + Number(v.stock || 0), 0)
+    if (variantsTotal > 0) return variantsTotal
+
+    // 3) Base product stock (fallback)
+    const baseStock = Number((product as any)?.stock || 0)
+    return baseStock > 0 ? baseStock : 0
   }
 
   const getVariantStock = (productId: string, variantId: string) => {
