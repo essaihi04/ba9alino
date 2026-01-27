@@ -1,0 +1,13 @@
+// If SQL fails, create accounts via frontend:
+
+// 1. Go to UserAccountsPage in browser
+// 2. Create 3 users manually:
+//    - Email: admin@ba9alino.app, Password: admin123, Role: admin
+//    - Email: employee@ba9alino.app, Password: emp123, Role: employee  
+//    - Email: client@ba9alino.app, Password: client123, Role: client
+
+// 3. The RPC (create_user_account_fallback) should handle this correctly
+// 4. If RPC fails, we'll need to debug the password hashing issue
+
+// The issue might be that crypt() in PostgreSQL is not compatible 
+// with Supabase Auth's password verification.

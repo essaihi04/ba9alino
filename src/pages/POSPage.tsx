@@ -1,0 +1,3313 @@
+import React, { useState, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
+import { 
+  Search, 
+  ShoppingCart, 
+  Plus, 
+  Minus, 
+  X, 
+  Trash2, 
+  CreditCard, 
+  DollarSign,
+  FileText,
+  Clock,
+  Check,
+  Printer,
+  Receipt,
+  ClipboardList,
+  ArrowRight,
+  Play,
+  Trash
+} from 'lucide-react'
+
+interface CompanyInfo {
+  company_name_ar: string
+  company_name: string
+  ice: string
+  address_ar: string
+  address: string
+  phone: string
+  email: string
+}
+
+interface Product {
+  id: string
+  name_ar: string
+  price_a: number
+  price_b: number
+  price_c: number
+  price_d: number
+  price_e: number
+  stock: number
+  barcode?: string
+  category_id?: string
+  image_url?: string
+}
+
+interface Category {
+  id: string
+  name_ar: string
+  name_en?: string
+}
+
+interface CartItem {
+  id: string
+  name_ar: string
+  price_a: number
+  price_b: number
+  price_c: number
+  price_d: number
+  price_e: number
+  stock: number
+  quantity: number
+  deleted?: boolean
+  customPrice?: number
+}
+
+interface InvoiceLine {
+  id: string
+  product_id: string
+  product_name_ar: string
+  quantity: number
+  unit_price: number
+  total: number
+  customPrice?: number
+  deleted?: boolean
+  image_url?: string
+}
+
+interface Invoice {
+  id: string
+  invoice_number: string
+  client_id: string | null
+  client_name: string
+  status: 'draft' | 'on_hold' | 'paid' | 'partial' | 'credit'
+  lines: InvoiceLine[]
+  subtotal: number
+  total_amount: number
+  paid_amount: number
+  remaining_amount: number
+  created_at: string
+  validated_at?: string
+}
+
+interface Draft {
+  id: string
+  client_id: string | null
+  client_name: string | null
+  items: CartItem[]
+  total: number
+  created_at: string
+}
+
+interface Employee {
+  id: string
+  name: string
+  status: 'active' | 'inactive'
+}
+
+interface Warehouse {
+  id: string
+  name: string
+}
+
+interface CashSession {
+  id: string
+  employee_id: string
+  warehouse_id: string
+  opening_cash: number
+  opened_at: string
+  closed_at: string | null
+  closing_cash_declared: number | null
+  closing_note: string | null
+}
+
+ type POSPageMode = 'admin' | 'employee'
+
+ interface POSPageProps {
+   mode?: POSPageMode
+ }
+
+export default function POSPage({ mode = 'admin' }: POSPageProps) {
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const isEmployeeMode = mode === 'employee'
+  const employeeIdFromAuth = isEmployeeMode ? localStorage.getItem('employee_id') : null
+  const employeeNameFromAuth = isEmployeeMode ? localStorage.getItem('employee_name') : null
+
+  const CASH_SESSION_KEY = isEmployeeMode ? 'employee_pos_cash_session_id' : 'pos_cash_session_id'
+  const EMPLOYEE_KEY = isEmployeeMode ? 'employee_pos_employee_id' : 'pos_employee_id'
+  const WAREHOUSE_KEY = isEmployeeMode ? 'employee_pos_warehouse_id' : 'pos_warehouse_id'
+
+  const [products, setProducts] = useState<Product[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+  const [cart, setCart] = useState<CartItem[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [selectedClient, setSelectedClient] = useState<any>(null)
+  const [clients, setClients] = useState<any[]>([])
+  const [showClientModal, setShowClientModal] = useState(false)
+  const [showAddClientModal, setShowAddClientModal] = useState(false)
+  const [showConfirmationModal, setShowConfirmationModal] = useState(false)
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false)
+  const [showPrintTypeModal, setShowPrintTypeModal] = useState(false)
+  const [confirmedInvoice, setConfirmedInvoice] = useState<Invoice | null>(null)
+  const [printTicket, setPrintTicket] = useState(true)
+  const [printFormat, setPrintFormat] = useState<'ticket' | 'a4'>('ticket')
+  const [enableTVA, setEnableTVA] = useState(false)
+  const [tvaRate, setTvaRate] = useState<7 | 10 | 20>(20)
+  const [clientFormData, setClientFormData] = useState({
+    company_name_ar: '',
+    company_name_en: '',
+    contact_person_name: '',
+    contact_person_email: '',
+    contact_person_phone: '',
+    address: '',
+    subscription_tier: 'E',
+  })
+  const [paymentStatus, setPaymentStatus] = useState<'paid' | 'partial' | 'credit'>('paid')
+  const [paidAmount, setPaidAmount] = useState(0)
+  const [drafts, setDrafts] = useState<Draft[]>([])
+  const [showDraftsModal, setShowDraftsModal] = useState(false)
+  const [showEditItemModal, setShowEditItemModal] = useState(false)
+  const [editingItem, setEditingItem] = useState<CartItem | null>(null)
+  const [editQuantity, setEditQuantity] = useState('')
+  const [editPrice, setEditPrice] = useState('')
+  const [showEditInvoiceLineModal, setShowEditInvoiceLineModal] = useState(false)
+  const [editingInvoiceLine, setEditingInvoiceLine] = useState<InvoiceLine | null>(null)
+  const [editLineQuantity, setEditLineQuantity] = useState('')
+  const [editLinePrice, setEditLinePrice] = useState('')
+  
+  // États pour popup type de paiement
+  const [showPaymentTypeModal, setShowPaymentTypeModal] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'check' | 'debt'>('cash')
+  const [paymentDetails, setPaymentDetails] = useState({
+    bank_name_ar: '',
+    check_number: '',
+    check_date: '',
+    debt_due_date: ''
+  })
+  
+  // Nouvelle facture en cours
+  const [currentInvoice, setCurrentInvoice] = useState<Invoice | null>(null)
+  const [invoiceNumber, setInvoiceNumber] = useState('')
+  const [onHoldInvoices, setOnHoldInvoices] = useState<Invoice[]>([])
+  
+  // Informations de l'entreprise pour les factures
+  const [companyInfo, setCompanyInfo] = useState<CompanyInfo>({
+    company_name_ar: '',
+    company_name: '',
+    ice: '',
+    address_ar: '',
+    address: '',
+    phone: '',
+    email: ''
+  })
+
+  const [employees, setEmployees] = useState<Employee[]>([])
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([])
+
+  const [cashSession, setCashSession] = useState<CashSession | null>(null)
+  const [cashSessionSummary, setCashSessionSummary] = useState({
+    totalSales: 0,
+    totalCash: 0,
+    totalCard: 0,
+    totalTransfer: 0,
+    totalCredit: 0,
+    expectedCash: 0,
+  })
+
+  const [showSessionDashboard, setShowSessionDashboard] = useState(true)
+
+  const [showOpenCashModal, setShowOpenCashModal] = useState(false)
+  const [openEmployeeId, setOpenEmployeeId] = useState('')
+  const [openWarehouseId, setOpenWarehouseId] = useState('')
+  const [openingCashInput, setOpeningCashInput] = useState('')
+
+  const [showCloseCashModal, setShowCloseCashModal] = useState(false)
+  const [closingCashInput, setClosingCashInput] = useState('')
+  const [closingNoteInput, setClosingNoteInput] = useState('')
+
+  useEffect(() => {
+    // Désactivé temporairement car on utilise virtual_accounts IDs comme fallback
+    // Nettoyer les anciennes données potentiellement corrompues en mode employé
+    // if (isEmployeeMode) {
+    //   const storedEmployeeId = localStorage.getItem('employee_id')
+    //   if (storedEmployeeId && storedEmployeeId.startsWith('682df66a')) {
+    //     console.log('Cleaning corrupted employee data from localStorage')
+    //     localStorage.removeItem('employee_id')
+    //     localStorage.removeItem('employee_name')
+    //     localStorage.removeItem('employee_role')
+    //     localStorage.removeItem('employee_phone')
+    //     localStorage.removeItem('virtual_account_id')
+    //     navigate('/login')
+    //     return
+    //   }
+    // }
+
+    if (isEmployeeMode) {
+      if (!employeeIdFromAuth) {
+        navigate('/login')
+        return
+      }
+      setOpenEmployeeId(employeeIdFromAuth)
+    }
+
+    loadProducts()
+    loadCategories()
+    loadClients()
+    loadOnHoldInvoices()
+    if (!isEmployeeMode) {
+      loadEmployees()
+    }
+    loadWarehouses()
+    loadActiveCashSessionFromStorage()
+    
+    // Charger les informations de l'entreprise depuis localStorage
+    const savedCompanyInfo = localStorage.getItem('companyInfo')
+    if (savedCompanyInfo) {
+      try {
+        const info = JSON.parse(savedCompanyInfo)
+        setCompanyInfo(info)
+      } catch (error) {
+        console.error('Error loading company info:', error)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isEmployeeMode) return
+    const addClient = searchParams.get('addClient')
+    if (addClient === '1' || addClient === 'true') {
+      setShowClientModal(false)
+      setShowAddClientModal(true)
+    }
+  }, [isEmployeeMode, searchParams])
+
+  useEffect(() => {
+    if (cashSession?.id) {
+      refreshCashSessionSummary(cashSession.id)
+    }
+  }, [cashSession?.id])
+
+  const loadEmployees = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('employees')
+        .select('id, name, status')
+        .eq('status', 'active')
+        .order('name')
+
+      if (error) throw error
+      setEmployees((data || []) as Employee[])
+    } catch (error) {
+      console.error('Error loading employees:', error)
+    }
+  }
+
+  const loadWarehouses = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('warehouses')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('name')
+
+      if (error) throw error
+      setWarehouses((data || []) as Warehouse[])
+    } catch (error) {
+      console.error('Error loading warehouses:', error)
+    }
+  }
+
+  const loadActiveCashSessionFromStorage = async () => {
+    try {
+      const savedSessionId = localStorage.getItem(CASH_SESSION_KEY)
+      const savedEmployeeId = isEmployeeMode ? employeeIdFromAuth : localStorage.getItem(EMPLOYEE_KEY)
+      const savedWarehouseId = localStorage.getItem(WAREHOUSE_KEY)
+
+      if (!savedSessionId || !savedEmployeeId || !savedWarehouseId) {
+        // Check if there's any open session for this employee
+        await checkForOpenSession()
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('cash_sessions')
+        .select('*')
+        .eq('id', savedSessionId)
+        .maybeSingle()
+
+      if (error) throw error
+
+      if (!data || data.closed_at) {
+        localStorage.removeItem(CASH_SESSION_KEY)
+        localStorage.removeItem(EMPLOYEE_KEY)
+        localStorage.removeItem(WAREHOUSE_KEY)
+        // Check if there's any open session for this employee
+        await checkForOpenSession()
+        return
+      }
+
+      setCashSession(data as CashSession)
+    } catch (error) {
+      console.error('Error loading cash session:', error)
+      // Check if there's any open session for this employee
+      await checkForOpenSession()
+    }
+  }
+
+  const checkForOpenSession = async () => {
+    try {
+      // In employee mode, only show sessions for the connected employee
+      const baseQuery = supabase
+        .from('cash_sessions')
+        .select(`
+          *,
+          employees!cash_sessions_employee_id_fkey (
+            id,
+            name
+          ),
+          warehouses!cash_sessions_warehouse_id_fkey (
+            id,
+            name
+          )
+        `)
+        .is('closed_at', null)
+
+      const { data: openSessions, error: sessionsError } = await (isEmployeeMode && employeeIdFromAuth
+        ? baseQuery.eq('employee_id', employeeIdFromAuth).order('opened_at', { ascending: false })
+        : baseQuery.order('opened_at', { ascending: false }))
+
+      if (sessionsError) throw sessionsError
+
+      if (openSessions && openSessions.length > 0) {
+        if (isEmployeeMode) {
+          const latestSession = openSessions[0]
+          localStorage.setItem(CASH_SESSION_KEY, latestSession.id)
+          localStorage.setItem(EMPLOYEE_KEY, latestSession.employee_id)
+          localStorage.setItem(WAREHOUSE_KEY, latestSession.warehouse_id)
+          setCashSession(latestSession as CashSession)
+          return
+        }
+
+        // Show existing open sessions
+        const sessionList = openSessions.map(session => 
+          `• ${session.employees?.name || 'غير معروف'} - ${session.warehouses?.name || 'غير معروف'} (مفتوح: ${new Date(session.opened_at).toLocaleTimeString('ar-MA')})`
+        ).join('\n')
+        
+        const result = confirm(
+          '📋 توجد جلسات نقدية مفتوحة:\n\n' + sessionList + '\n\n' +
+          'هل تريد استخدام أحدث جلسة؟\n\n' +
+          'اضغط "موافق" لاستخدام أحدث جلسة\n' +
+          'اضغط "إلغاء" لفتح جلسة جديدة'
+        )
+
+        if (result) {
+          // Use the most recent open session
+          const latestSession = openSessions[0]
+          localStorage.setItem(CASH_SESSION_KEY, latestSession.id)
+          localStorage.setItem(EMPLOYEE_KEY, latestSession.employee_id)
+          localStorage.setItem(WAREHOUSE_KEY, latestSession.warehouse_id)
+
+          setCashSession(latestSession as CashSession)
+          return
+        }
+      }
+
+      // No open sessions or user chose to create new one
+      setShowOpenCashModal(true)
+    } catch (error) {
+      console.error('Error checking for open sessions:', error)
+      setShowOpenCashModal(true)
+    }
+  }
+
+  const refreshCashSessionSummary = async (sessionId: string) => {
+    try {
+      const { data: sessionData, error: sessionError } = await supabase
+        .from('cash_sessions')
+        .select('opening_cash')
+        .eq('id', sessionId)
+        .single()
+
+      if (sessionError) throw sessionError
+
+      const openingCash = Number(sessionData?.opening_cash || 0)
+
+      const { data: paymentsData, error: paymentsError } = await supabase
+        .from('payments')
+        .select('amount, payment_method, status')
+        .eq('cash_session_id', sessionId)
+        .eq('status', 'completed')
+
+      if (paymentsError) throw paymentsError
+
+      const totalCash = (paymentsData || [])
+        .filter((p: any) => p.payment_method === 'cash')
+        .reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0)
+
+      const totalCard = (paymentsData || [])
+        .filter((p: any) => p.payment_method === 'card')
+        .reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0)
+
+      const totalTransfer = (paymentsData || [])
+        .filter((p: any) => p.payment_method === 'bank_transfer')
+        .reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0)
+
+      const { data: invoicesData, error: invoicesError } = await supabase
+        .from('invoices')
+        .select('total_amount, amount_paid, paid_amount')
+        .eq('cash_session_id', sessionId)
+
+      if (invoicesError) throw invoicesError
+
+      const totalSales = (invoicesData || []).reduce((sum: number, inv: any) => sum + Number(inv.total_amount || 0), 0)
+      const totalPaid = (invoicesData || []).reduce((sum: number, inv: any) => sum + Number(inv.amount_paid ?? inv.paid_amount ?? 0), 0)
+      const totalCredit = Math.max(0, totalSales - totalPaid)
+
+      const expectedCash = openingCash + totalCash
+
+      setCashSessionSummary({
+        totalSales,
+        totalCash,
+        totalCard,
+        totalTransfer,
+        totalCredit,
+        expectedCash,
+      })
+    } catch (error) {
+      console.error('Error loading cash session summary:', error)
+    }
+  }
+
+  const handleOpenCashSession = async () => {
+    const effectiveEmployeeId = isEmployeeMode ? employeeIdFromAuth : openEmployeeId
+
+    if (isEmployeeMode && employeeIdFromAuth && openEmployeeId !== employeeIdFromAuth) {
+      setOpenEmployeeId(employeeIdFromAuth)
+    }
+
+    if (!effectiveEmployeeId || !openWarehouseId) {
+      alert('❌ يرجى اختيار اسم الموظف و المخزن')
+      return
+    }
+
+    const openingCash = Number(openingCashInput || 0)
+    if (Number.isNaN(openingCash) || openingCash < 0) {
+      alert('❌ مبلغ غير صالح')
+      return
+    }
+
+    try {
+      // Validate that employee exists (employees table ou virtual_accounts comme fallback)
+      console.log('Validating employee ID:', effectiveEmployeeId, 'Mode:', isEmployeeMode ? 'employee' : 'admin')
+      
+      let employeeData = null
+      let employeeError = null
+      let actualEmployeeId = effectiveEmployeeId // Variable mutable
+      
+      // D'abord essayer dans la table employees
+      const result = await supabase
+        .from('employees')
+        .select('id')
+        .eq('id', effectiveEmployeeId)
+        .single()
+      employeeData = result.data
+      employeeError = result.error
+      
+      // Si pas trouvé dans employees, essayer virtual_accounts (fallback)
+      if (employeeError && isEmployeeMode) {
+        console.log('Not found in employees, checking virtual_accounts...')
+        const vaResult = await supabase
+          .from('virtual_accounts')
+          .select('id, employee_id')
+          .eq('id', effectiveEmployeeId)
+          .eq('is_active', true)
+          .single()
+        
+        if (!vaResult.error && vaResult.data) {
+          console.log('Found in virtual_accounts, using as valid employee')
+          employeeData = vaResult.data
+          employeeError = null
+          
+          // Utiliser le vrai employee_id pour la création de session
+          if (vaResult.data.employee_id) {
+            actualEmployeeId = vaResult.data.employee_id
+            console.log('Using real employee_id for cash session:', actualEmployeeId)
+          }
+        }
+      }
+
+      console.log('Employee validation result:', { data: employeeData, error: employeeError })
+
+      if (employeeError || !employeeData) {
+        console.log('Employee not found, cleaning localStorage and redirecting...')
+        alert('❌ بيانات الموظف غير صحيحة. سيتم إعادة توجيهك لصفحة تسجيل الدخول.')
+        
+        // Nettoyer complètement le localStorage
+        localStorage.removeItem('employee_id')
+        localStorage.removeItem('employee_name')
+        localStorage.removeItem('employee_role')
+        localStorage.removeItem('employee_phone')
+        localStorage.removeItem('virtual_account_id')
+        
+        // Rediriger vers la page de login principale
+        window.location.href = '/login'
+        return
+      }
+
+      // First check if employee already has an open session
+      const { data: existingSession, error: checkError } = await supabase
+        .from('cash_sessions')
+        .select('*')
+        .eq('employee_id', actualEmployeeId)
+        .eq('warehouse_id', openWarehouseId)
+        .is('closed_at', null)
+        .maybeSingle()
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        throw checkError
+      }
+
+      if (existingSession) {
+        // Employee already has an open session, use it
+        localStorage.setItem(EMPLOYEE_KEY, effectiveEmployeeId)
+        localStorage.setItem(WAREHOUSE_KEY, openWarehouseId)
+
+        setCashSession(existingSession as CashSession)
+        setShowOpenCashModal(false)
+        setOpeningCashInput('')
+        if (!isEmployeeMode) {
+          setOpenEmployeeId('')
+        }
+        setOpenWarehouseId('')
+        
+        alert('✅ تم العثور على جلسة نقدية مفتوحة')
+        return
+      }
+
+      // Create new session
+      const { data, error } = await supabase
+        .from('cash_sessions')
+        .insert({
+          employee_id: actualEmployeeId,
+          warehouse_id: openWarehouseId,
+          opening_cash: openingCash,
+          opened_at: new Date().toISOString(),
+        })
+        .select()
+        .single()
+
+      if (error) throw error
+
+      localStorage.setItem(CASH_SESSION_KEY, data.id)
+      localStorage.setItem(EMPLOYEE_KEY, effectiveEmployeeId)
+      localStorage.setItem(WAREHOUSE_KEY, openWarehouseId)
+
+      setCashSession(data as CashSession)
+      setShowOpenCashModal(false)
+      setOpeningCashInput('')
+      if (!isEmployeeMode) {
+        setOpenEmployeeId('')
+      }
+      setOpenWarehouseId('')
+    } catch (error: any) {
+      console.error('Error opening cash session:', error)
+      if (error?.code === '23505') {
+        alert('❌ هذا الموظف لديه جلسة مفتوحة بالفعل')
+        return
+      }
+      alert('❌ حدث خطأ: ' + (error?.message || 'خطأ غير معروف'))
+    }
+  }
+
+  const handleCloseCashSession = async () => {
+    if (!cashSession) return
+
+    const declaredCash = Number(closingCashInput || 0)
+    if (Number.isNaN(declaredCash) || declaredCash < 0) {
+      alert('❌ مبلغ غير صالح')
+      return
+    }
+
+    const difference = declaredCash - cashSessionSummary.expectedCash
+    if (difference !== 0 && !closingNoteInput.trim()) {
+      alert('❌ يجب إضافة ملاحظة إذا كان هناك فرق')
+      return
+    }
+
+    try {
+      const { error: closeError } = await supabase
+        .from('cash_sessions')
+        .update({
+          closed_at: new Date().toISOString(),
+          closing_cash_declared: declaredCash,
+          closing_note: closingNoteInput.trim() || null,
+        })
+        .eq('id', cashSession.id)
+
+      if (closeError) throw closeError
+
+      const { error: reportError } = await supabase
+        .from('cash_session_reports')
+        .insert({
+          session_id: cashSession.id,
+          total_sales: cashSessionSummary.totalSales,
+          total_cash: cashSessionSummary.totalCash,
+          total_card: cashSessionSummary.totalCard,
+          total_transfer: cashSessionSummary.totalTransfer,
+          total_credit: cashSessionSummary.totalCredit,
+          expected_cash: cashSessionSummary.expectedCash,
+          declared_cash: declaredCash,
+          difference,
+        })
+
+      if (reportError) throw reportError
+
+      localStorage.removeItem(CASH_SESSION_KEY)
+      localStorage.removeItem(EMPLOYEE_KEY)
+      localStorage.removeItem(WAREHOUSE_KEY)
+
+      setCashSession(null)
+      setShowCloseCashModal(false)
+      setClosingCashInput('')
+      setClosingNoteInput('')
+      setShowOpenCashModal(true)
+    } catch (error) {
+      console.error('Error closing cash session:', error)
+      alert('❌ حدث خطأ')
+    }
+  }
+
+  const loadProducts = async () => {
+    try {
+      // Récupérer les produits avec leurs variants (prix réels)
+      const { data: products, error: productsError } = await supabase
+        .from('products')
+        .select('id, name_ar, sku, stock, price_a, price_b, price_c, price_d, price_e, category_id, image_url')
+        .eq('is_active', true)
+        .order('name_ar')
+      
+      if (productsError) {
+        console.error('Error loading products:', productsError)
+        return
+      }
+      
+      // Récupérer les variants pour avoir les vrais prix et stocks
+      const { data: variants, error: variantsError } = await supabase
+        .from('product_variants')
+        .select('product_id, price_a, price_b, price_c, price_d, price_e, stock, is_default')
+        .eq('is_active', true)
+        .in('product_id', (products || []).map(p => p.id))
+      
+      if (variantsError) {
+        console.error('Error loading variants:', variantsError)
+      }
+      
+      // Fusionner les données : utiliser les prix des variants si disponibles, sinon ceux du produit
+      const enrichedProducts = (products || []).map(product => {
+        const productVariants = (variants || []).filter(v => v.product_id === product.id)
+        const defaultVariant = productVariants.find(v => v.is_default) || productVariants[0]
+        
+        // Si un variant existe, utiliser ses prix (priorité)
+        if (defaultVariant) {
+          return {
+            ...product,
+            price_a: defaultVariant.price_a,
+            price_b: defaultVariant.price_b,
+            price_c: defaultVariant.price_c,
+            price_d: defaultVariant.price_d,
+            price_e: defaultVariant.price_e,
+            stock: defaultVariant.stock,
+            // Garder une trace de la source
+            _priceSource: 'variant',
+            _variantId: defaultVariant.product_id
+          }
+        }
+        
+        // Sinon utiliser les prix du produit
+        return {
+          ...product,
+          _priceSource: 'product'
+        }
+      })
+      
+      console.log('🔍 Products loaded:', enrichedProducts?.length, 'products')
+      if (enrichedProducts && enrichedProducts.length > 0) {
+        console.log('📋 First product prices:', {
+          name: enrichedProducts[0].name_ar,
+          source: enrichedProducts[0]._priceSource,
+          price_a: enrichedProducts[0].price_a,
+          price_e: enrichedProducts[0].price_e
+        })
+      }
+      
+      setProducts(enrichedProducts || [])
+    } catch (error) {
+      console.error('Error loading products:', error)
+    }
+  }
+
+  const loadCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('product_categories')
+        .select('*')
+        .order('name_ar')
+
+      if (error) throw error
+      
+      setCategories(data || [])
+    } catch (error) {
+      console.error('Error loading categories:', error)
+    }
+  }
+
+  const loadClients = async () => {
+    try {
+      console.log('🔍 Chargement des clients...')
+      const { data, error } = await supabase
+        .from('clients')
+        .select('*')
+
+      console.log('📊 Réponse clients:', { data, error })
+      
+      if (error) {
+        console.warn('❌ Error loading clients:', error)
+      } else {
+        console.log(`✅ ${data?.length || 0} clients chargés`)
+        console.log('📋 Structure du premier client:', JSON.stringify(data?.[0], null, 2))
+        setClients(data || [])
+      }
+    } catch (error) {
+      console.error('❌ Exception loading clients:', error)
+      // Set empty clients array to prevent crashes
+      setClients([])
+    }
+  }
+
+  const loadOnHoldInvoices = async () => {
+    try {
+      console.log('🔍 Chargement des factures en attente...')
+      const baseQuery = supabase
+        .from('invoices')
+        .select('*')
+
+      const { data, error } = await (isEmployeeMode && employeeIdFromAuth
+        ? baseQuery.eq('employee_id', employeeIdFromAuth).order('created_at', { ascending: false }).limit(10)
+        : baseQuery.order('created_at', { ascending: false }).limit(10)) // Limit to recent invoices
+
+      if (error) {
+        console.error('Error loading on hold invoices:', error)
+        return
+      }
+      
+      console.log('📋 Factures en attente récupérées:', data?.length || 0)
+      setOnHoldInvoices(data || [])
+    } catch (error) {
+      console.error('❌ Exception loading on hold invoices:', error)
+      setOnHoldInvoices([])
+    }
+  }
+
+  const filteredProducts = products.filter(p =>
+    p.name_ar?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    p.barcode?.includes(searchQuery)
+  ).filter(p => {
+    if (selectedCategory && p.category_id !== selectedCategory) return false
+    return true
+  })
+
+  const getProductPrice = (item: Product | CartItem) => {
+    // Si c'est un CartItem et a un prix personnalisé, l'utiliser
+    if ('customPrice' in item && item.customPrice) {
+      return item.customPrice
+    }
+
+    // Helper: obtenir le premier prix non nul parmi les tiers
+    const getFirstNonZeroPrice = (prices: number[]) => {
+      for (const price of prices) {
+        if (price && price > 0) return price
+      }
+      return null
+    }
+
+    // Si aucun client n'est sélectionné, utiliser price_e (ou fallback)
+    if (!selectedClient) {
+      console.log('🔴 Aucun client sélectionné, prix E:', item.price_e, 'fallback prix A:', item.price_a)
+      const fallback = getFirstNonZeroPrice([item.price_e, item.price_a, item.price_b, item.price_c, item.price_d])
+      if (fallback) {
+        console.log('✅ Fallback trouvé:', fallback)
+        return fallback
+      }
+      console.log('⚠️ Tous les prix sont à 0, prix par défaut: 10.00')
+      return 10.00 // Prix par défaut si tout est à 0
+    }
+    
+    // Déterminer le prix selon la catégorie du client
+    const clientCategory = selectedClient.subscription_tier || selectedClient.subscription_tier_old
+    console.log('🔍 Catégorie client:', {
+      selectedClient: selectedClient.id,
+      subscription_tier: selectedClient.subscription_tier,
+      subscription_tier_old: selectedClient.subscription_tier_old,
+      clientCategory: clientCategory,
+      type: typeof clientCategory
+    })
+    
+    if (!clientCategory) {
+      console.log('🔴 Pas de catégorie, prix E:', item.price_e, 'fallback prix A:', item.price_a)
+      const fallback = getFirstNonZeroPrice([item.price_e, item.price_a, item.price_b, item.price_c, item.price_d])
+      if (fallback) {
+        console.log('✅ Fallback trouvé:', fallback)
+        return fallback
+      }
+      console.log('⚠️ Tous les prix sont à 0, prix par défaut: 10.00')
+      return 10.00
+    }
+    
+    // Les catégories sont : A, B, C, D, E
+    let price = 0
+    switch (clientCategory) {
+      case 'A':
+        price = getFirstNonZeroPrice([item.price_a, item.price_b, item.price_c, item.price_d, item.price_e]) || 10.00
+        console.log('✅ Catégorie A, prix:', price)
+        break
+      case 'B':
+        price = getFirstNonZeroPrice([item.price_b, item.price_a, item.price_c, item.price_d, item.price_e]) || 10.00
+        console.log('✅ Catégorie B, prix:', price)
+        break
+      case 'C':
+        price = getFirstNonZeroPrice([item.price_c, item.price_a, item.price_b, item.price_d, item.price_e]) || 10.00
+        console.log('✅ Catégorie C, prix:', price)
+        break
+      case 'D':
+        price = getFirstNonZeroPrice([item.price_d, item.price_a, item.price_b, item.price_c, item.price_e]) || 10.00
+        console.log('✅ Catégorie D, prix:', price)
+        break
+      case 'E':
+        price = getFirstNonZeroPrice([item.price_e, item.price_a, item.price_b, item.price_c, item.price_d]) || 10.00
+        console.log('✅ Catégorie E, prix:', price)
+        break
+      default:
+        console.log('⚠️ Catégorie inconnue:', clientCategory, ', prix E par défaut:', item.price_e, 'fallback prix A:', item.price_a)
+        price = getFirstNonZeroPrice([item.price_e, item.price_a, item.price_b, item.price_c, item.price_d]) || 10.00
+    }
+    
+    return price
+  }
+
+  // Générer numéro de facture unique
+  const generateInvoiceNumber = () => {
+    const date = new Date()
+    const dateStr = date.toISOString().split('T')[0].replace(/-/g, '')
+    const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0')
+    return `INV-${dateStr}-${random}`
+  }
+
+  // Créer une nouvelle facture en cours
+  const createNewInvoice = () => {
+    const newInvoiceNumber = generateInvoiceNumber()
+    setInvoiceNumber(newInvoiceNumber)
+    
+    const newInvoice: Invoice = {
+      id: `draft-${Date.now()}`,
+      invoice_number: newInvoiceNumber,
+      client_id: selectedClient?.id || null,
+      client_name: selectedClient?.company_name_ar || 'زبون نقدي',
+      status: 'paid', // Par défaut : payé
+      lines: [],
+      subtotal: 0,
+      total_amount: 0,
+      paid_amount: 0,
+      remaining_amount: 0,
+      created_at: new Date().toISOString()
+    }
+    
+    setCurrentInvoice(newInvoice)
+    return newInvoice
+  }
+
+  // Ajouter un produit à la facture en cours
+  const addToInvoice = (product: Product) => {
+    // Créer une facture si elle n'existe pas
+    let invoice = currentInvoice
+    if (!invoice) {
+      invoice = createNewInvoice()
+    }
+
+    const unitPrice = getProductPrice(product)
+    const existingLine = invoice.lines.find(line => line.product_id === product.id)
+
+    if (existingLine) {
+      // Si la ligne était supprimée, la restaurer
+      if (existingLine.deleted) {
+        existingLine.deleted = false
+        existingLine.quantity = 1
+      } else {
+        // Augmenter la quantité
+        existingLine.quantity += 1
+      }
+      existingLine.total = existingLine.quantity * existingLine.unit_price
+    } else {
+      // Ajouter une nouvelle ligne
+      const newLine: InvoiceLine = {
+        id: `line-${Date.now()}-${Math.random()}`,
+        product_id: product.id,
+        product_name_ar: product.name_ar,
+        quantity: 1,
+        unit_price: unitPrice,
+        total: unitPrice,
+        deleted: false,
+        image_url: product.image_url
+      }
+      invoice.lines.push(newLine)
+    }
+
+    // Recalculer les totaux
+    invoice.subtotal = invoice.lines.reduce((sum, line) => (line.deleted ? sum : sum + line.total), 0)
+    invoice.total_amount = invoice.subtotal
+    invoice.remaining_amount = invoice.total_amount - invoice.paid_amount
+
+    setCurrentInvoice({ ...invoice })
+  }
+
+  // Mettre à jour la quantité d'une ligne
+  const updateInvoiceLineQuantity = (lineId: string, quantity: number) => {
+    if (!currentInvoice) return
+
+    const line = currentInvoice.lines.find(l => l.id === lineId)
+    if (line && !line.deleted && quantity > 0) {
+      line.quantity = quantity
+      line.total = line.quantity * line.unit_price
+
+      // Recalculer les totaux
+      currentInvoice.subtotal = currentInvoice.lines.reduce((sum, l) => (l.deleted ? sum : sum + l.total), 0)
+      currentInvoice.total_amount = currentInvoice.subtotal
+      currentInvoice.remaining_amount = currentInvoice.total_amount - currentInvoice.paid_amount
+
+      setCurrentInvoice({ ...currentInvoice })
+    }
+  }
+
+  // Supprimer une ligne de la facture
+  const removeInvoiceLine = (lineId: string) => {
+    if (!currentInvoice) return
+
+    const line = currentInvoice.lines.find(l => l.id === lineId)
+    if (!line) return
+
+    // Soft delete: garder la ligne mais la barrer
+    line.deleted = true
+    line.quantity = 0
+    line.total = 0
+
+    // Recalculer les totaux
+    currentInvoice.subtotal = currentInvoice.lines.reduce((sum, l) => (l.deleted ? sum : sum + l.total), 0)
+    currentInvoice.total_amount = currentInvoice.subtotal
+    currentInvoice.remaining_amount = currentInvoice.total_amount - currentInvoice.paid_amount
+
+    setCurrentInvoice({ ...currentInvoice })
+  }
+
+  const restoreInvoiceLine = (lineId: string) => {
+    if (!currentInvoice) return
+
+    const line = currentInvoice.lines.find(l => l.id === lineId)
+    if (!line) return
+
+    line.deleted = false
+    line.quantity = 1
+    line.total = line.quantity * line.unit_price
+
+    currentInvoice.subtotal = currentInvoice.lines.reduce((sum, l) => (l.deleted ? sum : sum + l.total), 0)
+    currentInvoice.total_amount = currentInvoice.subtotal
+    currentInvoice.remaining_amount = currentInvoice.total_amount - currentInvoice.paid_amount
+
+    setCurrentInvoice({ ...currentInvoice })
+  }
+
+  // Mettre à jour le montant payé et calculer le statut
+  const updatePaidAmount = (amount: number) => {
+    if (!currentInvoice) return
+
+    currentInvoice.paid_amount = amount
+    currentInvoice.remaining_amount = currentInvoice.total_amount - amount
+
+    // Déterminer le statut automatiquement
+    if (amount === 0) {
+      currentInvoice.status = 'credit'
+    } else if (amount < currentInvoice.total_amount) {
+      currentInvoice.status = 'partial'
+    } else {
+      currentInvoice.status = 'paid'
+    }
+
+    setCurrentInvoice({ ...currentInvoice })
+    setPaidAmount(amount)
+  }
+
+  // Calculer le montant avec TVA
+  const calculateWithTVA = (amount: number) => {
+    if (!enableTVA) return amount
+    return amount * (1 + tvaRate / 100)
+  }
+
+  // Calculer le montant de TVA
+  const calculateTVA = (amount: number) => {
+    if (!enableTVA) return 0
+    return amount * (tvaRate / 100)
+  }
+
+  // Mettre à jour automatiquement le montant payé avec le total
+  useEffect(() => {
+    if (currentInvoice && currentInvoice.status === 'paid') {
+      updatePaidAmount(currentInvoice.total_amount)
+    }
+  }, [currentInvoice?.total_amount, currentInvoice?.status])
+
+  const addToCart = (product: Product) => {
+    const existing = cart.find(item => item.id === product.id && !item.deleted)
+    if (existing) {
+      setCart(cart.map(item =>
+        item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+      ))
+    } else {
+      setCart([...cart, { ...product, quantity: 1, deleted: false }])
+    }
+  }
+
+  const updateQuantity = (productId: string, delta: number) => {
+    setCart(cart.map(item => {
+      if (item.id === productId) {
+        const newQty = item.quantity + delta
+        return newQty > 0 ? { ...item, quantity: newQty } : item
+      }
+      return item
+    }).filter(item => item.quantity > 0))
+  }
+
+  const removeFromCart = (productId: string) => {
+    setCart(cart.map(item =>
+      item.id === productId ? { ...item, deleted: true } : item
+    ))
+  }
+
+  const restoreFromCart = (productId: string) => {
+    setCart(cart.map(item =>
+      item.id === productId ? { ...item, deleted: false } : item
+    ))
+  }
+
+  const clearCart = () => {
+    if (cart.length === 0) return
+    if (confirm('هل تريد بالتأكيد تفريغ السلة؟')) {
+      setCart([])
+      setSelectedClient(null)
+      setPaidAmount(0)
+    }
+  }
+
+  const handleAddClient = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!clientFormData.company_name_ar.trim() || !clientFormData.contact_person_name.trim()) {
+      alert('الرجاء إدخال اسم الشركة واسم جهة الاتصال')
+      return
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('clients')
+        .insert([clientFormData])
+        .select()
+        .single()
+
+      if (error) throw error
+
+      // Sélectionner le nouveau client
+      setSelectedClient(data)
+      setShowAddClientModal(false)
+      setShowClientModal(false)
+      
+      // Réinitialiser le formulaire
+      setClientFormData({
+        company_name_ar: '',
+        company_name_en: '',
+        contact_person_name: '',
+        contact_person_email: '',
+        contact_person_phone: '',
+        address: '',
+        subscription_tier: 'E',
+      })
+      
+      // Recharger les clients
+      await loadClients()
+      
+      alert('✅ تم إضافة العميل بنجاح')
+    } catch (error) {
+      console.error('Error adding client:', error)
+      alert('❌ حدث خطأ أثناء إضافة العميل')
+    }
+  }
+
+  const total = cart.reduce((sum, item) => {
+    if (item.deleted) return sum
+    return sum + (getProductPrice(item) * item.quantity)
+  }, 0)
+  const remaining = total - paidAmount
+
+  useEffect(() => {
+    // Mettre à jour le montant payé par défaut avec le total
+    if (paymentStatus === 'paid') {
+      setPaidAmount(total)
+    }
+  }, [total, paymentStatus])
+
+  const putOnHold = async () => {
+    if (cart.length === 0) return
+
+    const draft: Draft = {
+      id: crypto.randomUUID(),
+      client_id: selectedClient?.id || null,
+      client_name: selectedClient?.company_name_ar || selectedClient?.client_name || null,
+      items: [...cart],
+      total: total,
+      created_at: new Date().toISOString()
+    }
+
+    const updatedDrafts = [draft, ...drafts]
+    setDrafts(updatedDrafts)
+    localStorage.setItem('pos_drafts', JSON.stringify(updatedDrafts))
+
+    // Clear cart
+    setCart([])
+    setSelectedClient(null)
+    setPaidAmount(0)
+
+    alert('Vente mise en attente avec succès!')
+  }
+
+  const resumeDraft = (draft: Draft) => {
+    setCart(draft.items)
+    setSelectedClient(clients.find(c => c.id === draft.client_id) || null)
+    setPaidAmount(0)
+    setShowDraftsModal(false)
+
+    // Remove from drafts
+    const updatedDrafts = drafts.filter(d => d.id !== draft.id)
+    setDrafts(updatedDrafts)
+    localStorage.setItem('pos_drafts', JSON.stringify(updatedDrafts))
+  }
+
+  const deleteDraft = (draftId: string) => {
+    const updatedDrafts = drafts.filter(d => d.id !== draftId)
+    setDrafts(updatedDrafts)
+    localStorage.setItem('pos_drafts', JSON.stringify(updatedDrafts))
+  }
+
+  useEffect(() => {
+    const savedDrafts = localStorage.getItem('pos_drafts')
+    if (savedDrafts) {
+      setDrafts(JSON.parse(savedDrafts))
+    }
+  }, [])
+
+  const handleEditItemConfirm = () => {
+    if (!editingItem) return
+
+    const newQty = parseInt(editQuantity)
+    const newPrice = parseFloat(editPrice)
+
+    if (newQty > 0 && !isNaN(newQty) && newPrice > 0 && !isNaN(newPrice)) {
+      setCart(cart.map(item =>
+        item.id === editingItem.id ? { ...item, quantity: newQty, customPrice: newPrice } : item
+      ))
+      setShowEditItemModal(false)
+      setEditingItem(null)
+      setEditQuantity('')
+      setEditPrice('')
+    }
+  }
+
+  const handleEditItemCancel = () => {
+    setShowEditItemModal(false)
+    setEditingItem(null)
+    setEditQuantity('')
+    setEditPrice('')
+  }
+
+  const handleEditInvoiceLineConfirm = () => {
+    if (!currentInvoice || !editingInvoiceLine) return
+
+    const newQty = parseInt(editLineQuantity)
+    const newPrice = parseFloat(editLinePrice)
+
+    if (newQty > 0 && !isNaN(newQty) && newPrice >= 0 && !isNaN(newPrice)) {
+      const line = currentInvoice.lines.find(l => l.id === editingInvoiceLine.id)
+      if (!line) return
+
+      line.quantity = newQty
+      line.unit_price = newPrice
+      line.total = newQty * newPrice
+
+      // Recalculer les totaux
+      currentInvoice.subtotal = currentInvoice.lines.reduce((sum, l) => sum + l.total, 0)
+      currentInvoice.total_amount = currentInvoice.subtotal
+      currentInvoice.remaining_amount = currentInvoice.total_amount - currentInvoice.paid_amount
+
+      setCurrentInvoice({ ...currentInvoice })
+      setShowEditInvoiceLineModal(false)
+      setEditingInvoiceLine(null)
+      setEditLineQuantity('')
+      setEditLinePrice('')
+    }
+  }
+
+  const handleEditInvoiceLineCancel = () => {
+    setShowEditInvoiceLineModal(false)
+    setEditingInvoiceLine(null)
+    setEditLineQuantity('')
+    setEditLinePrice('')
+  }
+
+  const openEditInvoiceLineModal = (line: InvoiceLine) => {
+    setEditingInvoiceLine(line)
+    setEditLineQuantity(line.quantity.toString())
+    setEditLinePrice(line.unit_price.toFixed(2))
+    setShowEditInvoiceLineModal(true)
+  }
+
+  const openEditItemModal = (item: CartItem) => {
+    setEditingItem(item)
+    setEditQuantity(item.quantity.toString())
+    setEditPrice((item.customPrice || getProductPrice(item)).toFixed(2))
+    setShowEditItemModal(true)
+  }
+
+  // Ouvrir le modal de confirmation
+  const handleCheckout = () => {
+    if (!cashSession) {
+      setShowOpenCashModal(true)
+      alert('❌ يجب فتح النقدية قبل البيع')
+      return
+    }
+
+    if (!currentInvoice || currentInvoice.lines.length === 0) return
+
+    // Afficher la facture NON confirmée (avec option TVA)
+    setShowConfirmationModal(true)
+  }
+
+  // Confirmer et traiter la vente
+  const confirmSale = async () => {
+    if (!currentInvoice) return
+    
+    // Afficher le modal de confirmation avec TVA au lieu de confirmer directement
+    setShowConfirmationModal(true)
+  }
+
+  // Traiter la vente après confirmation TVA
+  const processSaleAfterTVA = async () => {
+    if (!currentInvoice) return
+
+    if (!cashSession) {
+      setShowOpenCashModal(true)
+      alert('❌ يجب فتح النقدية قبل البيع')
+      return
+    }
+
+    try {
+      // Déterminer le client
+      let clientId = selectedClient?.id
+      if (!clientId) {
+        const { data: generalClient } = await supabase
+          .from('clients')
+          .select('id')
+          .eq('company_name_ar', 'عميل عام')
+          .maybeSingle()
+        
+        if (generalClient) {
+          clientId = generalClient.id
+        } else {
+          const { data: newClient } = await supabase
+            .from('clients')
+            .insert({
+              company_name_ar: 'عميل عام',
+              company_name_en: 'General Client'
+            })
+            .select()
+            .single()
+          clientId = newClient?.id
+        }
+      }
+
+      // Créer la facture directement (sans créer de commande pour les ventes en caisse)
+      let invoiceNumber = currentInvoice.invoice_number
+
+      const buildInvoiceInsert = (num: string) => ({
+        invoice_number: num,
+        order_id: null, // Pas de commande pour les ventes directes en caisse
+        client_id: clientId,
+        invoice_date: new Date().toISOString(),
+        due_date: new Date().toISOString(),
+        subtotal: currentInvoice.subtotal,
+        total_amount: currentInvoice.total_amount,
+        paid_amount: currentInvoice.paid_amount,
+        cash_session_id: cashSession.id,
+        employee_id: cashSession.employee_id,
+        warehouse_id: cashSession.warehouse_id,
+        status: currentInvoice.status === 'credit' ? 'draft' : 
+                currentInvoice.status === 'partial' ? 'sent' :
+                currentInvoice.status === 'paid' ? 'paid' : 'draft',
+        items: currentInvoice.lines.filter(line => !line.deleted).map(line => ({
+          product_id: line.product_id,
+          product_name: line.product_name_ar,
+          quantity: line.quantity,
+          unit_price: line.unit_price,
+          total: line.total
+        }))
+      })
+
+      let { data: invoice, error: invoiceError } = await supabase
+        .from('invoices')
+        .insert(buildInvoiceInsert(invoiceNumber))
+        .select()
+        .single()
+
+      if (invoiceError && (invoiceError as any).code === '23505') {
+        invoiceNumber = `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`
+
+        const retry = await supabase
+          .from('invoices')
+          .insert(buildInvoiceInsert(invoiceNumber))
+          .select()
+          .single()
+
+        invoice = retry.data
+        invoiceError = retry.error
+      }
+
+      if (invoiceError) throw invoiceError
+
+      // Temporairement désactivé à cause de la politique RLS (42501)
+      // Les données sont déjà sauvegardées dans invoices.items (JSON)
+      /*
+      // Créer les lignes de facture
+      const { error: itemsError } = await supabase
+        .from('invoice_items')
+        .insert(
+          currentInvoice.lines.filter(line => !line.deleted).map(line => ({
+            invoice_id: invoice.id,
+            description_ar: line.product_name_ar,
+            quantity: line.quantity,
+            unit_price: line.unit_price,
+            tax_rate: 0,
+            tax_amount: 0,
+            line_total: line.total
+          }))
+        )
+
+      if (itemsError) throw itemsError
+      */
+
+      // Créer l'enregistrement de paiement si payé
+      if (currentInvoice.paid_amount > 0) {
+        // Unified payment method values: cash, check, card, bank_transfer, credit
+        const normalizedPaymentMethod = paymentMethod === 'cash' ? 'cash'
+          : paymentMethod === 'check' ? 'check'
+          : paymentMethod === 'card' ? 'card'
+          : paymentMethod === 'bank_transfer' ? 'bank_transfer'
+          : paymentMethod === 'credit' ? 'credit'
+          : 'cash' // default fallback
+
+        const { error: paymentError } = await supabase
+          .from('payments')
+          .insert({
+            invoice_id: invoice.id,
+            client_id: clientId,
+            payment_number: `PAY-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            amount: currentInvoice.paid_amount,
+            payment_method: normalizedPaymentMethod,
+            payment_date: new Date().toISOString(),
+            status: 'completed',
+            order_id: null, // Pas de commande pour les ventes directes en caisse
+            cash_session_id: cashSession.id,
+            collected_by: cashSession.employee_id,
+          })
+
+        if (paymentError) throw paymentError
+      }
+
+      // Mettre à jour le stock
+      for (const line of currentInvoice.lines.filter(line => !line.deleted)) {
+        const { data: product } = await supabase
+          .from('products')
+          .select('stock')
+          .eq('id', line.product_id)
+          .single()
+
+        if (product) {
+          await supabase
+            .from('products')
+            .update({ stock: product.stock - line.quantity })
+            .eq('id', line.product_id)
+        }
+      }
+
+      // Créer la facture finale avec TVA
+      const finalInvoice = {
+        ...currentInvoice,
+        id: invoice.id,
+        invoice_number: invoiceNumber,
+        total_with_tva: calculateWithTVA(currentInvoice.total_amount),
+        tva_amount: calculateTVA(currentInvoice.total_amount),
+        enable_tva: enableTVA,
+        tva_rate: tvaRate
+      }
+
+      // Afficher la facture et la popup d'impression
+      setConfirmedInvoice(finalInvoice)
+      setShowConfirmationModal(false)
+      setShowInvoiceModal(true)
+      setShowPrintTypeModal(true)
+      
+      // Réinitialiser pour la prochaine vente
+      setCurrentInvoice(null)
+      setInvoiceNumber('')
+      setSelectedClient(null)
+      setPaidAmount(0)
+      await loadProducts()
+      await refreshCashSessionSummary(cashSession.id)
+    } catch (error) {
+      console.error('Error:', error)
+      alert('❌ حدث خطأ')
+    }
+  }
+
+  // Fonction d'impression adaptée selon le type
+  const handlePrint = (type: 'invoice' | 'ticket' | 'order') => {
+    if (!confirmedInvoice) return
+
+    // Créer le contenu HTML selon le type
+    let printContent = ''
+    
+    if (type === 'invoice') {
+      // Facture A4 - Format complet
+      printContent = `
+        <div style="direction: rtl; font-family: Arial, sans-serif; color: black; max-width: 210mm; margin: 0 auto; padding: 20px;">
+          <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid black; padding-bottom: 20px;">
+            <h1 style="font-size: 28px; margin: 0; color: black;">${companyInfo.company_name_ar || companyInfo.company_name || 'BA9ALINO'}</h1>
+            ${companyInfo.ice ? `<p style="margin: 5px 0; color: black;">ICE: ${companyInfo.ice}</p>` : ''}
+            ${companyInfo.address_ar ? `<p style="margin: 5px 0; color: black;">${companyInfo.address_ar}</p>` : '<p style="margin: 5px 0; color: black;">المغرب - الدار البيضاء</p>'}
+            ${companyInfo.phone ? `<p style="margin: 5px 0; color: black;">الهاتف: ${companyInfo.phone}</p>` : '<p style="margin: 5px 0; color: black;">الهاتف: 0123456789</p>'}
+            ${companyInfo.email ? `<p style="margin: 5px 0; color: black;">البريد الإلكتروني: ${companyInfo.email}</p>` : '<p style="margin: 5px 0; color: black;">البريد الإلكتروني: info@ba9alino.ma</p>'}
+          </div>
+          
+          <div style="display: flex; justify-content: space-between; margin-bottom: 30px;">
+            <div style="text-align: right;">
+              <p style="margin: 5px 0; color: black;"><strong>رقم الفاتورة:</strong> ${confirmedInvoice.invoice_number}</p>
+              <p style="margin: 5px 0; color: black;"><strong>التاريخ:</strong> ${new Date(confirmedInvoice.created_at).toLocaleDateString('ar-DZ')}</p>
+            </div>
+            <div style="text-align: left;">
+              <p style="margin: 5px 0; color: black;"><strong>العميل:</strong> ${confirmedInvoice.client_name}</p>
+            </div>
+          </div>
+          
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+            <thead>
+              <tr style="background: #f0f0f0; border: 1px solid black;">
+                <th style="border: 1px solid black; padding: 10px; text-align: center;">الكمية</th>
+                <th style="border: 1px solid black; padding: 10px; text-align: center;">الوحدة</th>
+                <th style="border: 1px solid black; padding: 10px; text-align: right;">السلعة</th>
+                <th style="border: 1px solid black; padding: 10px; text-align: left;">الثمن</th>
+                <th style="border: 1px solid black; padding: 10px; text-align: left;">المجموع</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${confirmedInvoice.lines.filter(l => !l.deleted).map(line => `
+                <tr style="border: 1px solid black;">
+                  <td style="border: 1px solid black; padding: 8px; text-align: center;">${line.quantity}</td>
+                  <td style="border: 1px solid black; padding: 8px; text-align: center;">وحدة</td>
+                  <td style="border: 1px solid black; padding: 8px; text-align: right;">${line.product_name_ar}</td>
+                  <td style="border: 1px solid black; padding: 8px; text-align: left;">${line.unit_price.toFixed(2)} MAD</td>
+                  <td style="border: 1px solid black; padding: 8px; text-align: left; font-weight: bold;">${line.total.toFixed(2)} MAD</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          
+          <div style="text-align: left; width: 50%; margin-left: auto;">
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr style="border: 1px solid black;">
+                <td style="border: 1px solid black; padding: 8px; text-align: right;">الإجمالي:</td>
+                <td style="border: 1px solid black; padding: 8px; text-align: left; font-weight: bold;">${confirmedInvoice.subtotal.toFixed(2)} MAD</td>
+              </tr>
+              ${confirmedInvoice.enable_tva ? `
+                <tr style="border: 1px solid black;">
+                  <td style="border: 1px solid black; padding: 8px; text-align: right;">ضريبة القيمة المضافة (${confirmedInvoice.tva_rate}%):</td>
+                  <td style="border: 1px solid black; padding: 8px; text-align: left; font-weight: bold;">${confirmedInvoice.tva_amount.toFixed(2)} MAD</td>
+                </tr>
+              ` : ''}
+              <tr style="border: 1px solid black; background: #f0f0f0;">
+                <td style="border: 1px solid black; padding: 10px; text-align: right; font-weight: bold;">${confirmedInvoice.enable_tva ? 'المجموع مع الضريبة:' : 'المجموع:'}</td>
+                <td style="border: 1px solid black; padding: 10px; text-align: left; font-weight: bold; font-size: 16px;">${confirmedInvoice.total_with_tva.toFixed(2)} MAD</td>
+              </tr>
+              <tr style="border: 1px solid black;">
+                <td style="border: 1px solid black; padding: 8px; text-align: right;">الدفع:</td>
+                <td style="border: 1px solid black; padding: 8px; text-align: left; font-weight: bold;">${confirmedInvoice.paid_amount.toFixed(2)} MAD</td>
+              </tr>
+              <tr style="border: 1px solid black;">
+                <td style="border: 1px solid black; padding: 8px; text-align: right;">الباقي:</td>
+                <td style="border: 1px solid black; padding: 8px; text-align: left; font-weight: bold; color: ${confirmedInvoice.total_with_tva - confirmedInvoice.paid_amount > 0 ? 'red' : 'green'};">${(confirmedInvoice.total_with_tva - confirmedInvoice.paid_amount).toFixed(2)} MAD</td>
+              </tr>
+            </table>
+          </div>
+          
+          <div style="text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid black;">
+            <p style="margin: 5px 0; color: black;">شكرا لثقتكم بنا</p>
+          </div>
+        </div>
+      `
+    } else if (type === 'ticket') {
+      // Ticket 80mm - Format compact
+      printContent = `
+        <div style="direction: rtl; font-family: monospace; color: black; max-width: 80mm; margin: 0 auto; padding: 10px; font-size: 12px;">
+          <div style="text-align: center; margin-bottom: 15px;">
+            <h1 style="font-size: 18px; margin: 0; color: black;">${companyInfo.company_name_ar || companyInfo.company_name || 'BA9ALINO'}</h1>
+            ${companyInfo.address_ar ? `<p style="margin: 2px 0; color: black; font-size: 10px;">${companyInfo.address_ar}</p>` : '<p style="margin: 2px 0; color: black; font-size: 10px;">المغرب - الدار البيضاء</p>'}
+            ${companyInfo.phone ? `<p style="margin: 2px 0; color: black; font-size: 10px;">الهاتف: ${companyInfo.phone}</p>` : ''}
+          </div>
+          
+          <div style="border-bottom: 1px dashed black; padding-bottom: 10px; margin-bottom: 10px;">
+            <p style="margin: 2px 0; color: black;"><strong>رقم:</strong> ${confirmedInvoice.invoice_number}</p>
+            <p style="margin: 2px 0; color: black;"><strong>التاريخ:</strong> ${new Date(confirmedInvoice.created_at).toLocaleDateString('ar-DZ')}</p>
+            <p style="margin: 2px 0; color: black;"><strong>العميل:</strong> ${confirmedInvoice.client_name}</p>
+          </div>
+          
+          <div style="margin-bottom: 10px;">
+            ${confirmedInvoice.lines.filter(l => !l.deleted).map(line => `
+              <div style="margin-bottom: 5px;">
+                <div style="display: flex; justify-content: space-between;">
+                  <span style="color: black;">${line.product_name_ar}</span>
+                  <span style="color: black;">${line.total.toFixed(2)} MAD</span>
+                </div>
+                <div style="font-size: 10px; color: black;">
+                  ${line.quantity} × ${line.unit_price.toFixed(2)} MAD
+                </div>
+              </div>
+            `).join('')}
+          </div>
+          
+          <div style="border-top: 1px dashed black; padding-top: 10px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+              <span style="color: black;">الإجمالي:</span>
+              <span style="color: black;">${confirmedInvoice.subtotal.toFixed(2)} MAD</span>
+            </div>
+            ${confirmedInvoice.enable_tva ? `
+              <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+                <span style="color: black;">TVA (${confirmedInvoice.tva_rate}%):</span>
+                <span style="color: black;">${confirmedInvoice.tva_amount.toFixed(2)} MAD</span>
+              </div>
+            ` : ''}
+            <div style="display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 2px;">
+              <span style="color: black;">المجموع:</span>
+              <span style="color: black;">${confirmedInvoice.total_with_tva.toFixed(2)} MAD</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
+              <span style="color: black;">الدفع:</span>
+              <span style="color: black;">${confirmedInvoice.paid_amount.toFixed(2)} MAD</span>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+              <span style="color: black; ${confirmedInvoice.total_with_tva - confirmedInvoice.paid_amount > 0 ? 'color: red;' : 'color: green;'}">الباقي:</span>
+              <span style="color: black; ${confirmedInvoice.total_with_tva - confirmedInvoice.paid_amount > 0 ? 'color: red;' : 'color: green;'}">${(confirmedInvoice.total_with_tva - confirmedInvoice.paid_amount).toFixed(2)} MAD</span>
+            </div>
+          </div>
+          
+          <div style="text-align: center; margin-top: 15px; padding-top: 10px; border-top: 1px dashed black;">
+            <p style="margin: 2px 0; color: black; font-size: 10px;">شكرا لثقتكم بنا</p>
+          </div>
+        </div>
+      `
+    } else if (type === 'order') {
+      // Commande - Format simplifié
+      printContent = `
+        <div style="direction: rtl; font-family: Arial, sans-serif; color: black; max-width: 80mm; margin: 0 auto; padding: 15px;">
+          <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid black; padding-bottom: 10px;">
+            <h1 style="font-size: 20px; margin: 0; color: black;">طلب شراء</h1>
+            <p style="margin: 5px 0; color: black;">${companyInfo.company_name_ar || companyInfo.company_name || 'BA9ALINO'}</p>
+          </div>
+          
+          <div style="margin-bottom: 15px;">
+            <p style="margin: 3px 0; color: black;"><strong>رقم الطلب:</strong> ${confirmedInvoice.invoice_number}</p>
+            <p style="margin: 3px 0; color: black;"><strong>التاريخ:</strong> ${new Date(confirmedInvoice.created_at).toLocaleDateString('ar-DZ')}</p>
+            <p style="margin: 3px 0; color: black;"><strong>العميل:</strong> ${confirmedInvoice.client_name}</p>
+          </div>
+          
+          <div style="margin-bottom: 15px;">
+            <h3 style="margin: 5px 0; color: black; text-decoration: underline;">المنتجات:</h3>
+            ${confirmedInvoice.lines.filter(l => !l.deleted).map((line, index) => `
+              <div style="margin-bottom: 8px; padding: 5px; border-bottom: 1px dotted black;">
+                <div style="color: black; font-weight: bold;">${index + 1}. ${line.product_name_ar}</div>
+                <div style="color: black; font-size: 12px;">الكمية: ${line.quantity} | الثمن: ${line.unit_price.toFixed(2)} MAD | الإجمالي: ${line.total.toFixed(2)} MAD</div>
+              </div>
+            `).join('')}
+          </div>
+          
+          <div style="border-top: 2px solid black; padding-top: 10px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+              <span style="color: black;">الإجمالي:</span>
+              <span style="color: black;">${confirmedInvoice.subtotal.toFixed(2)} MAD</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+              <span style="color: black;">الدفع:</span>
+              <span style="color: black;">${confirmedInvoice.paid_amount.toFixed(2)} MAD</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 16px;">
+              <span style="color: black;">الباقي:</span>
+              <span style="color: black;">${(confirmedInvoice.total_with_tva - confirmedInvoice.paid_amount).toFixed(2)} MAD</span>
+            </div>
+          </div>
+          
+          <div style="text-align: center; margin-top: 20px;">
+            <p style="margin: 5px 0; color: black;">_________________________</p>
+            <p style="margin: 5px 0; color: black; font-size: 12px;">توقيع العميل</p>
+          </div>
+        </div>
+      `
+    }
+
+    // Créer une fenêtre d'impression
+    const printWindow = window.open('', '_blank')
+    if (printWindow) {
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>${type === 'invoice' ? 'فاتورة' : type === 'ticket' ? 'تذكرة' : 'طلب'}</title>
+          <style>
+            @media print {
+              body { margin: 0; }
+              @page { ${type === 'invoice' ? 'margin: 10mm;' : 'margin: 5mm;'} }
+            }
+          </style>
+        </head>
+        <body>
+          ${printContent}
+        </body>
+        </html>
+      `)
+      printWindow.document.close()
+      printWindow.focus()
+      
+      // Attendre que le contenu soit chargé avant d'imprimer
+      setTimeout(() => {
+        printWindow.print()
+        // Ne pas fermer automatiquement la popup de choix d'impression
+        // L'utilisateur la fermera manuellement avec le bouton "غلق"
+      }, 500)
+    }
+  }
+
+  const cashierName = cashSession
+    ? (employees.find(e => e.id === cashSession.employee_id)?.name || '')
+    : ''
+  const warehouseName = cashSession
+    ? (warehouses.find(w => w.id === cashSession.warehouse_id)?.name || '')
+    : ''
+
+  return (
+    <div className="h-screen flex gap-4 overflow-hidden relative" dir="rtl">
+      {cashSession && showSessionDashboard && (
+        <div className="absolute top-3 left-3 z-50 bg-white rounded-xl shadow-lg p-4 w-[360px]">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-sm font-bold text-gray-800">👤 {cashierName}</div>
+            <div className="text-sm font-bold text-gray-800">🏬 {warehouseName}</div>
+          </div>
+          <button
+            onClick={() => setShowSessionDashboard(false)}
+            className="w-full mb-3 bg-gray-100 hover:bg-gray-200 text-gray-800 py-2 rounded-lg font-bold text-sm"
+          >
+            إخفاء لوحة الجلسة
+          </button>
+          <div className="text-xs text-gray-500 mb-3">
+            🟢 مفتوحة منذ: {new Date(cashSession.opened_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <div className="bg-green-50 rounded-lg p-2">
+              <div className="text-xs text-gray-500">نقدي</div>
+              <div className="font-bold text-green-700">{cashSessionSummary.totalCash.toFixed(2)} MAD</div>
+            </div>
+            <div className="bg-blue-50 rounded-lg p-2">
+              <div className="text-xs text-gray-500">كارت</div>
+              <div className="font-bold text-blue-700">{cashSessionSummary.totalCard.toFixed(2)} MAD</div>
+            </div>
+            <div className="bg-purple-50 rounded-lg p-2">
+              <div className="text-xs text-gray-500">تحويل</div>
+              <div className="font-bold text-purple-700">{cashSessionSummary.totalTransfer.toFixed(2)} MAD</div>
+            </div>
+            <div className="bg-orange-50 rounded-lg p-2">
+              <div className="text-xs text-gray-500">ديون</div>
+              <div className="font-bold text-orange-700">{cashSessionSummary.totalCredit.toFixed(2)} MAD</div>
+            </div>
+          </div>
+          <div className="mt-3 bg-gray-900 text-white rounded-lg p-3">
+            <div className="text-xs text-gray-200 mb-1">💵 النقدي النظري</div>
+            <div className="text-lg font-bold">{cashSessionSummary.expectedCash.toFixed(2)} MAD</div>
+          </div>
+          <button
+            onClick={() => setShowCloseCashModal(true)}
+            className="w-full mt-3 bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg font-bold"
+          >
+            🔒 إغلاق النقدية
+          </button>
+        </div>
+      )}
+
+      {cashSession && !showSessionDashboard && (
+        <button
+          onClick={() => setShowSessionDashboard(true)}
+          className="absolute top-3 left-3 z-50 bg-white hover:bg-gray-50 border border-gray-200 rounded-xl shadow-lg px-4 py-3 font-bold"
+        >
+          📊 إظهار لوحة الجلسة
+        </button>
+      )}
+
+      {showOpenCashModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[80]" onClick={() => setShowOpenCashModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-[520px] max-w-[92vw] p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <span className="inline-block bg-gray-200 text-gray-800 font-bold px-4 py-2 rounded-md">
+                فتح النقدية
+              </span>
+              <button
+                onClick={() => setShowOpenCashModal(false)}
+                className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">اسم الموظف</label>
+                {isEmployeeMode ? (
+                  <div className="w-full p-3 border-2 border-gray-200 rounded-lg bg-gray-50 text-gray-800 font-bold">
+                    {employeeNameFromAuth || 'موظف'}
+                  </div>
+                ) : (
+                  <select
+                    value={openEmployeeId}
+                    onChange={(e) => setOpenEmployeeId(e.target.value)}
+                    className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
+                  >
+                    <option value="">اختر الموظف</option>
+                    {employees.map((emp) => (
+                      <option key={emp.id} value={emp.id}>{emp.name}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">المخزن</label>
+                <select
+                  value={openWarehouseId}
+                  onChange={(e) => setOpenWarehouseId(e.target.value)}
+                  className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
+                >
+                  <option value="">اختر المخزن</option>
+                  {warehouses.map((w) => (
+                    <option key={w.id} value={w.id}>{w.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Fond de caisse initial</label>
+                <input
+                  type="number"
+                  value={openingCashInput}
+                  onChange={(e) => setOpeningCashInput(e.target.value)}
+                  className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
+                  placeholder="0"
+                  min={0}
+                />
+              </div>
+
+              <button
+                onClick={handleOpenCashSession}
+                className="w-full bg-green-600 hover:bg-green-700 text-white py-4 rounded-lg font-bold text-lg"
+              >
+                Ouvrir la caisse
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCloseCashModal && cashSession && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[80]" onClick={() => setShowCloseCashModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-[520px] max-w-[92vw] p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <span className="inline-block bg-gray-200 text-gray-800 font-bold px-4 py-2 rounded-md">
+                إغلاق النقدية
+              </span>
+              <button
+                onClick={() => setShowCloseCashModal(false)}
+                className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Fond initial</span>
+                <span className="font-bold">{Number(cashSession.opening_cash || 0).toFixed(2)} MAD</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Espèces encaissées</span>
+                <span className="font-bold">{cashSessionSummary.totalCash.toFixed(2)} MAD</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">💰 Cash théorique</span>
+                <span className="font-bold">{cashSessionSummary.expectedCash.toFixed(2)} MAD</span>
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Cash réel compté</label>
+                <input
+                  type="number"
+                  value={closingCashInput}
+                  onChange={(e) => setClosingCashInput(e.target.value)}
+                  className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none"
+                  placeholder="0"
+                  min={0}
+                />
+                {closingCashInput !== '' && (
+                  <div className="text-xs text-gray-600 mt-1">
+                    Écart: {(Number(closingCashInput || 0) - cashSessionSummary.expectedCash).toFixed(2)} MAD
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">ملاحظة (إجباري إذا كان هناك فرق)</label>
+                <textarea
+                  value={closingNoteInput}
+                  onChange={(e) => setClosingNoteInput(e.target.value)}
+                  className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none"
+                  rows={3}
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={handleCloseCashSession}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-lg font-bold"
+                >
+                  Fermer
+                </button>
+                <button
+                  onClick={() => setShowCloseCashModal(false)}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 rounded-lg font-bold"
+                >
+                  Annuler
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Liste des produits */}
+      <div className="flex-1 bg-white rounded-xl shadow-lg p-4 flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between mb-3">
+          <button
+            onClick={() => navigate(isEmployeeMode ? '/employee/dashboard' : '/')}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2"
+          >
+            <ArrowRight size={20} className="text-gray-600" />
+            <span className="text-gray-600">العودة</span>
+          </button>
+          <div className="relative flex-1">
+            <Search className="absolute right-3 top-3 text-gray-400" size={20} />
+            <input
+              type="text"
+              placeholder="ابحث عن منتج أو امسح الباركود..."
+              className="w-full pr-10 pl-4 py-2 border-2 border-gray-200 rounded-lg text-lg focus:border-green-500 focus:outline-none"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              autoFocus
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <X size={20} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Catégories */}
+        <div className="mb-3">
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setSelectedCategory(null)}
+              className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${
+                !selectedCategory
+                  ? 'bg-green-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              الكل
+            </button>
+            {categories.map((category) => (
+              <button
+                key={category.id}
+                onClick={() => setSelectedCategory(category.id)}
+                className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${
+                  selectedCategory === category.id
+                    ? 'bg-green-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {category.name_ar}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Liste des produits */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {filteredProducts.map((product) => {
+              const stockColor = product.stock === 0 ? 'text-red-600' : product.stock < 10 ? 'text-orange-600' : 'text-green-600'
+              const stockText = product.stock === 0 ? 'نفذ المخزون' : product.stock < 10 ? 'منخفض' : 'متوفر'
+              return (
+                <button
+                  key={product.id}
+                  onClick={() => addToInvoice(product)}
+                  className="p-3 rounded-xl border-2 bg-white border-gray-200 hover:border-green-500 hover:shadow-lg transition-all"
+                >
+                  {/* Image du produit */}
+                  <div className="w-full h-24 mb-2 flex items-center justify-center bg-gray-50 rounded-lg overflow-hidden">
+                    {product.image_url ? (
+                      <img
+                        src={product.image_url}
+                        alt={product.name_ar}
+                        className="w-full h-full object-cover rounded-lg"
+                        onError={(e) => {
+                          // Fallback si l'image ne charge pas
+                          e.currentTarget.style.display = 'none'
+                          e.currentTarget.parentElement?.classList.add('bg-gray-100')
+                        }}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gray-100 rounded-lg">
+                        <ShoppingCart size={32} className="text-gray-400" />
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Informations du produit */}
+                  <div className="text-sm font-bold text-gray-800 mb-1 line-clamp-2">
+                    {product.name_ar}
+                  </div>
+                  <div className="text-lg font-bold text-green-600">
+                    {getProductPrice(product).toFixed(2)} MAD
+                  </div>
+                  <div className={`text-xs font-bold mt-1 ${stockColor}`}>
+                    {stockText}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* 🧾 FACTURE EN COURS - Nouvelle Interface Professionnelle */}
+      <div className="w-96 bg-white rounded-xl shadow-lg p-4 flex flex-col overflow-hidden">
+        {/* EN-TÊTE FACTURE */}
+        {currentInvoice ? (
+          <>
+            {/* Numéro et Statut */}
+            <div className="mb-3 pb-3 border-b-2 border-gray-200">
+              <div className="flex justify-between items-start mb-2">
+                <div>
+                  <p className="text-xs text-gray-500">رقم الفاتورة</p>
+                  <p className="font-bold text-lg text-gray-800">{currentInvoice.invoice_number}</p>
+                </div>
+                <div className={`px-3 py-1 rounded-full text-xs font-bold text-white ${
+                  currentInvoice.status === 'paid' ? 'bg-green-600' :
+                  currentInvoice.status === 'partial' ? 'bg-yellow-600' :
+                  currentInvoice.status === 'credit' ? 'bg-red-600' :
+                  'bg-blue-600'
+                }`}>
+                  {currentInvoice.status === 'paid' ? 'مدفوعة' :
+                   currentInvoice.status === 'partial' ? 'جزئية' :
+                   currentInvoice.status === 'credit' ? 'دين' :
+                   'مسودة'}
+                </div>
+              </div>
+              <p className="text-xs text-gray-500">
+                {new Date(currentInvoice.created_at).toLocaleString('ar-DZ')}
+              </p>
+            </div>
+
+            {/* العميل */}
+            <button
+              onClick={() => setShowClientModal(true)}
+              className="mb-3 p-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-green-500 transition-colors text-right text-sm w-full"
+            >
+              <p className="text-xs text-gray-500">العميل</p>
+              <p className="font-bold text-gray-800">{currentInvoice.client_name}</p>
+            </button>
+
+            {/* LIGNES FACTURE - TABLEAU PROFESSIONNEL */}
+            <div className="flex-1 overflow-y-auto mb-3 border-b-2 border-gray-200 pb-3 min-h-[150px] max-h-[250px]">
+              {currentInvoice.lines.length === 0 ? (
+                <div className="text-center text-gray-400 py-8 text-sm">
+                  لا توجد منتجات
+                </div>
+              ) : (
+                <div className="text-xs">
+                  {/* En-tête du tableau */}
+                  <div className="grid grid-cols-12 gap-1 mb-2 pb-2 border-b border-gray-300 font-bold text-gray-700">
+                    <div className="col-span-5">المنتج</div>
+                    <div className="col-span-2 text-center">الثمن</div>
+                    <div className="col-span-2 text-center">الكمية</div>
+                    <div className="col-span-2 text-left">المجموع</div>
+                    <div className="col-span-1 text-center">حذف</div>
+                  </div>
+                  
+                  {/* Lignes du tableau */}
+                  <div className="space-y-1">
+                    {currentInvoice.lines.map((line) => (
+                      <div
+                        key={line.id}
+                        className={`grid grid-cols-12 gap-1 p-1 bg-gray-50 rounded border border-gray-200 transition-colors items-center ${
+                          line.deleted ? 'opacity-60' : 'hover:border-green-500 hover:bg-green-50'
+                        }`}
+                      >
+                        {/* Produit */}
+                        <div className="col-span-5 flex items-center gap-2">
+                          {/* Vignette image */}
+                          {line.image_url ? (
+                            <img
+                              src={line.image_url}
+                              alt={line.product_name_ar}
+                              className="w-8 h-8 object-cover rounded border border-gray-300"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none'
+                              }}
+                            />
+                          ) : (
+                            <div className="w-8 h-8 bg-gray-100 rounded border border-gray-300 flex items-center justify-center">
+                              <ShoppingCart size={14} className="text-gray-400" />
+                            </div>
+                          )}
+                          
+                          <button
+                            onClick={() => {
+                              if (!line.deleted) openEditInvoiceLineModal(line)
+                            }}
+                            className={`flex-1 font-semibold truncate text-left ${line.deleted ? 'text-gray-500 line-through cursor-not-allowed' : 'text-gray-800 hover:text-green-700 hover:underline'}`}
+                            type="button"
+                          >
+                            {line.product_name_ar}
+                          </button>
+                        </div>
+                        
+                        {/* Prix unitaire */}
+                        <button
+                          onClick={() => {
+                            if (!line.deleted) openEditInvoiceLineModal(line)
+                          }}
+                          className={`col-span-2 text-center ${line.deleted ? 'text-gray-500 line-through cursor-not-allowed' : 'text-gray-600 hover:text-green-700 hover:underline'}`}
+                          type="button"
+                          disabled={!!line.deleted}
+                        >
+                          {line.deleted ? '0.00' : line.unit_price.toFixed(2)}
+                        </button>
+                        
+                        {/* Quantité avec boutons */}
+                        <div className="col-span-2 flex items-center justify-center gap-0.5">
+                          <button
+                            onClick={() => {
+                              if (!line.deleted) updateInvoiceLineQuantity(line.id, line.quantity - 1)
+                            }}
+                            className={`w-5 h-5 rounded text-xs font-bold ${
+                              line.deleted ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-gray-200 hover:bg-gray-300'
+                            }`}
+                            disabled={!!line.deleted}
+                          >
+                            −
+                          </button>
+                          <input
+                            type="number"
+                            min="1"
+                            value={line.deleted ? 0 : line.quantity}
+                            onChange={(e) => {
+                              const qty = parseInt(e.target.value)
+                              if (!line.deleted && qty > 0) updateInvoiceLineQuantity(line.id, qty)
+                            }}
+                            className={`w-8 text-center text-xs font-bold border border-gray-200 rounded ${
+                              line.deleted ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''
+                            }`}
+                            disabled={!!line.deleted}
+                          />
+                          <button
+                            onClick={() => {
+                              if (!line.deleted) updateInvoiceLineQuantity(line.id, line.quantity + 1)
+                            }}
+                            className={`w-5 h-5 rounded text-xs font-bold ${
+                              line.deleted ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'
+                            }`}
+                            disabled={!!line.deleted}
+                          >
+                            +
+                          </button>
+                        </div>
+                        
+                        {/* Total ligne */}
+                        <div className={`col-span-2 text-left font-bold ${line.deleted ? 'text-gray-500 line-through' : 'text-green-600'}`}>
+                          {(line.deleted ? 0 : line.total).toFixed(2)}
+                        </div>
+                        
+                        {/* Bouton supprimer */}
+                        <div className="col-span-1 flex justify-center">
+                          <button
+                            onClick={() => (line.deleted ? restoreInvoiceLine(line.id) : removeInvoiceLine(line.id))}
+                            className={`w-5 h-5 rounded flex items-center justify-center text-xs font-bold ${
+                              line.deleted ? 'bg-gray-500 hover:bg-gray-600 text-white' : 'bg-red-500 hover:bg-red-600 text-white'
+                            }`}
+                          >
+                            {line.deleted ? '↺' : '✕'}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* RÉSUMÉ FINANCIER */}
+            <div className="mb-2 pb-2 border-b-2 border-gray-200">
+              <div className="flex justify-between mb-1 text-xs">
+                <span className="text-gray-600">الإجمالي:</span>
+                <span className="font-bold text-gray-800">{currentInvoice.subtotal.toFixed(2)} MAD</span>
+              </div>
+              <div className="flex justify-between text-lg font-bold text-green-600">
+                <span>المجموع:</span>
+                <span>{currentInvoice.total_amount.toFixed(2)} MAD</span>
+              </div>
+            </div>
+
+            {/* ZONE PAIEMENT */}
+            <div className="mb-2 pb-2 border-b-2 border-gray-200 space-y-1">
+              <div>
+                <label className="text-xs font-bold text-gray-600">المبلغ المدفوع:</label>
+                <input
+                  type="number"
+                  value={currentInvoice.paid_amount}
+                  onChange={(e) => updatePaidAmount(parseFloat(e.target.value) || 0)}
+                  className="w-full p-1 border-2 border-gray-200 rounded font-bold text-sm focus:border-green-500 focus:outline-none"
+                />
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-600">الباقي:</span>
+                <span className={`font-bold ${currentInvoice.remaining_amount > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                  {currentInvoice.remaining_amount.toFixed(2)} MAD
+                </span>
+              </div>
+            </div>
+
+            {/* BOUTONS ACTIONS */}
+            <div className="grid grid-cols-2 gap-1">
+              <button
+                onClick={() => {
+                  setCurrentInvoice(null)
+                  setInvoiceNumber('')
+                }}
+                className="bg-gray-500 hover:bg-gray-600 text-white py-1 rounded font-bold text-xs transition-all"
+              >
+                جديدة
+              </button>
+              <button
+                onClick={async () => {
+                  if (currentInvoice.lines.length > 0) {
+                    try {
+                      // Get or create general client
+                      let clientId = selectedClient?.id
+                      if (!clientId) {
+                        const { data: generalClient } = await supabase
+                          .from('clients')
+                          .select('id')
+                          .eq('company_name_ar', 'عميل عام')
+                          .maybeSingle()
+                        
+                        if (generalClient) {
+                          clientId = generalClient.id
+                        } else {
+                          // Create general client if it doesn't exist
+                          const { data: newClient } = await supabase
+                            .from('clients')
+                            .insert({
+                              company_name_ar: 'عميل عام',
+                              company_name_en: 'General Client'
+                            })
+                            .select()
+                            .single()
+                          clientId = newClient?.id
+                        }
+                      }
+
+                      // Save to database first
+                      const { data, error } = await supabase
+                        .from('invoices')
+                        .insert({
+                          invoice_number: currentInvoice.invoice_number,
+                          client_id: clientId,
+                          status: 'draft',
+                          subtotal: currentInvoice.subtotal,
+                          total_amount: currentInvoice.total_amount,
+                          paid_amount: 0,
+                          invoice_date: new Date().toISOString(),
+                          due_date: new Date().toISOString(),
+                          items: currentInvoice.lines.filter(line => !line.deleted).map(line => ({
+                            product_id: line.product_id,
+                            product_name: line.product_name_ar,
+                            quantity: line.quantity,
+                            unit_price: line.unit_price,
+                            total: line.total
+                          }))
+                        })
+                        .select()
+                        .single()
+
+                      if (error) throw error
+
+                      // Update local state
+                      setOnHoldInvoices([...onHoldInvoices, { ...currentInvoice, status: 'draft', id: data.id }])
+                      setCurrentInvoice(null)
+                      setInvoiceNumber('')
+                      setSelectedClient(null)
+                      setPaidAmount(0)
+                    } catch (error) {
+                      console.error('Error putting invoice on hold:', error)
+                      alert('❌ حدث خطأ أثناء حفظ الفاتورة في الانتظار')
+                    }
+                  }
+                }}
+                disabled={currentInvoice.lines.length === 0}
+                className="bg-orange-500 hover:bg-orange-600 text-white py-1 rounded font-bold text-xs disabled:opacity-50 transition-all"
+              >
+                انتظار
+              </button>
+              <button
+                onClick={() => setShowDraftsModal(true)}
+                className="bg-blue-500 hover:bg-blue-600 text-white py-1 rounded font-bold text-xs transition-all col-span-2"
+              >
+                قائمة الانتظار ({onHoldInvoices.length})
+              </button>
+              <button
+                onClick={handleCheckout}
+                disabled={currentInvoice.lines.length === 0}
+                className="bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-bold text-sm disabled:opacity-50 transition-all col-span-2"
+              >
+                تأكيد البيع
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-col items-center justify-center h-full text-center">
+            <p className="text-gray-400 text-sm mb-4">لا توجد فاتورة في الانتظار</p>
+            <button
+              onClick={() => createNewInvoice()}
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold"
+            >
+              إنشاء فاتورة جديدة
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Modal sélection client */}
+      {showClientModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowClientModal(false)}>
+          <div className="bg-white rounded-xl p-6 w-96 max-h-96 overflow-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-gray-800">اختر عميل</h3>
+              <button
+                onClick={() => {
+                  setShowClientModal(false)
+                  setShowAddClientModal(true)
+                }}
+                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors"
+              >
+                إضافة عميل جديد
+              </button>
+            </div>
+            <div className="space-y-2">
+              {clients.map(client => (
+                <button
+                  key={client.id}
+                  onClick={() => {
+                    setSelectedClient(client)
+                    setShowClientModal(false)
+                  }}
+                  className="w-full text-right p-3 hover:bg-green-100 rounded-lg transition-colors text-gray-800 font-medium border-2 border-gray-200"
+                >
+                  {client.company_name_ar || client.company_name_en || client.name_ar || client.name || 'عميل بدون اسم'}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal d'édition ligne facture */}
+      {showEditInvoiceLineModal && editingInvoiceLine && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => handleEditInvoiceLineCancel()}>
+          <div className="bg-white rounded-xl p-6 w-[400px]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold">{editingInvoiceLine.product_name_ar}</h3>
+              <button onClick={handleEditInvoiceLineCancel} className="text-gray-500 hover:text-gray-700">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">الكمية</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={editLineQuantity}
+                  onChange={(e) => setEditLineQuantity(e.target.value)}
+                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">الثمن (MAD)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editLinePrice}
+                  onChange={(e) => setEditLinePrice(e.target.value)}
+                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={handleEditInvoiceLineConfirm}
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-bold transition-colors"
+                >
+                  تأكيد
+                </button>
+                <button
+                  onClick={handleEditInvoiceLineCancel}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 px-4 rounded-lg font-bold transition-colors"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Ajout Client */}
+      {showAddClientModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setShowAddClientModal(false)}>
+          <div className="bg-white rounded-xl shadow-2xl p-4 sm:p-6 lg:p-8 max-w-md sm:max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4 sm:mb-6">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-800">
+                إضافة عميل جديد
+              </h2>
+              <button
+                type="button"
+                onClick={() => setShowAddClientModal(false)}
+                className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition"
+              >
+                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <form onSubmit={handleAddClient} className="space-y-3 sm:space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">اسم الشركة (عربي)</label>
+                <input
+                  type="text"
+                  value={clientFormData.company_name_ar}
+                  onChange={(e) => setClientFormData({ ...clientFormData, company_name_ar: e.target.value })}
+                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none text-sm sm:text-base"
+                  placeholder="أدخل اسم الشركة بالعربي..."
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">اسم الشركة (English)</label>
+                <input
+                  type="text"
+                  value={clientFormData.company_name_en}
+                  onChange={(e) => setClientFormData({ ...clientFormData, company_name_en: e.target.value })}
+                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none text-sm sm:text-base"
+                  placeholder="Enter company name in English..."
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">اسم جهة الاتصال</label>
+                <input
+                  type="text"
+                  value={clientFormData.contact_person_name}
+                  onChange={(e) => setClientFormData({ ...clientFormData, contact_person_name: e.target.value })}
+                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none text-sm sm:text-base"
+                  placeholder="أدخل اسم جهة الاتصال..."
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">البريد الإلكتروني</label>
+                <input
+                  type="email"
+                  value={clientFormData.contact_person_email}
+                  onChange={(e) => setClientFormData({ ...clientFormData, contact_person_email: e.target.value })}
+                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none text-sm sm:text-base"
+                  placeholder="example@email.com"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">الهاتف</label>
+                <input
+                  type="tel"
+                  value={clientFormData.contact_person_phone}
+                  onChange={(e) => setClientFormData({ ...clientFormData, contact_person_phone: e.target.value })}
+                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none text-sm sm:text-base"
+                  placeholder="06xxxxxxxx ou 07xxxxxxxx"
+                  required
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">العنوان</label>
+                <textarea
+                  value={clientFormData.address}
+                  onChange={(e) => setClientFormData({ ...clientFormData, address: e.target.value })}
+                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none text-sm sm:text-base resize-none"
+                  placeholder="أدخل العنوان الكامل..."
+                  rows={3}
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">الفئة</label>
+                <select
+                  value={clientFormData.subscription_tier}
+                  onChange={(e) => setClientFormData({ ...clientFormData, subscription_tier: e.target.value })}
+                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none text-sm sm:text-base"
+                >
+                  <option value="A">فئة A</option>
+                  <option value="B">فئة B</option>
+                  <option value="C">فئة C</option>
+                  <option value="D">فئة D</option>
+                  <option value="E">فئة E</option>
+                </select>
+              </div>
+              
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-3 sm:pt-4">
+                <button
+                  type="submit"
+                  className="flex-1 bg-indigo-600 text-white py-2 px-3 sm:px-4 rounded-lg hover:bg-indigo-700 transition font-medium text-sm sm:text-base"
+                >
+                  إضافة
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAddClientModal(false)}
+                  className="flex-1 bg-gray-200 text-gray-800 py-2 px-3 sm:px-4 rounded-lg hover:bg-gray-300 transition font-medium text-sm sm:text-base"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Liste d'attente */}
+      {showDraftsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowDraftsModal(false)}>
+          <div className="bg-white rounded-xl p-6 w-[500px] max-h-[80vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold flex items-center gap-2">
+                <Clock className="text-blue-600" />
+                قائمة الانتظار ({onHoldInvoices.length})
+              </h3>
+              <button onClick={() => setShowDraftsModal(false)} className="text-gray-500 hover:text-gray-700">
+                <X size={24} />
+              </button>
+            </div>
+            
+            {onHoldInvoices.length === 0 ? (
+              <div className="text-center text-gray-400 py-8">
+                <Clock size={48} className="mx-auto mb-2" />
+                <p>لا توجد مبيعات في الانتظار</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {onHoldInvoices.map(invoice => (
+                  <div key={invoice.id} className="bg-gray-50 p-4 rounded-lg border-2 border-gray-200">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <p className="font-bold text-gray-800">{invoice.client_name || 'عميل عام'}</p>
+                        <p className="text-sm text-gray-600">
+                          {new Date(invoice.created_at).toLocaleString('fr-FR')}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {invoice.items?.length || 0} منتج/منتجات
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-2xl font-bold text-green-600">{invoice.total_amount?.toFixed(2) || '0.00'} MAD</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-3">
+                      <button
+                        onClick={() => resumeDraft(invoice)}
+                        className="flex-1 bg-green-600 text-white py-2 rounded-lg font-bold hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Play size={18} />
+                        استئناف
+                      </button>
+                      <button
+                        onClick={() => deleteDraft(invoice.id)}
+                        className="bg-red-500 text-white py-2 px-4 rounded-lg font-bold hover:bg-red-600 transition-colors"
+                      >
+                        <Trash size={18} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal d'édition de produit */}
+      {showEditItemModal && editingItem && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => handleEditItemCancel()}>
+          <div className="bg-white rounded-xl p-6 w-[400px]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold">{editingItem.name_ar}</h3>
+              <button onClick={handleEditItemCancel} className="text-gray-500 hover:text-gray-700">
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">الكمية</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={editQuantity}
+                  onChange={(e) => setEditQuantity(e.target.value)}
+                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">الثمن (MAD)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editPrice}
+                  onChange={(e) => setEditPrice(e.target.value)}
+                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
+                />
+              </div>
+              
+              <div className="flex gap-2">
+                <button
+                  onClick={handleEditItemConfirm}
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-bold transition-colors"
+                >
+                  تأكيد
+                </button>
+                <button
+                  onClick={handleEditItemCancel}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 px-4 rounded-lg font-bold transition-colors"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de confirmation de vente - Affichage comme facture BA9ALINO */}
+      {showConfirmationModal && currentInvoice && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowConfirmationModal(false)}>
+          <div className="bg-white shadow-2xl max-w-4xl w-full max-h-[95vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            {/* En-tête de la facture - Style BA9ALINO */}
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6">
+              <div className="flex justify-between items-start mb-4">
+                <div className="text-right">
+                  <h1 className="text-4xl font-bold mb-2">{companyInfo.company_name_ar || companyInfo.company_name || 'BA9ALINO'}</h1>
+                  {companyInfo.ice && <p className="text-blue-100 text-sm">ICE: {companyInfo.ice}</p>}
+                  {companyInfo.address_ar && <p className="text-blue-100 text-sm">{companyInfo.address_ar}</p>}
+                  {companyInfo.phone && <p className="text-blue-100 text-sm">الهاتف: {companyInfo.phone}</p>}
+                  {companyInfo.email && <p className="text-blue-100 text-sm">البريد الإلكتروني: {companyInfo.email}</p>}
+                </div>
+                <div className="text-left">
+                  <div className="bg-white/10 backdrop-blur-sm px-4 py-2 rounded-lg">
+                    <p className="text-xs text-blue-100">رقم الفاتورة</p>
+                    <p className="text-xl font-bold">{currentInvoice.invoice_number}</p>
+                  </div>
+                  <p className="text-sm text-blue-100 mt-2">{new Date(currentInvoice.created_at).toLocaleDateString('ar-DZ')}</p>
+                </div>
+              </div>
+              
+              {/* Option TVA dans l'en-tête */}
+              <div className="mt-4 flex justify-center">
+                <label className="flex items-center gap-2 cursor-pointer bg-white/20 backdrop-blur-sm px-4 py-2 rounded-lg">
+                  <input
+                    type="checkbox"
+                    checked={enableTVA}
+                    onChange={(e) => setEnableTVA(e.target.checked)}
+                    className="w-4 h-4 text-green-600 border-white rounded focus:ring-green-500"
+                  />
+                  <span className="text-sm font-medium text-white">إضافة ضريبة القيمة المضافة (TVA)</span>
+                </label>
+              </div>
+              
+              {enableTVA && (
+                <div className="mt-2 flex justify-center gap-4">
+                  <label className="flex items-center gap-1 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="tvaRate"
+                      checked={tvaRate === 7}
+                      onChange={() => setTvaRate(7)}
+                      className="w-3 h-3 text-white border-white focus:ring-green-500"
+                    />
+                    <span className="text-xs text-white">7%</span>
+                  </label>
+                  <label className="flex items-center gap-1 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="tvaRate"
+                      checked={tvaRate === 10}
+                      onChange={() => setTvaRate(10)}
+                      className="w-3 h-3 text-white border-white focus:ring-green-500"
+                    />
+                    <span className="text-xs text-white">10%</span>
+                  </label>
+                  <label className="flex items-center gap-1 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="tvaRate"
+                      checked={tvaRate === 20}
+                      onChange={() => setTvaRate(20)}
+                      className="w-3 h-3 text-white border-white focus:ring-green-500"
+                    />
+                    <span className="text-xs text-white">20%</span>
+                  </label>
+                </div>
+              )}
+            </div>
+
+            {/* Contenu de la facture */}
+            <div className="flex-1 overflow-y-auto p-8">
+              {/* Informations client */}
+              <div className="mb-6 text-right">
+                <p className="text-sm text-gray-600 mb-1">العميل:</p>
+                <p className="text-lg font-bold text-gray-800">{currentInvoice.client_name}</p>
+              </div>
+
+              {/* Tableau des articles - Style facture */}
+              <div className="mb-6">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-gray-100 border-2 border-gray-800">
+                      <th className="border border-gray-800 py-3 px-4 text-center font-bold text-gray-800">الكمية</th>
+                      <th className="border border-gray-800 py-3 px-4 text-center font-bold text-gray-800">الوحدة</th>
+                      <th className="border border-gray-800 py-3 px-4 text-right font-bold text-gray-800">السلعة</th>
+                      <th className="border border-gray-800 py-3 px-4 text-left font-bold text-gray-800">الثمن</th>
+                      <th className="border border-gray-800 py-3 px-4 text-left font-bold text-gray-800">المجموع</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {currentInvoice.lines.map((line, index) => (
+                      <tr key={line.id} className="border border-gray-800">
+                        <td className="border border-gray-800 py-3 px-4 text-center text-gray-700">{line.quantity}</td>
+                        <td className="border border-gray-800 py-3 px-4 text-center text-gray-700">وحدة</td>
+                        <td className="border border-gray-800 py-3 px-4 text-right font-medium text-gray-800">{line.product_name_ar}</td>
+                        <td className="border border-gray-800 py-3 px-4 text-left text-gray-700">{line.unit_price.toFixed(2)} MAD</td>
+                        <td className="border border-gray-800 py-3 px-4 text-left font-bold text-gray-800">{line.total.toFixed(2)} MAD</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Résumé financier */}
+              <div className="flex justify-end mb-6">
+                <div className="w-1/2">
+                  <table className="w-full border-collapse">
+                    <tbody>
+                      <tr>
+                        <td className="border border-gray-800 py-2 px-4 text-right text-gray-600">الإجمالي:</td>
+                        <td className="border border-gray-800 py-2 px-4 text-left font-bold text-gray-800">{currentInvoice.subtotal.toFixed(2)} MAD</td>
+                      </tr>
+                      {enableTVA && (
+                        <tr>
+                          <td className="border border-gray-800 py-2 px-4 text-right text-gray-600">ضريبة القيمة المضافة ({tvaRate}%):</td>
+                          <td className="border border-gray-800 py-2 px-4 text-left font-bold text-blue-600">{calculateTVA(currentInvoice.subtotal).toFixed(2)} MAD</td>
+                        </tr>
+                      )}
+                      <tr>
+                        <td className="border border-gray-800 py-2 px-4 text-right text-gray-600">المبلغ المدفوع:</td>
+                        <td className="border border-gray-800 py-2 px-4 text-left font-bold text-green-600">{currentInvoice.paid_amount.toFixed(2)} MAD</td>
+                      </tr>
+                      <tr className="bg-gray-100">
+                        <td className="border border-gray-800 py-3 px-4 text-right font-bold text-gray-800">
+                          {enableTVA ? 'المجموع مع الضريبة:' : 'المجموع:'}
+                        </td>
+                        <td className="border border-gray-800 py-3 px-4 text-left font-bold text-lg text-blue-700">
+                          {calculateWithTVA(currentInvoice.total_amount).toFixed(2)} MAD
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="border border-gray-800 py-2 px-4 text-right text-gray-600">الباقي:</td>
+                        <td className={`border border-gray-800 py-2 px-4 text-left font-bold ${
+                          calculateWithTVA(currentInvoice.total_amount) - currentInvoice.paid_amount > 0 ? 'text-red-600' : 'text-green-600'
+                        }`}>
+                          {(calculateWithTVA(currentInvoice.total_amount) - currentInvoice.paid_amount).toFixed(2)} MAD
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Statut du paiement */}
+              <div className="flex justify-center mb-6">
+                <span className={`px-6 py-3 rounded-full text-lg font-bold text-white ${
+                  currentInvoice.status === 'paid' ? 'bg-green-600' :
+                  currentInvoice.status === 'partial' ? 'bg-yellow-600' :
+                  currentInvoice.status === 'credit' ? 'bg-red-600' :
+                  'bg-blue-600'
+                }`}>
+                  {currentInvoice.status === 'paid' ? 'مدفوعة' :
+                   currentInvoice.status === 'partial' ? 'جزئية' :
+                   currentInvoice.status === 'credit' ? 'دين' :
+                   'مسودة'}
+                </span>
+              </div>
+            </div>
+
+            {/* Pied du modal - Boutons d'action */}
+            <div className="bg-gray-100 p-4 border-t flex gap-2">
+              <button
+                onClick={() => setShowConfirmationModal(false)}
+                className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 py-3 px-4 rounded-lg font-bold transition-colors"
+              >
+                إلغاء
+              </button>
+              <button
+                onClick={() => {
+                  setShowConfirmationModal(false)
+                  setShowPaymentTypeModal(true)
+                }}
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg font-bold transition-colors flex items-center justify-center gap-2"
+              >
+                <Check size={16} />
+                تأكيد البيع
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de facture professionnelle après confirmation */}
+      {showInvoiceModal && confirmedInvoice && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowInvoiceModal(false)}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            {/* En-tête du modal */}
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold mb-1">فاتورة مؤكدة</h2>
+                  <p className="text-blue-100">تم تأكيد البيع بنجاح</p>
+                </div>
+                <div className="text-left">
+                  <p className="text-sm text-blue-100">رقم الفاتورة</p>
+                  <p className="text-xl font-bold">{confirmedInvoice.invoice_number}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Contenu de la facture */}
+            <div className="p-6 overflow-y-auto max-h-[60vh]">
+              {/* En-tête de l'entreprise */}
+              <div className="text-center mb-6 border-b pb-4">
+                <h1 className="text-3xl font-bold text-gray-800 mb-2">{companyInfo.company_name_ar || companyInfo.company_name || 'BA9ALINO'}</h1>
+                {companyInfo.ice && <p className="text-gray-600">ICE: {companyInfo.ice}</p>}
+                {companyInfo.address_ar && <p className="text-gray-600">{companyInfo.address_ar}</p>}
+                {companyInfo.phone && <p className="text-gray-600">الهاتف: {companyInfo.phone}</p>}
+                {companyInfo.email && <p className="text-gray-600">البريد الإلكتروني: {companyInfo.email}</p>}
+              </div>
+
+              {/* Informations client et facture */}
+              <div className="grid grid-cols-2 gap-6 mb-6">
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h3 className="font-bold text-gray-800 mb-2">معلومات الفاتورة</h3>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">رقم الفاتورة:</span>
+                      <span className="font-semibold">{confirmedInvoice.invoice_number}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">التاريخ:</span>
+                      <span className="font-semibold">{new Date(confirmedInvoice.created_at).toLocaleDateString('ar-DZ')}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">الوقت:</span>
+                      <span className="font-semibold">{new Date(confirmedInvoice.created_at).toLocaleTimeString('ar-DZ')}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h3 className="font-bold text-gray-800 mb-2">معلومات العميل</h3>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">اسم العميل:</span>
+                      <span className="font-semibold">{confirmedInvoice.client_name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">حالة الدفع:</span>
+                      <span className={`font-semibold px-2 py-1 rounded text-xs text-white ${
+                        confirmedInvoice.status === 'paid' ? 'bg-green-600' :
+                        confirmedInvoice.status === 'partial' ? 'bg-yellow-600' :
+                        'bg-red-600'
+                      }`}>
+                        {confirmedInvoice.status === 'paid' ? 'مدفوعة' :
+                         confirmedInvoice.status === 'partial' ? 'جزئية' : 'دين'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tableau des articles */}
+              <div className="mb-6">
+                <h3 className="font-bold text-gray-800 mb-3">تفاصيل المنتجات</h3>
+                <div className="border rounded-lg overflow-hidden">
+                  <table className="w-full">
+                    <thead className="bg-gray-100 border-b">
+                      <tr>
+                        <th className="text-center py-3 px-4 font-semibold text-gray-800">الكمية</th>
+                        <th className="text-center py-3 px-4 font-semibold text-gray-800">الوحدة</th>
+                        <th className="text-right py-3 px-4 font-semibold text-gray-800">السلعة</th>
+                        <th className="text-left py-3 px-4 font-semibold text-gray-800">الثمن</th>
+                        <th className="text-left py-3 px-4 font-semibold text-gray-800">المجموع</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {confirmedInvoice.lines.map((line, index) => (
+                        <tr key={line.id} className="border-b hover:bg-gray-50">
+                          <td className="py-3 px-4 text-center text-gray-700">{line.quantity}</td>
+                          <td className="py-3 px-4 text-center text-gray-700">وحدة</td>
+                          <td className="py-3 px-4 font-medium text-gray-800">{line.product_name_ar}</td>
+                          <td className="py-3 px-4 text-left text-gray-700">{line.unit_price.toFixed(2)} MAD</td>
+                          <td className="py-3 px-4 text-left font-semibold text-gray-800">{line.total.toFixed(2)} MAD</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Résumé financier */}
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <h3 className="font-bold text-gray-800 mb-3">الملخص المالي</h3>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">الإجمالي:</span>
+                    <span className="font-semibold">{(confirmedInvoice.subtotal || 0).toFixed(2)} MAD</span>
+                  </div>
+                  {confirmedInvoice.enable_tva && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">ضريبة القيمة المضافة ({confirmedInvoice.tva_rate}%):</span>
+                      <span className="font-semibold text-blue-600">{(confirmedInvoice.tva_amount || 0).toFixed(2)} MAD</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">المبلغ المدفوع:</span>
+                    <span className="font-semibold text-green-600">{(confirmedInvoice.paid_amount || 0).toFixed(2)} MAD</span>
+                  </div>
+                  <div className="border-t pt-2 mt-2">
+                    <div className="flex justify-between">
+                      <span className="font-bold text-gray-800">
+                        {confirmedInvoice.enable_tva ? 'المجموع مع الضريبة:' : 'المجموع:'}
+                      </span>
+                      <span className="font-bold text-lg text-blue-700">
+                        {(confirmedInvoice.total_with_tva || confirmedInvoice.total_amount || 0).toFixed(2)} MAD
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm mt-1">
+                      <span className="text-gray-600">الباقي:</span>
+                      <span className={`font-semibold ${
+                        (confirmedInvoice.total_with_tva || confirmedInvoice.total_amount || 0) - (confirmedInvoice.paid_amount || 0) > 0 ? 'text-red-600' : 'text-green-600'
+                      }`}>
+                        {((confirmedInvoice.total_with_tva || confirmedInvoice.total_amount || 0) - (confirmedInvoice.paid_amount || 0)).toFixed(2)} MAD
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Pied du modal */}
+            <div className="bg-gray-50 p-4 border-t">
+              {/* Options d'impression */}
+              <div className="mb-4 p-4 bg-white rounded-lg border">
+                <div className="mb-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={printTicket}
+                      onChange={(e) => setPrintTicket(e.target.checked)}
+                      className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                    />
+                    <span className="text-sm font-medium text-gray-700">طباعة الفاتورة</span>
+                  </label>
+                </div>
+                
+                {printTicket && (
+                  <div className="mr-6 space-y-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="printFormat"
+                        checked={printFormat === 'ticket'}
+                        onChange={() => setPrintFormat('ticket')}
+                        className="w-4 h-4 text-green-600 border-gray-300 focus:ring-green-500"
+                      />
+                      <span className="text-sm text-gray-600">Ticket (10/10)</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="printFormat"
+                        checked={printFormat === 'a4'}
+                        onChange={() => setPrintFormat('a4')}
+                        className="w-4 h-4 text-green-600 border-gray-300 focus:ring-green-500"
+                      />
+                      <span className="text-sm text-gray-600">A4</span>
+                    </label>
+                  </div>
+                )}
+              </div>
+              
+              <div className="flex justify-between items-center">
+                <div className="text-sm text-gray-600">
+                  <p>شكرا لثقتكم بنا</p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      setShowInvoiceModal(false)
+                      setShowConfirmationModal(true)
+                    }}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2"
+                  >
+                    <DollarSign size={16} />
+                    نوع الأداء
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowPrintTypeModal(true)
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors flex items-center gap-2"
+                  >
+                    <Printer size={16} />
+                    طباعة الفاتورة
+                  </button>
+                  <button
+                    onClick={() => setShowInvoiceModal(false)}
+                    className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg font-semibold transition-colors"
+                  >
+                    إغلاق
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Popup "اختر نوع الطباعة" au-dessus de la facture */}
+      {showPrintTypeModal && confirmedInvoice && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70]" onClick={() => {
+          setShowPrintTypeModal(false)
+          setShowInvoiceModal(false)
+        }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-[420px] max-w-[92vw] p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="text-center mb-6">
+              <span className="inline-block bg-gray-200 text-gray-800 font-bold px-4 py-2 rounded-md">
+                اختر نوع الطباعة
+              </span>
+            </div>
+
+            <div className="space-y-4">
+              <button
+                onClick={() => {
+                  handlePrint('invoice')
+                  // Ne pas fermer la popup automatiquement
+                }}
+                className="w-full bg-green-600 hover:bg-green-700 text-white py-4 rounded-lg font-bold text-lg transition-colors flex items-center justify-center gap-3"
+              >
+                <FileText size={20} />
+                طباعة الفاتورة
+              </button>
+              <button
+                onClick={() => {
+                  handlePrint('ticket')
+                  // Ne pas fermer la popup automatiquement
+                }}
+                className="w-full bg-cyan-600 hover:bg-cyan-700 text-white py-4 rounded-lg font-bold text-lg transition-colors flex items-center justify-center gap-3"
+              >
+                <Receipt size={20} />
+                طباعة التذكرة
+              </button>
+              <button
+                onClick={() => {
+                  handlePrint('order')
+                  // Ne pas fermer la popup automatiquement
+                }}
+                className="w-full bg-yellow-500 hover:bg-yellow-600 text-white py-4 rounded-lg font-bold text-lg transition-colors flex items-center justify-center gap-3"
+              >
+                <ClipboardList size={20} />
+                طباعة الطلب
+              </button>
+              <button
+                onClick={() => {
+                  setShowPrintTypeModal(false)
+                  setShowInvoiceModal(false)
+                }}
+                className="w-full bg-red-600 hover:bg-red-700 text-white py-4 rounded-lg font-bold text-lg transition-colors flex items-center justify-center gap-3"
+              >
+                <X size={20} />
+                غلق
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Popup نوع الأداء */}
+      {showPaymentTypeModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70]" onClick={() => setShowPaymentTypeModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-[420px] max-w-[92vw] p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="text-center mb-6">
+              <span className="inline-block bg-gray-200 text-gray-800 font-bold px-4 py-2 rounded-md">
+                نوع الأداء
+              </span>
+            </div>
+
+            <div className="space-y-4 mb-6">
+              <button
+                onClick={() => {
+                  setPaymentMethod('cash')
+                  setPaymentDetails({ bank_name_ar: '', check_number: '', check_date: '', debt_due_date: '' })
+                  // Mettre à jour le statut de la facture pour cash
+                  if (currentInvoice) {
+                    setCurrentInvoice({
+                      ...currentInvoice,
+                      status: 'paid',
+                      paid_amount: currentInvoice.total_amount
+                    })
+                    setPaidAmount(currentInvoice.total_amount)
+                  }
+                }}
+                className={`w-full py-4 rounded-lg font-bold text-lg transition-colors flex items-center justify-center gap-3 ${
+                  paymentMethod === 'cash' 
+                    ? 'bg-green-600 text-white' 
+                    : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
+                }`}
+              >
+                <DollarSign size={20} />
+                نقدي
+              </button>
+              <button
+                onClick={() => {
+                  setPaymentMethod('check')
+                  setPaymentDetails({ bank_name_ar: '', check_number: '', check_date: '', debt_due_date: '' })
+                  // Mettre à jour le statut de la facture pour chèque (payé)
+                  if (currentInvoice) {
+                    setCurrentInvoice({
+                      ...currentInvoice,
+                      status: 'paid',
+                      paid_amount: currentInvoice.total_amount
+                    })
+                    setPaidAmount(currentInvoice.total_amount)
+                  }
+                }}
+                className={`w-full py-4 rounded-lg font-bold text-lg transition-colors flex items-center justify-center gap-3 ${
+                  paymentMethod === 'check' 
+                    ? 'bg-blue-600 text-white' 
+                    : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
+                }`}
+              >
+                <FileText size={20} />
+                شيك
+              </button>
+              <button
+                onClick={() => {
+                  setPaymentMethod('debt')
+                  setPaymentDetails({ bank_name_ar: '', check_number: '', check_date: '', debt_due_date: '' })
+                  // Mettre à jour le statut de la facture pour dette (crédit)
+                  if (currentInvoice) {
+                    setCurrentInvoice({
+                      ...currentInvoice,
+                      status: 'credit',
+                      paid_amount: 0
+                    })
+                    setPaidAmount(0)
+                  }
+                }}
+                className={`w-full py-4 rounded-lg font-bold text-lg transition-colors flex items-center justify-center gap-3 ${
+                  paymentMethod === 'debt' 
+                    ? 'bg-orange-600 text-white' 
+                    : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
+                }`}
+              >
+                <Clock size={20} />
+                دين (سلف)
+              </button>
+            </div>
+
+            {/* Formulaire conditionnel */}
+            {paymentMethod === 'check' && (
+              <div className="space-y-4 mb-6 p-4 bg-blue-50 rounded-lg">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">البنك</label>
+                  <select
+                    value={paymentDetails.bank_name_ar}
+                    onChange={(e) => setPaymentDetails({...paymentDetails, bank_name_ar: e.target.value})}
+                    className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none"
+                  >
+                    <option value="">اختر البنك</option>
+                    <option value="البنك الشعبي">البنك الشعبي</option>
+                    <option value="البنك الوطني للتجارة">البنك الوطني للتجارة</option>
+                    <option value="التجاري وفا بنك">التجاري وفا بنك</option>
+                    <option value="البركة">البركة</option>
+                    <option value="الإفريقيا">الإفريقيا</option>
+                    <option value="القرض الفلاحي">القرض الفلاحي</option>
+                    <option value="سوسيتي جنرال">سوسيتي جنرال</option>
+                    <option value="البنك المغربي للتجارة الخارجية">البنك المغربي للتجارة الخارجية</option>
+                    <option value="البنك الأوروبي">البنك الأوروبي</option>
+                    <option value="البنك الزراعي">البنك الزراعي</option>
+                    <option value="الكريدي أغريكول">الكريدي أغريكول</option>
+                    <option value="HSBC">HSBC</option>
+                    <option value="BMCE">BMCE</option>
+                    <option value="CIH">CIH</option>
+                    <option value="اتصالات المغرب">اتصالات المغرب</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">رقم الشيك</label>
+                  <input
+                    type="text"
+                    value={paymentDetails.check_number}
+                    onChange={(e) => setPaymentDetails({...paymentDetails, check_number: e.target.value})}
+                    className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none"
+                    placeholder="أدخل رقم الشيك"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">تاريخ الشيك</label>
+                  <input
+                    type="date"
+                    value={paymentDetails.check_date}
+                    onChange={(e) => setPaymentDetails({...paymentDetails, check_date: e.target.value})}
+                    className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+            )}
+
+            {paymentMethod === 'debt' && (
+              <div className="space-y-4 mb-6 p-4 bg-orange-50 rounded-lg">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">تاريخ الدين</label>
+                  <input
+                    type="date"
+                    value={paymentDetails.debt_due_date}
+                    onChange={(e) => setPaymentDetails({...paymentDetails, debt_due_date: e.target.value})}
+                    className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-orange-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  // Validation
+                  if (paymentMethod === 'check' && (!paymentDetails.bank_name_ar || !paymentDetails.check_number || !paymentDetails.check_date)) {
+                    alert('يرجى ملء جميع حقول الشيك')
+                    return
+                  }
+                  if (paymentMethod === 'debt' && !paymentDetails.debt_due_date) {
+                    alert('يرجى تحديد تاريخ الدين')
+                    return
+                  }
+                  
+                  setShowPaymentTypeModal(false)
+                  processSaleAfterTVA()
+                }}
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white py-4 rounded-lg font-bold text-lg transition-colors flex items-center justify-center gap-3"
+              >
+                <Check size={20} />
+                تأكيد البيع
+              </button>
+              <button
+                onClick={() => setShowPaymentTypeModal(false)}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white py-4 rounded-lg font-bold text-lg transition-colors flex items-center justify-center gap-3"
+              >
+                <X size={20} />
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

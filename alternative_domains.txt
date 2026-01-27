@@ -1,0 +1,11 @@
+// Alternative domains to try if @ba9alino.app fails:
+// 1. @test.dev
+// 2. @demo.local  
+// 3. @example.org
+// 4. @myapp.dev
+
+// Change makeSystemEmail to use these:
+return `${u}@test.dev`;
+return `${u}@demo.local`;
+return `${u}@example.org`;
+return `${u}@myapp.dev`;

@@ -1,0 +1,9 @@
+// Auto-generate unique username in UserAccountsPage.tsx
+
+// In the form, if username is empty, generate one:
+const username = formData.username || generateUniqueUsername(formData.full_name)
+
+// Or modify the handleSubmit to auto-generate:
+if (!formData.username) {
+  formData.username = generateUniqueUsername(formData.full_name)
+}

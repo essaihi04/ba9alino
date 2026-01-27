@@ -1,0 +1,14 @@
+// Add to login form inputs:
+<input
+  type="email"
+  dir="ltr"
+  style={{ textAlign: 'left', unicodeBidi: 'plaintext' }}
+  // ... other props
+/>
+
+<input
+  type="password"
+  dir="ltr"
+  style={{ textAlign: 'left', unicodeBidi: 'plaintext' }}
+  // ... other props
+/>
