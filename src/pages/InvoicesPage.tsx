@@ -105,11 +105,71 @@ export default function InvoicesPage() {
     try {
       const { data, error } = await supabase
         .from('products')
-        .select('id, name_ar, name_en, sku, price_a, price_b, price_c, price_d, price_e, stock, weight, weight_unit')
+        .select(`
+          id, 
+          name_ar, 
+          name_en, 
+          sku, 
+          price_a, 
+          price_b, 
+          price_c, 
+          price_d, 
+          price_e, 
+          stock, 
+          weight, 
+          weight_unit,
+          product_variants (
+            id,
+            unit_type,
+            quantity_contained,
+            price_a,
+            price_b,
+            price_c,
+            stock,
+            is_active,
+            is_default
+          ),
+          stock_records (
+            quantity_in_stock,
+            quantity_available,
+            is_low_stock,
+            is_out_of_stock
+          )
+        `)
+        .eq('is_active', true)
         .order('name_ar')
 
       if (error) throw error
-      setProducts(data || [])
+      
+      // Calculer le stock disponible pour chaque produit
+      const productsWithStock = (data || []).map(product => {
+        // Utiliser le stock disponible depuis la table stock si disponible
+        const stockRecord = product.stock_records?.[0]
+        let availableStock = product.stock || 0
+        
+        if (stockRecord) {
+          availableStock = stockRecord.quantity_available || stockRecord.quantity_in_stock || 0
+        }
+        
+        // Calculer le stock total depuis les variants si pas de stock record
+        if (!stockRecord && product.product_variants && product.product_variants.length > 0) {
+          const variantsStock = product.product_variants.reduce((total, variant) => {
+            return total + (variant.stock || 0)
+          }, 0)
+          if (variantsStock > 0) {
+            availableStock = variantsStock
+          }
+        }
+        
+        return {
+          ...product,
+          availableStock,
+          isLowStock: stockRecord?.is_low_stock || availableStock < 10,
+          isOutOfStock: stockRecord?.is_out_of_stock || availableStock <= 0
+        }
+      })
+      
+      setProducts(productsWithStock)
     } catch (error) {
       console.error('Error loading products:', error)
     } finally {
@@ -129,6 +189,17 @@ export default function InvoicesPage() {
 
   // Ajouter un produit à la facture
   const addProductToInvoice = (product: Product, unitType: 'unit' | 'kg' | 'carton', quantity: number) => {
+    // Vérifier le stock disponible
+    if (product.availableStock <= 0) {
+      alert(`❌ المنتج "${product.name_ar}" غير متوفر في المخزون`)
+      return
+    }
+    
+    if (quantity > product.availableStock) {
+      alert(`❌ الكمية المطلوبة (${quantity}) تتجاوز المخزون المتاح (${product.availableStock}) للمنتج "${product.name_ar}"`)
+      return
+    }
+    
     const price = unitType === 'unit' ? product.price_a : 
                   unitType === 'kg' ? product.price_b : 
                   product.price_c
@@ -735,24 +806,52 @@ export default function InvoicesPage() {
                                 <div>
                                   <p className="font-medium text-gray-800">{product.name_ar}</p>
                                   <p className="text-sm text-gray-500">SKU: {product.sku}</p>
-                                  <p className="text-sm text-gray-500">المخزون: {product.stock}</p>
+                                  <div className="flex items-center gap-2">
+                                    <span className={`text-sm font-medium ${
+                                      product.isOutOfStock ? 'text-red-600' : 
+                                      product.isLowStock ? 'text-orange-600' : 'text-green-600'
+                                    }`}>
+                                      المخزون: {product.availableStock || 0}
+                                    </span>
+                                    {product.isOutOfStock && (
+                                      <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">نفذ</span>
+                                    )}
+                                    {product.isLowStock && !product.isOutOfStock && (
+                                      <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded">منخفض</span>
+                                    )}
+                                  </div>
                                 </div>
                                 <div className="flex gap-2">
                                   <button
                                     onClick={() => addProductToInvoice(product, 'unit', 1)}
-                                    className="px-3 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600"
+                                    disabled={product.availableStock <= 0}
+                                    className={`px-3 py-1 text-sm rounded ${
+                                      product.availableStock <= 0 
+                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                        : 'bg-blue-500 text-white hover:bg-blue-600'
+                                    }`}
                                   >
                                     وحدة
                                   </button>
                                   <button
                                     onClick={() => addProductToInvoice(product, 'kg', 1)}
-                                    className="px-3 py-1 bg-green-500 text-white text-sm rounded hover:bg-green-600"
+                                    disabled={product.availableStock <= 0}
+                                    className={`px-3 py-1 text-sm rounded ${
+                                      product.availableStock <= 0 
+                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                        : 'bg-green-500 text-white hover:bg-green-600'
+                                    }`}
                                   >
                                     كيلو
                                   </button>
                                   <button
                                     onClick={() => addProductToInvoice(product, 'carton', 1)}
-                                    className="px-3 py-1 bg-purple-500 text-white text-sm rounded hover:bg-purple-600"
+                                    disabled={product.availableStock <= 0}
+                                    className={`px-3 py-1 text-sm rounded ${
+                                      product.availableStock <= 0 
+                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                        : 'bg-purple-500 text-white hover:bg-purple-600'
+                                    }`}
                                   >
                                     كرتون
                                   </button>
