@@ -218,18 +218,43 @@ export default function OrdersPage() {
   const fetchOrders = async () => {
     try {
       setLoading(true)
-      // Start with a simple query to identify the issue
+      // Enhanced query with employee and client joins
       const { data, error } = await supabase
         .from('orders')
-        .select('*')
+        .select(`
+          *,
+          client:client_id (
+            id,
+            company_name_ar,
+            company_name_en,
+            address,
+            city,
+            contact_person_phone,
+            subscription_tier
+          ),
+          employee:created_by (
+            id,
+            name,
+            phone,
+            role,
+            status
+          ),
+          warehouse:warehouse_id (
+            id,
+            name,
+            address,
+            is_active
+          )
+        `)
         .order('order_date', { ascending: false })
 
       if (error) {
-        console.error('Simple query failed:', error)
+        console.error('Orders query failed:', error)
         throw error
       }
       
       console.log('Orders fetched successfully:', data?.length || 0, 'orders')
+      console.log('Sample order with employee:', data?.[0])
       setOrders(data || [])
     } catch (error) {
       console.error('Error fetching orders:', error)
@@ -309,11 +334,36 @@ export default function OrdersPage() {
     try {
       const { data, error } = await supabase
         .from('products')
-        .select('id, sku, name_ar, price, price_a, price_b, price_c, price_d, price_e, image_url, category_id')
+        .select(`
+          id, 
+          sku, 
+          name_ar, 
+          price, 
+          price_a, 
+          price_b, 
+          price_c, 
+          price_d, 
+          price_e, 
+          image_url, 
+          category_id,
+          product_variants (
+            id,
+            price_a,
+            price_b,
+            price_c,
+            price_d,
+            price_e,
+            stock,
+            is_active,
+            is_default
+          )
+        `)
+        .eq('is_active', true)
         .order('name_ar')
       
       if (error) throw error
       
+      console.log('Products loaded with variants:', data?.length || 0)
       setProducts(data || [])
     } catch (error) {
       console.error('Error fetching products:', error)
@@ -540,6 +590,33 @@ export default function OrdersPage() {
   }
 
   const getProductPriceForClient = (product: any) => {
+    // Debug: Afficher les prix du produit
+    console.log(`Price debug for ${product.name_ar}:`, {
+      price_a: product.price_a,
+      price_b: product.price_b,
+      price_c: product.price_c,
+      price_d: product.price_d,
+      price_e: product.price_e,
+      price: product.price,
+      variants: product.product_variants,
+      client_id: orderData.client_id,
+      client_tier: clients.find(c => c.id === orderData.client_id)?.subscription_tier
+    })
+    
+    // Priorité 1: Utiliser les prix du variant par défaut
+    const defaultVariant = product.product_variants?.find((v: any) => v.is_default)
+    const activeVariant = product.product_variants?.find((v: any) => v.is_active)
+    const variantToUse = defaultVariant || activeVariant || product.product_variants?.[0]
+    
+    if (variantToUse) {
+      const variantPrice = getVariantPriceForClient(variantToUse)
+      if (variantPrice > 0) {
+        console.log(`Using variant price for ${product.name_ar}: ${variantPrice}`)
+        return variantPrice
+      }
+    }
+    
+    // Priorité 2: Utiliser les prix du produit de base
     const basePrice =
       (product.price_e ?? product.price ?? product.price_a ?? product.price_b ?? product.price_c ?? product.price_d ?? 0)
     
@@ -585,6 +662,7 @@ export default function OrdersPage() {
       }
     }
     
+    console.log(`Final price for ${product.name_ar}: ${finalPrice}`)
     return finalPrice
   }
 
