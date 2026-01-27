@@ -101,11 +101,34 @@ export default function EmployeeProductsPage() {
 
   const getAvailableStock = (product: Product) => {
     const stockRow = stocks.get(product.id)
-    if (typeof stockRow?.quantity_available === 'number') return stockRow.quantity_available
-
+    
+    // Debug: Afficher les informations de stock pour ce produit
+    console.log(`Stock debug for ${product.name_ar} (${product.id}):`, {
+      stockRow,
+      quantity_available: stockRow?.quantity_available,
+      quantity_in_stock: stockRow?.quantity_in_stock,
+      product_stock: product.stock,
+      variants: product.product_variants,
+      variants_total: (product.product_variants || []).reduce((sum, v) => sum + (v.stock || 0), 0)
+    })
+    
+    // Priorité 1: Utiliser quantity_available depuis la table stock
+    if (typeof stockRow?.quantity_available === 'number' && stockRow.quantity_available > 0) {
+      return stockRow.quantity_available
+    }
+    
+    // Priorité 2: Utiliser quantity_in_stock si quantity_available n'est pas disponible
+    if (typeof stockRow?.quantity_in_stock === 'number' && stockRow.quantity_in_stock > 0) {
+      return stockRow.quantity_in_stock
+    }
+    
+    // Priorité 3: Calculer depuis les variants
     const variantsTotal = (product.product_variants || []).reduce((sum, v) => sum + (v.stock || 0), 0)
-    if (variantsTotal > 0) return variantsTotal
-
+    if (variantsTotal > 0) {
+      return variantsTotal
+    }
+    
+    // Priorité 4: Utiliser le stock de base du produit
     return product.stock || 0
   }
 
@@ -255,7 +278,7 @@ export default function EmployeeProductsPage() {
                       <p className="text-sm text-gray-500">SKU: {product.sku}</p>
                     </div>
                     <div className={`px-3 py-1 rounded-full text-sm font-medium ${stockStatus}`}>
-                      {available}
+                      {available > 0 ? `المتوفر: ${available}` : `غير متوفر`}
                     </div>
                   </div>
 
