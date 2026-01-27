@@ -61,7 +61,25 @@ export default function ProfilePage() {
       }
 
       if (data) {
-        setCompanyInfo(data)
+        // Mapper les colonnes de la BDD vers l'interface
+        setCompanyInfo({
+          id: data.id,
+          company_name: data.name_en || '',
+          company_name_ar: data.name_ar || '',
+          address: data.address_en || '',
+          address_ar: data.address_ar || '',
+          phone: data.phone || '',
+          email: data.email || '',
+          website: data.website || '',
+          logo_url: data.logo_url || '',
+          tax_id: data.tax_id || '',
+          ice: data.commercial_register || '',
+          bank_name: '',
+          bank_iban: '',
+          bank_account: '',
+          created_at: data.created_at,
+          updated_at: data.updated_at
+        })
         setLogoPreview(data.logo_url || '')
       }
     } catch (error) {
@@ -112,8 +130,16 @@ export default function ProfilePage() {
       }
 
       const companyData = {
-        ...companyInfo,
+        name_ar: companyInfo.company_name_ar,
+        name_en: companyInfo.company_name,
+        address_ar: companyInfo.address_ar,
+        address_en: companyInfo.address,
+        phone: companyInfo.phone,
+        email: companyInfo.email,
+        website: companyInfo.website,
         logo_url: logoUrl,
+        tax_id: companyInfo.tax_id,
+        commercial_register: companyInfo.ice,
         updated_at: new Date().toISOString()
       }
 
@@ -135,7 +161,19 @@ export default function ProfilePage() {
       }
 
       // Update localStorage for invoices
-      localStorage.setItem('companyInfo', JSON.stringify(companyData))
+      const localStorageData = {
+        company_name: companyData.name_en,
+        company_name_ar: companyData.name_ar,
+        address: companyData.address_en,
+        address_ar: companyData.address_ar,
+        phone: companyData.phone,
+        email: companyData.email,
+        website: companyData.website,
+        logo_url: companyData.logo_url,
+        tax_id: companyData.tax_id,
+        ice: companyData.commercial_register
+      }
+      localStorage.setItem('companyInfo', JSON.stringify(localStorageData))
 
       setIsEditing(false)
       setLogoFile(null)
