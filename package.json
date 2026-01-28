@@ -11,7 +11,8 @@
     "lint": "eslint src --ext .js,.jsx,.ts,.tsx",
     "desktop:dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "desktop:pack": "electron-builder --dir",
-    "desktop:dist": "electron-builder"
+    "desktop:dist": "electron-builder",
+    "publish:release": "electron-builder --publish always"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.38.0",
