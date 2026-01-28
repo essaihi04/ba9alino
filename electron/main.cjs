@@ -106,6 +106,13 @@ function createMainWindow() {
 }
 
 function setupAutoUpdater() {
+  autoUpdater.setFeedURL({
+    provider: 'github',
+    owner: 'essaihi04',
+    repo: 'ba9alino',
+    releaseType: 'release'
+  })
+
   autoUpdater.autoDownload = false
 
   autoUpdater.on('checking-for-update', () => sendToRenderer('updater:status', { status: 'checking' }))
