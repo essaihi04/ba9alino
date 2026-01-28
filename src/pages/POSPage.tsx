@@ -90,6 +90,11 @@ interface Invoice {
   remaining_amount: number
   created_at: string
   validated_at?: string
+  enable_tva?: boolean
+  tva_rate?: number
+  total_with_tva?: number
+  tva_amount?: number
+  payment_method?: string
 }
 
 interface Draft {
@@ -178,6 +183,8 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
   const [editingInvoiceLine, setEditingInvoiceLine] = useState<InvoiceLine | null>(null)
   const [editLineQuantity, setEditLineQuantity] = useState('')
   const [editLinePrice, setEditLinePrice] = useState('')
+  const [editingField, setEditingField] = useState<'quantity' | 'price' | null>(null)
+  const [numericInput, setNumericInput] = useState('')
   
   // États pour popup type de paiement
   const [showPaymentTypeModal, setShowPaymentTypeModal] = useState(false)
@@ -695,10 +702,10 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         return
       }
       
-      // Récupérer les variants pour avoir les vrais prix et stocks
+      // Récupérer les variants pour avoir les vrais prix, stocks et codes barres
       const { data: variants, error: variantsError } = await supabase
         .from('product_variants')
-        .select('product_id, price_a, price_b, price_c, price_d, price_e, stock, is_default')
+        .select('product_id, price_a, price_b, price_c, price_d, price_e, stock, is_default, barcode')
         .eq('is_active', true)
         .in('product_id', (products || []).map(p => p.id))
       
@@ -721,6 +728,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
             price_d: defaultVariant.price_d,
             price_e: defaultVariant.price_e,
             stock: defaultVariant.stock,
+            barcode: defaultVariant.barcode, // Ajouter le code barre du variant
             // Garder une trace de la source
             _priceSource: 'variant',
             _variantId: defaultVariant.product_id
@@ -745,6 +753,11 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       }
       
       setProducts(enrichedProducts || [])
+      console.log('📦 Produits chargés:', enrichedProducts?.length || 0)
+      console.log('📊 Codes barres disponibles:', enrichedProducts?.filter(p => p.barcode).map(p => ({
+        name: p.name_ar,
+        barcode: p.barcode
+      })) || [])
     } catch (error) {
       console.error('Error loading products:', error)
     }
@@ -804,12 +817,105 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         return
       }
       
-      console.log('📋 Factures en attente récupérées:', data?.length || 0)
-      setOnHoldInvoices(data || [])
+      // Convert items from JSON to InvoiceLine format
+      const processedData = (data || []).map(invoice => ({
+        ...invoice,
+        lines: (invoice.items || []).map((item: any, index: number) => ({
+          id: `line-${index}-${Date.now()}`,
+          product_id: item.product_id,
+          product_name_ar: item.product_name,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          total: item.total,
+          deleted: false,
+          image_url: undefined
+        }))
+      }))
+      
+      console.log('📋 Factures en attente récupérées:', processedData?.length || 0)
+      console.log('📦 Détails produits:', processedData.map(inv => ({
+        id: inv.id,
+        client: inv.client_name,
+        items: inv.items?.length || 0,
+        lines: inv.lines?.length || 0,
+        total: inv.total_amount
+      })))
+      
+      setOnHoldInvoices(processedData)
     } catch (error) {
       console.error('❌ Exception loading on hold invoices:', error)
       setOnHoldInvoices([])
     }
+  }
+
+  const handleBarcodeSearch = () => {
+    if (!searchQuery.trim()) return
+    
+    const normalizedSearch = searchQuery.trim().replace(/[\s-]/g, '') // Remove spaces and dashes
+    console.log('🔍 Recherche pour:', searchQuery.trim(), '→ normalisé:', normalizedSearch)
+    console.log('📦 Produits disponibles:', products.map(p => ({
+      name: p.name_ar,
+      barcode: p.barcode,
+      hasBarcode: !!p.barcode
+    })))
+    
+    // Search for exact barcode match (normalized)
+    const exactBarcodeMatch = products.find(p => {
+      if (!p.barcode) return false
+      const normalizedBarcode = p.barcode.replace(/[\s-]/g, '')
+      return normalizedBarcode === normalizedSearch
+    })
+    console.log('🎯 Exact barcode match:', exactBarcodeMatch?.name_ar)
+    
+    if (exactBarcodeMatch) {
+      // Add product to invoice
+      addToInvoice(exactBarcodeMatch)
+      setSearchQuery('') // Clear search after adding
+      return
+    }
+    
+    // If no exact match, search for partial barcode match (normalized)
+    const partialBarcodeMatch = products.find(p => {
+      if (!p.barcode) return false
+      const normalizedBarcode = p.barcode.replace(/[\s-]/g, '')
+      return normalizedBarcode.includes(normalizedSearch) || normalizedSearch.includes(normalizedBarcode)
+    })
+    console.log('🔍 Partial barcode match:', partialBarcodeMatch?.name_ar)
+    
+    if (partialBarcodeMatch) {
+      addToInvoice(partialBarcodeMatch)
+      setSearchQuery('') // Clear search after adding
+      return
+    }
+    
+    // If no barcode match, search by name (case-insensitive)
+    const nameMatch = products.find(p => 
+      p.name_ar?.toLowerCase() === searchQuery.trim().toLowerCase()
+    )
+    console.log('📝 Name match:', nameMatch?.name_ar)
+    
+    if (nameMatch) {
+      addToInvoice(nameMatch)
+      setSearchQuery('') // Clear search after adding
+      return
+    }
+    
+    // If only one product matches the search query, add it
+    const matchingProducts = products.filter(p => {
+      const nameMatch = p.name_ar?.toLowerCase().includes(searchQuery.toLowerCase())
+      const barcodeMatch = p.barcode ? p.barcode.replace(/[\s-]/g, '').includes(normalizedSearch) : false
+      return nameMatch || barcodeMatch
+    })
+    console.log('📋 Matching products count:', matchingProducts.length)
+    
+    if (matchingProducts.length === 1) {
+      addToInvoice(matchingProducts[0])
+      setSearchQuery('') // Clear search after adding
+      return
+    }
+    
+    // If multiple matches or no match, keep search query for manual selection
+    console.log('🔍 Multiple matches or no match found, showing results for manual selection')
   }
 
   const filteredProducts = products.filter(p =>
@@ -867,7 +973,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       return 10.00
     }
     
-    // Les catégories sont : A, B, C, D, E
+    // Les catégories sont : A, B, C, D, E, basic
     let price = 0
     switch (clientCategory) {
       case 'A':
@@ -890,6 +996,10 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         price = getFirstNonZeroPrice([item.price_e, item.price_a, item.price_b, item.price_c, item.price_d]) || 10.00
         console.log('✅ Catégorie E, prix:', price)
         break
+      case 'basic':
+        price = getFirstNonZeroPrice([item.price_a, item.price_b, item.price_c, item.price_d, item.price_e]) || 10.00
+        console.log('✅ Catégorie basic, prix:', price)
+        break
       default:
         console.log('⚠️ Catégorie inconnue:', clientCategory, ', prix E par défaut:', item.price_e, 'fallback prix A:', item.price_a)
         price = getFirstNonZeroPrice([item.price_e, item.price_a, item.price_b, item.price_c, item.price_d]) || 10.00
@@ -902,8 +1012,9 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
   const generateInvoiceNumber = () => {
     const date = new Date()
     const dateStr = date.toISOString().split('T')[0].replace(/-/g, '')
-    const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0')
-    return `INV-${dateStr}-${random}`
+    const timeStr = date.toTimeString().split(' ')[0].replace(/:/g, '')
+    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0')
+    return `INV-${dateStr}-${timeStr}-${random}`
   }
 
   // Créer une nouvelle facture en cours
@@ -968,26 +1079,36 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     // Recalculer les totaux
     invoice.subtotal = invoice.lines.reduce((sum, line) => (line.deleted ? sum : sum + line.total), 0)
     invoice.total_amount = invoice.subtotal
+    
+    // Auto-sync paid amount with total for resumed invoices
+    invoice.paid_amount = invoice.total_amount
     invoice.remaining_amount = invoice.total_amount - invoice.paid_amount
 
     setCurrentInvoice({ ...invoice })
+    // Sync paidAmount state with the new total
+    setPaidAmount(invoice.paid_amount)
   }
 
   // Mettre à jour la quantité d'une ligne
   const updateInvoiceLineQuantity = (lineId: string, quantity: number) => {
     if (!currentInvoice) return
 
-    const line = currentInvoice.lines.find(l => l.id === lineId)
+    const line = currentInvoice.lines?.find(l => l.id === lineId)
     if (line && !line.deleted && quantity > 0) {
       line.quantity = quantity
       line.total = line.quantity * line.unit_price
 
       // Recalculer les totaux
-      currentInvoice.subtotal = currentInvoice.lines.reduce((sum, l) => (l.deleted ? sum : sum + l.total), 0)
+      currentInvoice.subtotal = currentInvoice.lines?.reduce((sum, l) => (l.deleted ? sum : sum + l.total), 0) || 0
       currentInvoice.total_amount = currentInvoice.subtotal
+      
+      // Auto-sync paid amount with total for resumed invoices
+      currentInvoice.paid_amount = currentInvoice.total_amount
       currentInvoice.remaining_amount = currentInvoice.total_amount - currentInvoice.paid_amount
 
       setCurrentInvoice({ ...currentInvoice })
+      // Sync paidAmount state with the new total
+      setPaidAmount(currentInvoice.paid_amount)
     }
   }
 
@@ -995,7 +1116,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
   const removeInvoiceLine = (lineId: string) => {
     if (!currentInvoice) return
 
-    const line = currentInvoice.lines.find(l => l.id === lineId)
+    const line = currentInvoice.lines?.find(l => l.id === lineId)
     if (!line) return
 
     // Soft delete: garder la ligne mais la barrer
@@ -1004,28 +1125,38 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     line.total = 0
 
     // Recalculer les totaux
-    currentInvoice.subtotal = currentInvoice.lines.reduce((sum, l) => (l.deleted ? sum : sum + l.total), 0)
+    currentInvoice.subtotal = currentInvoice.lines?.reduce((sum, l) => (l.deleted ? sum : sum + l.total), 0) || 0
     currentInvoice.total_amount = currentInvoice.subtotal
+    
+    // Auto-sync paid amount with total for resumed invoices
+    currentInvoice.paid_amount = currentInvoice.total_amount
     currentInvoice.remaining_amount = currentInvoice.total_amount - currentInvoice.paid_amount
 
     setCurrentInvoice({ ...currentInvoice })
+    // Sync paidAmount state with the new total
+    setPaidAmount(currentInvoice.paid_amount)
   }
 
   const restoreInvoiceLine = (lineId: string) => {
     if (!currentInvoice) return
 
-    const line = currentInvoice.lines.find(l => l.id === lineId)
+    const line = currentInvoice.lines?.find(l => l.id === lineId)
     if (!line) return
 
     line.deleted = false
     line.quantity = 1
     line.total = line.quantity * line.unit_price
 
-    currentInvoice.subtotal = currentInvoice.lines.reduce((sum, l) => (l.deleted ? sum : sum + l.total), 0)
+    currentInvoice.subtotal = currentInvoice.lines?.reduce((sum, l) => (l.deleted ? sum : sum + l.total), 0) || 0
     currentInvoice.total_amount = currentInvoice.subtotal
+    
+    // Auto-sync paid amount with total for resumed invoices
+    currentInvoice.paid_amount = currentInvoice.total_amount
     currentInvoice.remaining_amount = currentInvoice.total_amount - currentInvoice.paid_amount
 
     setCurrentInvoice({ ...currentInvoice })
+    // Sync paidAmount state with the new total
+    setPaidAmount(currentInvoice.paid_amount)
   }
 
   // Mettre à jour le montant payé et calculer le statut
@@ -1190,7 +1321,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
   }
 
   const resumeDraft = (draft: Draft) => {
-    setCart(draft.items)
+    setCart(draft.items || [])
     setSelectedClient(clients.find(c => c.id === draft.client_id) || null)
     setPaidAmount(0)
     setShowDraftsModal(false)
@@ -1201,10 +1332,46 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     localStorage.setItem('pos_drafts', JSON.stringify(updatedDrafts))
   }
 
+  const resumeInvoice = (invoice: Invoice) => {
+    // Set current invoice from on hold invoice
+    setCurrentInvoice(invoice)
+    setInvoiceNumber(invoice.invoice_number)
+    
+    // Convert Invoice lines to Cart items
+    const cartItems = (invoice.lines || []).map(line => ({
+      id: line.product_id,
+      name_ar: line.product_name_ar,
+      price_a: line.unit_price,
+      price_b: line.unit_price,
+      price_c: line.unit_price,
+      price_d: line.unit_price,
+      price_e: line.unit_price,
+      stock: 0, // Will be updated when product is loaded
+      quantity: line.quantity,
+      customPrice: line.customPrice,
+      image_url: line.image_url
+    }))
+    
+    setCart(cartItems)
+    setSelectedClient(clients.find(c => c.id === invoice.client_id) || null)
+    // Set paid amount to the invoice's paid amount, not 0
+    setPaidAmount(invoice.paid_amount || 0)
+    setShowDraftsModal(false)
+
+    // Remove from on hold invoices
+    const updatedInvoices = onHoldInvoices.filter(inv => inv.id !== invoice.id)
+    setOnHoldInvoices(updatedInvoices)
+  }
+
   const deleteDraft = (draftId: string) => {
     const updatedDrafts = drafts.filter(d => d.id !== draftId)
     setDrafts(updatedDrafts)
     localStorage.setItem('pos_drafts', JSON.stringify(updatedDrafts))
+  }
+
+  const deleteInvoice = (invoiceId: string) => {
+    const updatedInvoices = onHoldInvoices.filter(inv => inv.id !== invoiceId)
+    setOnHoldInvoices(updatedInvoices)
   }
 
   useEffect(() => {
@@ -1276,7 +1443,46 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     setEditingInvoiceLine(line)
     setEditLineQuantity(line.quantity.toString())
     setEditLinePrice(line.unit_price.toFixed(2))
+    setEditingField(null)
+    setNumericInput('')
     setShowEditInvoiceLineModal(true)
+  }
+
+  const openNumericKeypad = (field: 'quantity' | 'price') => {
+    setEditingField(field)
+    setNumericInput(field === 'quantity' ? editLineQuantity : editLinePrice)
+  }
+
+  const handleNumericInput = (value: string) => {
+    if (value === 'clear') {
+      setNumericInput('')
+    } else if (value === 'backspace') {
+      setNumericInput(prev => prev.slice(0, -1))
+    } else if (value === '.') {
+      // Allow only one decimal point for price
+      if (editingField === 'price' && !numericInput.includes('.')) {
+        setNumericInput(prev => prev + value)
+      }
+    } else {
+      setNumericInput(prev => prev + value)
+    }
+  }
+
+  const handleNumericConfirm = () => {
+    if (editingField === 'quantity') {
+      const qty = parseInt(numericInput) || 1
+      setEditLineQuantity(qty.toString())
+    } else if (editingField === 'price') {
+      const price = parseFloat(numericInput) || 0
+      setEditLinePrice(price.toFixed(2))
+    }
+    setEditingField(null)
+    setNumericInput('')
+  }
+
+  const handleNumericCancel = () => {
+    setEditingField(null)
+    setNumericInput('')
   }
 
   const openEditItemModal = (item: CartItem) => {
@@ -1294,7 +1500,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       return
     }
 
-    if (!currentInvoice || currentInvoice.lines.length === 0) return
+    if (!currentInvoice || !currentInvoice.lines || currentInvoice.lines.length === 0) return
 
     // Afficher la facture NON confirmée (avec option TVA)
     setShowConfirmationModal(true)
@@ -1361,7 +1567,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         status: currentInvoice.status === 'credit' ? 'draft' : 
                 currentInvoice.status === 'partial' ? 'sent' :
                 currentInvoice.status === 'paid' ? 'paid' : 'draft',
-        items: currentInvoice.lines.filter(line => !line.deleted).map(line => ({
+        items: currentInvoice.lines?.filter(line => !line.deleted).map(line => ({
           product_id: line.product_id,
           product_name: line.product_name_ar,
           quantity: line.quantity,
@@ -1398,7 +1604,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       const { error: itemsError } = await supabase
         .from('invoice_items')
         .insert(
-          currentInvoice.lines.filter(line => !line.deleted).map(line => ({
+          currentInvoice.lines?.filter(line => !line.deleted).map(line => ({
             invoice_id: invoice.id,
             description_ar: line.product_name_ar,
             quantity: line.quantity,
@@ -1413,14 +1619,15 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       */
 
       // Créer l'enregistrement de paiement si payé
+      // Unified payment method values: cash, check, card, bank_transfer, credit
+      const normalizedPaymentMethod = paymentMethod === 'cash' ? 'cash'
+        : paymentMethod === 'check' ? 'check'
+        : paymentMethod === 'card' ? 'card'
+        : paymentMethod === 'bank_transfer' ? 'bank_transfer'
+        : paymentMethod === 'credit' ? 'credit'
+        : 'cash' // default fallback
+
       if (currentInvoice.paid_amount > 0) {
-        // Unified payment method values: cash, check, card, bank_transfer, credit
-        const normalizedPaymentMethod = paymentMethod === 'cash' ? 'cash'
-          : paymentMethod === 'check' ? 'check'
-          : paymentMethod === 'card' ? 'card'
-          : paymentMethod === 'bank_transfer' ? 'bank_transfer'
-          : paymentMethod === 'credit' ? 'credit'
-          : 'cash' // default fallback
 
         const { error: paymentError } = await supabase
           .from('payments')
@@ -1441,7 +1648,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       }
 
       // Mettre à jour le stock
-      for (const line of currentInvoice.lines.filter(line => !line.deleted)) {
+      for (const line of currentInvoice.lines?.filter(line => !line.deleted) || []) {
         const { data: product } = await supabase
           .from('products')
           .select('stock')
@@ -1464,7 +1671,8 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         total_with_tva: calculateWithTVA(currentInvoice.total_amount),
         tva_amount: calculateTVA(currentInvoice.total_amount),
         enable_tva: enableTVA,
-        tva_rate: tvaRate
+        tva_rate: tvaRate,
+        payment_method: currentInvoice.paid_amount > 0 ? normalizedPaymentMethod : 'credit'
       }
 
       // Afficher la facture et la popup d'impression
@@ -1571,62 +1779,109 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         </div>
       `
     } else if (type === 'ticket') {
-      // Ticket 80mm - Format compact
+      // Ticket 80mm - Format compact (model-like)
+      const ticketDate = new Date(confirmedInvoice.created_at)
+      const ticketDateStr = ticketDate.toLocaleDateString('fr-FR')
+      const ticketTimeStr = ticketDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+      const totalQty = confirmedInvoice.lines.filter(l => !l.deleted).reduce((sum, l) => sum + (Number(l.quantity) || 0), 0)
+      const totalWithTva = confirmedInvoice.total_with_tva ?? confirmedInvoice.total_amount
+      const remaining = (totalWithTva - (confirmedInvoice.paid_amount || 0))
+      const debtAmount = remaining > 0 ? remaining : 0
+
       printContent = `
-        <div style="direction: rtl; font-family: monospace; color: black; max-width: 80mm; margin: 0 auto; padding: 10px; font-size: 12px;">
-          <div style="text-align: center; margin-bottom: 15px;">
-            <h1 style="font-size: 18px; margin: 0; color: black;">${companyInfo.company_name_ar || companyInfo.company_name || 'BA9ALINO'}</h1>
-            ${companyInfo.address_ar ? `<p style="margin: 2px 0; color: black; font-size: 10px;">${companyInfo.address_ar}</p>` : '<p style="margin: 2px 0; color: black; font-size: 10px;">المغرب - الدار البيضاء</p>'}
-            ${companyInfo.phone ? `<p style="margin: 2px 0; color: black; font-size: 10px;">الهاتف: ${companyInfo.phone}</p>` : ''}
+        <div style="direction: rtl; font-family: monospace; color: #000; width: 80mm; margin: 0 auto; padding: 6px; font-size: 12px; line-height: 1.25;">
+          <div style="text-align: center; margin-bottom: 6px;">
+            <div style="font-size: 14px; font-weight: bold;">${companyInfo.company_name_ar || companyInfo.company_name || ''}</div>
+            ${companyInfo.address_ar ? `<div style=\"font-size: 10px;\">${companyInfo.address_ar}</div>` : ''}
+            ${companyInfo.phone ? `<div style=\"font-size: 10px;\">${companyInfo.phone}</div>` : ''}
           </div>
-          
-          <div style="border-bottom: 1px dashed black; padding-bottom: 10px; margin-bottom: 10px;">
-            <p style="margin: 2px 0; color: black;"><strong>رقم:</strong> ${confirmedInvoice.invoice_number}</p>
-            <p style="margin: 2px 0; color: black;"><strong>التاريخ:</strong> ${new Date(confirmedInvoice.created_at).toLocaleDateString('ar-DZ')}</p>
-            <p style="margin: 2px 0; color: black;"><strong>العميل:</strong> ${confirmedInvoice.client_name}</p>
-          </div>
-          
-          <div style="margin-bottom: 10px;">
-            ${confirmedInvoice.lines.filter(l => !l.deleted).map(line => `
-              <div style="margin-bottom: 5px;">
-                <div style="display: flex; justify-content: space-between;">
-                  <span style="color: black;">${line.product_name_ar}</span>
-                  <span style="color: black;">${line.total.toFixed(2)} MAD</span>
-                </div>
-                <div style="font-size: 10px; color: black;">
-                  ${line.quantity} × ${line.unit_price.toFixed(2)} MAD
-                </div>
-              </div>
-            `).join('')}
-          </div>
-          
-          <div style="border-top: 1px dashed black; padding-top: 10px;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-              <span style="color: black;">الإجمالي:</span>
-              <span style="color: black;">${confirmedInvoice.subtotal.toFixed(2)} MAD</span>
-            </div>
-            ${confirmedInvoice.enable_tva ? `
-              <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-                <span style="color: black;">TVA (${confirmedInvoice.tva_rate}%):</span>
-                <span style="color: black;">${confirmedInvoice.tva_amount.toFixed(2)} MAD</span>
-              </div>
-            ` : ''}
-            <div style="display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 2px;">
-              <span style="color: black;">المجموع:</span>
-              <span style="color: black;">${confirmedInvoice.total_with_tva.toFixed(2)} MAD</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 2px;">
-              <span style="color: black;">الدفع:</span>
-              <span style="color: black;">${confirmedInvoice.paid_amount.toFixed(2)} MAD</span>
+
+          <div style="border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 6px 0; margin: 6px 0;">
+            <div style="display: flex; justify-content: space-between;">
+              <div style="font-weight: bold;">رقم الطلب :</div>
+              <div style="font-weight: bold;">${confirmedInvoice.invoice_number}</div>
             </div>
             <div style="display: flex; justify-content: space-between;">
-              <span style="color: black; ${confirmedInvoice.total_with_tva - confirmedInvoice.paid_amount > 0 ? 'color: red;' : 'color: green;'}">الباقي:</span>
-              <span style="color: black; ${confirmedInvoice.total_with_tva - confirmedInvoice.paid_amount > 0 ? 'color: red;' : 'color: green;'}">${(confirmedInvoice.total_with_tva - confirmedInvoice.paid_amount).toFixed(2)} MAD</span>
+              <div>التاريخ :</div>
+              <div>${ticketDateStr} - ${ticketTimeStr}</div>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+              <div>caisse :</div>
+              <div>${warehouseName || ''}</div>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+              <div>البائع :</div>
+              <div>${cashierName || ''}</div>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+              <div>الزبون :</div>
+              <div style="max-width: 46mm; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${confirmedInvoice.client_name || ''}</div>
             </div>
           </div>
-          
-          <div style="text-align: center; margin-top: 15px; padding-top: 10px; border-top: 1px dashed black;">
-            <p style="margin: 2px 0; color: black; font-size: 10px;">شكرا لثقتكم بنا</p>
+
+          <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+            <thead>
+              <tr style="border-bottom: 1px solid #000;">
+                <th style="text-align: right; padding: 2px 0;">الكمية</th>
+                <th style="text-align: right; padding: 2px 0;">الوحدة</th>
+                <th style="text-align: right; padding: 2px 0;">الثمن</th>
+                <th style="text-align: right; padding: 2px 0;">الاسم</th>
+                <th style="text-align: left; padding: 2px 0;">المجموع</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${confirmedInvoice.lines.filter(l => !l.deleted).map(line => `
+                <tr>
+                  <td style=\"padding: 2px 0; text-align: right; white-space: nowrap;\">${line.quantity}</td>
+                  <td style=\"padding: 2px 0; text-align: right; white-space: nowrap;\">وحدة</td>
+                  <td style=\"padding: 2px 0; text-align: right; white-space: nowrap;\">${line.unit_price.toFixed(2)}</td>
+                  <td style=\"padding: 2px 0; text-align: right;\">${line.product_name_ar}</td>
+                  <td style=\"padding: 2px 0; text-align: left; white-space: nowrap;\">${line.total.toFixed(2)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <div style="border-top: 1px dashed #000; margin-top: 6px; padding-top: 6px;">
+            <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 14px;">
+              <div>المجموع</div>
+              <div>${Number(totalWithTva || 0).toFixed(2)} DH</div>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-top: 6px;">
+              <div>مجموع المواد</div>
+              <div>${totalQty}</div>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-top: 4px;">
+              <div>الوزن الإجمالي (كليو)</div>
+              <div>0.000</div>
+            </div>
+          </div>
+
+          <div style="margin-top: 6px;">
+            <div style="font-weight: bold; margin-bottom: 4px;">الدفع :</div>
+            <div style="display: flex; justify-content: space-between; font-weight: bold;">
+              <div style="width: 35mm;">الدفع</div>
+              <div style="width: 35mm; text-align: left;">${Number(confirmedInvoice.paid_amount || 0).toFixed(2)}</div>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-weight: bold; margin-top: 2px;">
+              <div style="width: 35mm;">الدين</div>
+              <div style="width: 35mm; text-align: left;">${debtAmount.toFixed(2)}</div>
+            </div>
+          </div>
+
+          <div style="margin-top: 6px; border-top: 1px dashed #000; padding-top: 6px;">
+            <div style="display: flex; justify-content: space-between;">
+              <div style="width: 35mm;">حساب قديم</div>
+              <div style="width: 35mm; text-align: left;">0.00</div>
+            </div>
+            <div style="display: flex; justify-content: space-between;">
+              <div style="width: 35mm;">مجموع الديون</div>
+              <div style="width: 35mm; text-align: left;">${debtAmount.toFixed(2)}</div>
+            </div>
+          </div>
+
+          <div style="text-align: center; margin-top: 10px; border-top: 1px dashed #000; padding-top: 8px; font-size: 10px;">
+            شكرا لثقتكم بنا
           </div>
         </div>
       `
@@ -1942,6 +2197,12 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
               className="w-full pr-10 pl-4 py-2 border-2 border-gray-200 rounded-lg text-lg focus:border-green-500 focus:outline-none"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  handleBarcodeSearch()
+                }
+              }}
               autoFocus
             />
             {searchQuery && (
@@ -2073,7 +2334,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
 
             {/* LIGNES FACTURE - TABLEAU PROFESSIONNEL */}
             <div className="flex-1 overflow-y-auto mb-3 border-b-2 border-gray-200 pb-3 min-h-[150px] max-h-[250px]">
-              {currentInvoice.lines.length === 0 ? (
+              {!currentInvoice.lines || currentInvoice.lines.length === 0 ? (
                 <div className="text-center text-gray-400 py-8 text-sm">
                   لا توجد منتجات
                 </div>
@@ -2090,7 +2351,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                   
                   {/* Lignes du tableau */}
                   <div className="space-y-1">
-                    {currentInvoice.lines.map((line) => (
+                    {currentInvoice.lines?.map((line) => (
                       <div
                         key={line.id}
                         className={`grid grid-cols-12 gap-1 p-1 bg-gray-50 rounded border border-gray-200 transition-colors items-center ${
@@ -2218,7 +2479,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                 <label className="text-xs font-bold text-gray-600">المبلغ المدفوع:</label>
                 <input
                   type="number"
-                  value={currentInvoice.paid_amount}
+                  value={paidAmount}
                   onChange={(e) => updatePaidAmount(parseFloat(e.target.value) || 0)}
                   className="w-full p-1 border-2 border-gray-200 rounded font-bold text-sm focus:border-green-500 focus:outline-none"
                 />
@@ -2244,7 +2505,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
               </button>
               <button
                 onClick={async () => {
-                  if (currentInvoice.lines.length > 0) {
+                  if (currentInvoice.lines && currentInvoice.lines.length > 0) {
                     try {
                       // Get or create general client
                       let clientId = selectedClient?.id
@@ -2271,19 +2532,22 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                         }
                       }
 
+                      // Generate new invoice number to avoid conflicts
+                      const newInvoiceNumber = generateInvoiceNumber()
+                      
                       // Save to database first
                       const { data, error } = await supabase
                         .from('invoices')
                         .insert({
-                          invoice_number: currentInvoice.invoice_number,
+                          invoice_number: newInvoiceNumber,
                           client_id: clientId,
                           status: 'draft',
                           subtotal: currentInvoice.subtotal,
                           total_amount: currentInvoice.total_amount,
-                          paid_amount: 0,
+                          paid_amount: currentInvoice.paid_amount,
                           invoice_date: new Date().toISOString(),
                           due_date: new Date().toISOString(),
-                          items: currentInvoice.lines.filter(line => !line.deleted).map(line => ({
+                          items: currentInvoice.lines?.filter(line => !line.deleted).map(line => ({
                             product_id: line.product_id,
                             product_name: line.product_name_ar,
                             quantity: line.quantity,
@@ -2296,8 +2560,8 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
 
                       if (error) throw error
 
-                      // Update local state
-                      setOnHoldInvoices([...onHoldInvoices, { ...currentInvoice, status: 'draft', id: data.id }])
+                      // Update local state - new invoice should be at the top
+                      setOnHoldInvoices([{ ...currentInvoice, status: 'draft', id: data.id, invoice_number: newInvoiceNumber }, ...onHoldInvoices])
                       setCurrentInvoice(null)
                       setInvoiceNumber('')
                       setSelectedClient(null)
@@ -2308,7 +2572,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                     }
                   }
                 }}
-                disabled={currentInvoice.lines.length === 0}
+                disabled={!currentInvoice.lines || currentInvoice.lines.length === 0}
                 className="bg-orange-500 hover:bg-orange-600 text-white py-1 rounded font-bold text-xs disabled:opacity-50 transition-all"
               >
                 انتظار
@@ -2321,7 +2585,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
               </button>
               <button
                 onClick={handleCheckout}
-                disabled={currentInvoice.lines.length === 0}
+                disabled={!currentInvoice.lines || currentInvoice.lines.length === 0}
                 className="bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-bold text-sm disabled:opacity-50 transition-all col-span-2"
               >
                 تأكيد البيع
@@ -2378,52 +2642,112 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       {/* Modal d'édition ligne facture */}
       {showEditInvoiceLineModal && editingInvoiceLine && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => handleEditInvoiceLineCancel()}>
-          <div className="bg-white rounded-xl p-6 w-[400px]" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold">{editingInvoiceLine.product_name_ar}</h3>
-              <button onClick={handleEditInvoiceLineCancel} className="text-gray-500 hover:text-gray-700">
+          <div className="bg-white rounded-2xl shadow-2xl w-[450px] max-w-[95vw]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h3 className="text-xl font-bold text-gray-800">{editingInvoiceLine.product_name_ar}</h3>
+              <button onClick={handleEditInvoiceLineCancel} className="text-gray-500 hover:text-gray-700 transition-colors">
                 <X size={24} />
               </button>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">الكمية</label>
-                <input
-                  type="number"
-                  min="1"
-                  value={editLineQuantity}
-                  onChange={(e) => setEditLineQuantity(e.target.value)}
-                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
-                />
-              </div>
+            <div className="p-6">
+              {!editingField ? (
+                // Main edit screen
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">الكمية</label>
+                    <button
+                      onClick={() => openNumericKeypad('quantity')}
+                      className="w-full p-4 border-2 border-gray-200 rounded-xl hover:border-green-500 focus:border-green-500 focus:outline-none transition-colors text-left bg-gray-50"
+                    >
+                      <span className="text-lg font-semibold text-gray-800">{editLineQuantity}</span>
+                    </button>
+                  </div>
 
-              <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">الثمن (MAD)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={editLinePrice}
-                  onChange={(e) => setEditLinePrice(e.target.value)}
-                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
-                />
-              </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">الثمن (MAD)</label>
+                    <button
+                      onClick={() => openNumericKeypad('price')}
+                      className="w-full p-4 border-2 border-gray-200 rounded-xl hover:border-green-500 focus:border-green-500 focus:outline-none transition-colors text-left bg-gray-50"
+                    >
+                      <span className="text-lg font-semibold text-gray-800">{editLinePrice}</span>
+                    </button>
+                  </div>
 
-              <div className="flex gap-2">
-                <button
-                  onClick={handleEditInvoiceLineConfirm}
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-bold transition-colors"
-                >
-                  تأكيد
-                </button>
-                <button
-                  onClick={handleEditInvoiceLineCancel}
-                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 px-4 rounded-lg font-bold transition-colors"
-                >
-                  إلغاء
-                </button>
-              </div>
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      onClick={handleEditInvoiceLineConfirm}
+                      className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-xl font-bold transition-colors shadow-lg"
+                    >
+                      تأكيد
+                    </button>
+                    <button
+                      onClick={handleEditInvoiceLineCancel}
+                      className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-3 px-4 rounded-xl font-bold transition-colors"
+                    >
+                      إلغاء
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                // Numeric keypad screen
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">
+                      {editingField === 'quantity' ? 'الكمية' : 'الثمن (MAD)'}
+                    </label>
+                    <div className="w-full p-4 border-2 border-green-500 rounded-xl bg-green-50">
+                      <span className="text-2xl font-bold text-green-800">
+                        {numericInput || '0'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Numeric keypad */}
+                  <div className="grid grid-cols-3 gap-2">
+                    {['7', '8', '9', '4', '5', '6', '1', '2', '3', 'clear', '0', 'backspace'].map((key) => (
+                      <button
+                        key={key}
+                        onClick={() => handleNumericInput(key)}
+                        className={`p-4 rounded-xl font-bold text-lg transition-all ${
+                          key === 'clear' 
+                            ? 'bg-red-100 hover:bg-red-200 text-red-700 col-span-1'
+                            : key === 'backspace'
+                            ? 'bg-orange-100 hover:bg-orange-200 text-orange-700 col-span-1'
+                            : key === '0'
+                            ? 'bg-gray-100 hover:bg-gray-200 text-gray-800 col-span-1'
+                            : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
+                        }`}
+                      >
+                        {key === 'clear' ? 'مسح' : key === 'backspace' ? '⌫' : key}
+                      </button>
+                    ))}
+                    {editingField === 'price' && (
+                      <button
+                        onClick={() => handleNumericInput('.')}
+                        className="p-4 rounded-xl font-bold text-lg bg-blue-100 hover:bg-blue-200 text-blue-700"
+                      >
+                        .
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      onClick={handleNumericConfirm}
+                      className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-xl font-bold transition-colors shadow-lg"
+                    >
+                      موافق
+                    </button>
+                    <button
+                      onClick={handleNumericCancel}
+                      className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-3 px-4 rounded-xl font-bold transition-colors"
+                    >
+                      إلغاء
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -2584,7 +2908,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                           {new Date(invoice.created_at).toLocaleString('fr-FR')}
                         </p>
                         <p className="text-sm text-gray-600">
-                          {invoice.items?.length || 0} منتج/منتجات
+                          {invoice.lines?.length || 0} منتج/منتجات
                         </p>
                       </div>
                       <div className="text-right">
@@ -2593,17 +2917,18 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                     </div>
                     <div className="flex gap-2 mt-3">
                       <button
-                        onClick={() => resumeDraft(invoice)}
+                        onClick={() => resumeInvoice(invoice)}
                         className="flex-1 bg-green-600 text-white py-2 rounded-lg font-bold hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
                       >
                         <Play size={18} />
                         استئناف
                       </button>
                       <button
-                        onClick={() => deleteDraft(invoice.id)}
+                        onClick={() => deleteInvoice(invoice.id)}
                         className="bg-red-500 text-white py-2 px-4 rounded-lg font-bold hover:bg-red-600 transition-colors"
                       >
                         <Trash size={18} />
+                        حذف
                       </button>
                     </div>
                   </div>
@@ -2761,7 +3086,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                     </tr>
                   </thead>
                   <tbody>
-                    {currentInvoice.lines.map((line, index) => (
+                    {currentInvoice.lines?.map((line, index) => (
                       <tr key={line.id} className="border border-gray-800">
                         <td className="border border-gray-800 py-3 px-4 text-center text-gray-700">{line.quantity}</td>
                         <td className="border border-gray-800 py-3 px-4 text-center text-gray-700">وحدة</td>
