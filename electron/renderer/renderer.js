@@ -2,11 +2,11 @@ const meta = document.getElementById('meta')
 const statusEl = document.getElementById('status')
 const bar = document.getElementById('bar')
 
-const btnCheck = document.getElementById('btnCheck')
-const btnDownload = document.getElementById('btnDownload')
-const btnRestart = document.getElementById('btnRestart')
+const btnUpdate = document.getElementById('btnUpdate')
 
 let lastStatus = 'idle'
+let updateAvailable = false
+let updateDownloaded = false
 
 function setStatus(text) {
   statusEl.textContent = text
@@ -17,11 +17,34 @@ function setProgress(pct) {
   bar.style.width = `${v}%`
 }
 
+function updateButtonState() {
+  if (lastStatus === 'checking') {
+    btnUpdate.textContent = 'Vérification...'
+    btnUpdate.disabled = true
+    btnUpdate.className = 'btn'
+  } else if (updateAvailable && !updateDownloaded) {
+    btnUpdate.textContent = 'Télécharger mise à jour'
+    btnUpdate.disabled = false
+    btnUpdate.className = 'btn primary'
+  } else if (updateDownloaded) {
+    btnUpdate.textContent = 'Redémarrer'
+    btnUpdate.disabled = false
+    btnUpdate.className = 'btn primary'
+  } else if (lastStatus === 'not-available') {
+    btnUpdate.textContent = 'À jour'
+    btnUpdate.disabled = true
+    btnUpdate.className = 'btn'
+  } else {
+    btnUpdate.textContent = 'Vérifier mise à jour'
+    btnUpdate.disabled = false
+    btnUpdate.className = 'btn primary'
+  }
+}
+
 async function init() {
   try {
     const version = await window.ba9alino.app.getVersion()
-    const targetUrl = await window.ba9alino.app.getTargetUrl()
-    meta.textContent = `v${version} • ${targetUrl}`
+    meta.textContent = `v${version}`
   } catch {
     meta.textContent = ''
   }
@@ -31,46 +54,30 @@ async function init() {
 
     if (lastStatus === 'checking') {
       setStatus('Vérification des mises à jour…')
-      btnCheck.disabled = true
-      btnDownload.disabled = true
-      btnRestart.disabled = true
       setProgress(0)
-      return
-    }
-
-    if (lastStatus === 'available') {
-      setStatus('Mise à jour disponible. Cliquez sur Télécharger.')
-      btnCheck.disabled = false
-      btnDownload.disabled = false
-      btnRestart.disabled = true
-      return
-    }
-
-    if (lastStatus === 'not-available') {
-      setStatus('Aucune mise à jour disponible.')
-      btnCheck.disabled = false
-      btnDownload.disabled = true
-      btnRestart.disabled = true
+      updateAvailable = false
+      updateDownloaded = false
+    } else if (lastStatus === 'available') {
+      setStatus('Mise à jour disponible')
+      updateAvailable = true
+      updateDownloaded = false
+    } else if (lastStatus === 'not-available') {
+      setStatus('Aucune mise à jour disponible')
       setProgress(0)
-      return
-    }
-
-    if (lastStatus === 'downloaded') {
-      setStatus('Mise à jour téléchargée. Cliquez sur Redémarrer.')
-      btnCheck.disabled = false
-      btnDownload.disabled = true
-      btnRestart.disabled = false
+      updateAvailable = false
+      updateDownloaded = false
+    } else if (lastStatus === 'downloaded') {
+      setStatus('Mise à jour téléchargée - Prêt à redémarrer')
       setProgress(100)
-      return
+      updateAvailable = true
+      updateDownloaded = true
+    } else if (lastStatus === 'error') {
+      setStatus(`Erreur: ${payload?.error || 'inconnue'}`)
+      updateAvailable = false
+      updateDownloaded = false
     }
 
-    if (lastStatus === 'error') {
-      setStatus(`Erreur mise à jour: ${payload?.error || 'inconnue'}`)
-      btnCheck.disabled = false
-      btnDownload.disabled = true
-      btnRestart.disabled = true
-      return
-    }
+    updateButtonState()
   })
 
   window.ba9alino.updater.onProgress((p) => {
@@ -79,25 +86,31 @@ async function init() {
     setProgress(pct)
   })
 
-  btnCheck.addEventListener('click', async () => {
-    setStatus('Vérification…')
-    const res = await window.ba9alino.updater.check()
-    if (!res?.ok) {
-      setStatus(`Erreur: ${res?.error || 'inconnue'}`)
+  btnUpdate.addEventListener('click', async () => {
+    if (updateDownloaded) {
+      // If update is downloaded, restart the app
+      await window.ba9alino.updater.quitAndInstall()
+    } else if (updateAvailable) {
+      // If update is available, download it
+      setStatus('Téléchargement…')
+      const res = await window.ba9alino.updater.download()
+      if (!res?.ok) {
+        setStatus(`Erreur téléchargement: ${res?.error || 'inconnue'}`)
+        updateButtonState()
+      }
+    } else {
+      // Check for updates
+      setStatus('Vérification…')
+      const res = await window.ba9alino.updater.check()
+      if (!res?.ok) {
+        setStatus(`Erreur vérification: ${res?.error || 'inconnue'}`)
+        updateButtonState()
+      }
     }
   })
 
-  btnDownload.addEventListener('click', async () => {
-    setStatus('Téléchargement…')
-    const res = await window.ba9alino.updater.download()
-    if (!res?.ok) {
-      setStatus(`Erreur: ${res?.error || 'inconnue'}`)
-    }
-  })
-
-  btnRestart.addEventListener('click', async () => {
-    await window.ba9alino.updater.quitAndInstall()
-  })
+  // Initialize button state
+  updateButtonState()
 }
 
 init()
