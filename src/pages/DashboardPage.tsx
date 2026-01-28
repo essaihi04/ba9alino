@@ -399,13 +399,13 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6" dir="rtl">
+    <div className="space-y-4" dir="rtl">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-          <TrendingUp className="text-white" size={36} />
+        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+          <TrendingUp className="text-white" size={28} />
           لوحة التحكم
         </h1>
-        <div className="text-sm text-white">
+        <div className="text-xs md:text-sm text-white">
           {new Date().toLocaleDateString('ar-MA', { 
             weekday: 'long', 
             year: 'numeric', 
@@ -416,21 +416,21 @@ export default function DashboardPage() {
       </div>
 
       {/* 5 indicateurs clés en grandes cartes */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
         {cards.map((card, index) => {
           const Icon = card.icon
           return (
             <div
               key={index}
-              className={`bg-gradient-to-br ${card.color} text-white rounded-2xl p-8 shadow-xl transform transition-all duration-300 hover:scale-105 hover:shadow-2xl`}
+              className={`bg-gradient-to-br ${card.color} text-white rounded-xl p-4 shadow-lg`}
             >
               <div className="flex items-center justify-between">
                 <div className="flex-1">
-                  <p className="text-white/80 text-lg mb-2">{card.title}</p>
-                  <p className="text-4xl font-bold mb-1">{card.value}</p>
+                  <p className="text-white/80 text-sm mb-1">{card.title}</p>
+                  <p className="text-2xl font-bold">{card.value}</p>
                 </div>
-                <div className="bg-white/20 p-4 rounded-2xl">
-                  <Icon size={48} className="text-white" />
+                <div className="bg-white/15 p-2 rounded-lg">
+                  <Icon size={28} className="text-white" />
                 </div>
               </div>
             </div>
@@ -439,42 +439,42 @@ export default function DashboardPage() {
       </div>
 
       {/* Actions rapides */}
-      <div className="bg-white rounded-xl shadow-lg p-6">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">إجراءات سريعة</h2>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="bg-white rounded-xl shadow-lg p-4">
+        <h2 className="text-lg font-bold text-gray-800 mb-3">إجراءات سريعة</h2>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           <button
             onClick={() => window.location.href = '/pos'}
-            className="bg-green-100 hover:bg-green-200 text-green-700 p-4 rounded-xl font-bold transition-all duration-200 transform hover:scale-105 flex flex-col items-center gap-2"
+            className="bg-green-100 hover:bg-green-200 text-green-700 p-3 rounded-lg font-bold transition-all duration-200 flex flex-col items-center gap-1"
           >
-            <ShoppingCart size={32} />
+            <ShoppingCart size={24} />
             فتح الكايس
           </button>
           <button
             onClick={() => window.location.href = '/invoices'}
-            className="bg-blue-100 hover:bg-blue-200 text-blue-700 p-4 rounded-xl font-bold transition-all duration-200 transform hover:scale-105 flex flex-col items-center gap-2"
+            className="bg-blue-100 hover:bg-blue-200 text-blue-700 p-3 rounded-lg font-bold transition-all duration-200 flex flex-col items-center gap-1"
           >
-            <Package size={32} />
+            <Package size={24} />
             المبيعات
           </button>
           <button
             onClick={() => window.location.href = '/orders'}
-            className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 p-4 rounded-xl font-bold transition-all duration-200 transform hover:scale-105 flex flex-col items-center gap-2"
+            className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 p-3 rounded-lg font-bold transition-all duration-200 flex flex-col items-center gap-1"
           >
-            <FileText size={32} />
+            <FileText size={24} />
             الطلبات
           </button>
           <button
             onClick={() => window.location.href = '/credits'}
-            className="bg-red-100 hover:bg-red-200 text-red-700 p-4 rounded-xl font-bold transition-all duration-200 transform hover:scale-105 flex flex-col items-center gap-2"
+            className="bg-red-100 hover:bg-red-200 text-red-700 p-3 rounded-lg font-bold transition-all duration-200 flex flex-col items-center gap-1"
           >
-            <DollarSign size={32} />
+            <DollarSign size={24} />
             متابعة الديون
           </button>
           <button
             onClick={() => window.location.href = '/products'}
-            className="bg-purple-100 hover:bg-purple-200 text-purple-700 p-4 rounded-xl font-bold transition-all duration-200 transform hover:scale-105 flex flex-col items-center gap-2"
+            className="bg-purple-100 hover:bg-purple-200 text-purple-700 p-3 rounded-lg font-bold transition-all duration-200 flex flex-col items-center gap-1"
           >
-            <Package size={32} />
+            <Package size={24} />
             المنتجات
           </button>
         </div>
