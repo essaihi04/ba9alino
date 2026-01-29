@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Search, Plus, Eye, Edit2, Trash2, Phone, Mail, MapPin, Building, DollarSign } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { useInputPad } from '../components/useInputPad'
 
 interface Supplier {
   id: string
@@ -26,6 +27,7 @@ interface Supplier {
 }
 
 export default function SuppliersPage() {
+  const inputPad = useInputPad()
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -646,15 +648,22 @@ export default function SuppliersPage() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">المبلغ *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  value={paymentForm.amount}
-                  onChange={(e) => setPaymentForm({...paymentForm, amount: e.target.value})}
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                  placeholder="0.00"
-                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    inputPad.open({
+                      title: 'المبلغ *',
+                      mode: 'decimal',
+                      dir: 'ltr',
+                      initialValue: paymentForm.amount || '0',
+                      min: 0.01,
+                      onConfirm: (v) => setPaymentForm({...paymentForm, amount: v}),
+                    })
+                  }
+                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-left"
+                >
+                  {paymentForm.amount || '0.00'}
+                </button>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">تاريخ الدفع *</label>
@@ -717,6 +726,7 @@ export default function SuppliersPage() {
           </div>
         </div>
       )}
+      {inputPad.Modal}
     </div>
   )
 }

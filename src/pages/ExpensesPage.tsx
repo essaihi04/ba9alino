@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { Search, Plus, Trash2, Edit2, DollarSign, TrendingDown } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { useInputPad } from '../components/useInputPad'
 
 interface Expense {
   id: string
@@ -33,6 +34,7 @@ const PAYMENT_METHODS = {
 }
 
 export default function ExpensesPage() {
+  const inputPad = useInputPad()
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -424,15 +426,22 @@ export default function ExpensesPage() {
 
               <div>
                 <label className="block text-sm font-medium mb-1">المبلغ *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  value={formData.amount}
-                  onChange={(e) => setFormData({...formData, amount: e.target.value})}
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-                  placeholder="0.00"
-                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    inputPad.open({
+                      title: 'المبلغ *',
+                      mode: 'decimal',
+                      dir: 'ltr',
+                      initialValue: formData.amount || '0',
+                      min: 0.01,
+                      onConfirm: (v) => setFormData({...formData, amount: v}),
+                    })
+                  }
+                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-left"
+                >
+                  {formData.amount || '0.00'}
+                </button>
               </div>
 
               <div>
@@ -472,6 +481,7 @@ export default function ExpensesPage() {
           </div>
         </div>
       )}
+      {inputPad.Modal}
     </div>
   )
 }

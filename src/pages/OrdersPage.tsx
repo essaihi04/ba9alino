@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Search, Plus, Eye, Edit2, Truck, Package, CheckCircle, XCircle, Clock, Download, FileText, Receipt, Barcode, Save, Trash2, X, DollarSign } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useNavigate } from 'react-router-dom'
+import { useInputPad } from '../components/useInputPad'
 
 interface Order {
   id: string
@@ -95,6 +96,7 @@ interface ProductVariant {
 
 export default function OrdersPage() {
   const navigate = useNavigate()
+  const inputPad = useInputPad()
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -1971,22 +1973,28 @@ export default function OrdersPage() {
             <form onSubmit={(e) => { e.preventDefault(); addPayment(); }} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-1">المبلغ (MAD)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max={remainingAmount}
-                  value={paymentData.amount}
-                  onChange={(e) => {
-                    const value = parseFloat(e.target.value) || 0
-                    if (value <= remainingAmount) {
-                      setPaymentData({...paymentData, amount: e.target.value})
-                    }
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                  placeholder="أدخل المبلغ"
-                  required
-                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    inputPad.open({
+                      title: 'المبلغ (MAD)',
+                      mode: 'decimal',
+                      dir: 'ltr',
+                      initialValue: paymentData.amount || '0',
+                      min: 0,
+                      max: remainingAmount,
+                      onConfirm: (v) => {
+                        const value = parseFloat(v) || 0
+                        if (value <= remainingAmount) {
+                          setPaymentData({...paymentData, amount: v})
+                        }
+                      },
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-left"
+                >
+                  {paymentData.amount || '0'}
+                </button>
                 <p className="text-xs text-gray-500 mt-1">
                   المبلغ الإجمالي: {(selectedOrder?.final_amount || selectedOrder?.total_amount || 0).toFixed(2)} MAD
                 </p>
@@ -2814,6 +2822,7 @@ export default function OrdersPage() {
           </div>
         </div>
       )}
+      {inputPad.Modal}
     </div>
   )
 }

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Search, Eye, Plus, FileText, DollarSign, CheckCircle, Clock, AlertCircle, Package, Barcode, X, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { useInputPad } from '../components/useInputPad'
 
 interface Invoice {
   id: string
@@ -78,6 +80,8 @@ interface Product {
 }
 
 export default function InvoicesPage() {
+  const navigate = useNavigate()
+  const inputPad = useInputPad()
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -463,7 +467,7 @@ export default function InvoicesPage() {
           المبيعات
         </h1>
         <button
-            onClick={() => window.location.href = '/pos'}
+            onClick={() => navigate('/pos')}
             className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 flex items-center gap-2"
           >
             <Plus size={20} />
@@ -767,13 +771,21 @@ export default function InvoicesPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">هاتف العميل</label>
-                  <input
-                    type="tel"
-                    value={formData.client_phone}
-                    onChange={(e) => setFormData({...formData, client_phone: e.target.value})}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="هاتف العميل"
-                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      inputPad.open({
+                        title: 'هاتف العميل',
+                        mode: 'alphanumeric',
+                        dir: 'ltr',
+                        initialValue: formData.client_phone || '',
+                        onConfirm: (v) => setFormData({...formData, client_phone: v}),
+                      })
+                    }
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-left"
+                  >
+                    {formData.client_phone || 'هاتف العميل'}
+                  </button>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">عنوان العميل</label>
@@ -957,6 +969,7 @@ export default function InvoicesPage() {
           </div>
         </div>
       )}
+      {inputPad.Modal}
     </div>
   )
 }

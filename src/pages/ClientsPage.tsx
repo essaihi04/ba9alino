@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Plus, Search, Edit2, Trash2, Eye } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { useInputPad } from '../components/useInputPad'
 
 interface Client {
   id: string
@@ -15,6 +16,7 @@ interface Client {
 }
 
 export default function ClientsPage() {
+  const inputPad = useInputPad()
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -127,6 +129,14 @@ export default function ClientsPage() {
     client.company_name_en?.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
+  const categoryLabels: Record<string, string> = {
+    'A': 'زبون خاص (A)',
+    'B': 'الجملة (B)',
+    'C': 'نصف الجملة (C)',
+    'D': 'مول الحانوت (D)',
+    'E': 'التقسيط (E)',
+  }
+
   const getCategoryColor = (category: string) => {
     const colors: Record<string, string> = {
       'A': 'bg-green-100 text-green-800',
@@ -137,6 +147,8 @@ export default function ClientsPage() {
     }
     return colors[category] || 'bg-gray-100 text-gray-800'
   }
+
+  const getCategoryLabel = (category: string) => categoryLabels[category] || category
 
   return (
     <div className="space-y-6" dir="rtl">
@@ -200,7 +212,7 @@ export default function ClientsPage() {
                     <td className="py-4 px-6 text-gray-600">{client.address || '-'}</td>
                     <td className="py-4 px-6">
                       <span className={`px-3 py-1 rounded-full text-sm font-medium ${getCategoryColor(client.subscription_tier)}`}>
-                        {client.subscription_tier}
+                        {getCategoryLabel(client.subscription_tier)}
                       </span>
                     </td>
                     <td className="py-4 px-6">
@@ -290,37 +302,58 @@ export default function ClientsPage() {
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">البريد الإلكتروني</label>
-                <input
-                  type="email"
-                  value={formData.contact_person_email}
-                  onChange={(e) => setFormData({ ...formData, contact_person_email: e.target.value })}
-                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none text-sm sm:text-base"
-                  placeholder="example@email.com"
-                  required
-                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    inputPad.open({
+                      title: 'البريد الإلكتروني',
+                      mode: 'alphanumeric',
+                      dir: 'ltr',
+                      initialValue: formData.contact_person_email || '',
+                      onConfirm: (v) => setFormData({ ...formData, contact_person_email: v }),
+                    })
+                  }
+                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none text-sm sm:text-base text-left"
+                >
+                  {formData.contact_person_email || 'example@email.com'}
+                </button>
               </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">الهاتف</label>
-                <input
-                  type="tel"
-                  value={formData.contact_person_phone}
-                  onChange={(e) => setFormData({ ...formData, contact_person_phone: e.target.value })}
-                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none text-sm sm:text-base"
-                  placeholder="06xxxxxxxx ou 07xxxxxxxx"
-                  required
-                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    inputPad.open({
+                      title: 'الهاتف',
+                      mode: 'alphanumeric',
+                      dir: 'ltr',
+                      initialValue: formData.contact_person_phone || '',
+                      onConfirm: (v) => setFormData({ ...formData, contact_person_phone: v }),
+                    })
+                  }
+                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none text-sm sm:text-base text-left"
+                >
+                  {formData.contact_person_phone || '06xxxxxxxx ou 07xxxxxxxx'}
+                </button>
               </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">العنوان</label>
-                <textarea
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none text-sm sm:text-base resize-none"
-                  placeholder="أدخل العنوان الكامل..."
-                  rows={3}
-                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    inputPad.open({
+                      title: 'العنوان',
+                      mode: 'text',
+                      initialValue: formData.address || '',
+                      onConfirm: (v) => setFormData({ ...formData, address: v }),
+                    })
+                  }
+                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none text-sm sm:text-base text-right whitespace-pre-wrap min-h-[76px]"
+                >
+                  {formData.address || 'أدخل العنوان الكامل...'}
+                </button>
               </div>
               
               <div>
@@ -330,11 +363,11 @@ export default function ClientsPage() {
                   onChange={(e) => setFormData({ ...formData, subscription_tier: e.target.value })}
                   className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none text-sm sm:text-base"
                 >
-                  <option value="A">فئة A</option>
-                  <option value="B">فئة B</option>
-                  <option value="C">فئة C</option>
-                  <option value="D">فئة D</option>
-                  <option value="E">فئة E</option>
+                  <option value="A">زبون خاص (A)</option>
+                  <option value="B">الجملة (B)</option>
+                  <option value="C">نصف الجملة (C)</option>
+                  <option value="D">مول الحانوت (D)</option>
+                  <option value="E">التقسيط (E)</option>
                 </select>
               </div>
               
@@ -360,6 +393,7 @@ export default function ClientsPage() {
           </div>
         </div>
       )}
+      {inputPad.Modal}
     </div>
   )
 }

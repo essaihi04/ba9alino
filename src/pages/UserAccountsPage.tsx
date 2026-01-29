@@ -353,13 +353,6 @@ export default function UserAccountsPage() {
           <h1 className="text-3xl font-bold text-white">إدارة الحسابات</h1>
           <p className="text-white mt-2">قائمة بجميع حسابات المستخدمين</p>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center space-x-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-3 rounded-lg hover:shadow-lg transition"
-        >
-          <Plus size={20} />
-          <span>إضافة مستخدم</span>
-        </button>
       </div>
 
       {/* Search */}

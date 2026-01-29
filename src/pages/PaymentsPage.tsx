@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Search, DollarSign, CreditCard, CheckCircle, Clock, AlertCircle, Plus, FileText } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { useInputPad } from '../components/useInputPad'
 
 interface Invoice {
   id: string
@@ -29,6 +30,7 @@ interface Invoice {
 }
 
 export default function PaymentsPage() {
+  const inputPad = useInputPad()
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -579,14 +581,23 @@ export default function PaymentsPage() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">المبلغ</label>
-                <input
-                  type="number"
-                  value={paymentAmount}
-                  onChange={(e) => setPaymentAmount(e.target.value)}
-                  className="w-full p-3 border-2 border-gray-200 rounded-lg"
-                  placeholder="المبلغ"
-                  max={selectedInvoice.remaining_amount || 0}
-                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    inputPad.open({
+                      title: 'المبلغ',
+                      mode: 'decimal',
+                      dir: 'ltr',
+                      initialValue: paymentAmount || '0',
+                      min: 0.01,
+                      max: selectedInvoice.remaining_amount || 0,
+                      onConfirm: (v) => setPaymentAmount(v),
+                    })
+                  }
+                  className="w-full p-3 border-2 border-gray-200 rounded-lg text-left"
+                >
+                  {paymentAmount || '0'}
+                </button>
               </div>
 
               <div>
@@ -711,6 +722,7 @@ export default function PaymentsPage() {
           </div>
         </div>
       )}
+      {inputPad.Modal}
     </div>
   )
 }

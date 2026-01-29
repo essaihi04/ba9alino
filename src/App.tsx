@@ -31,6 +31,7 @@ import CommercialLoginPage from './pages/commercial/CommercialLoginPage'
 import CommercialDashboardPage from './pages/commercial/CommercialDashboardPage'
 import CommercialProductsPage from './pages/commercial/CommercialProductsPage'
 import CommercialClientsPage from './pages/commercial/CommercialClientsPage'
+import CommercialClientEditPage from './pages/commercial/CommercialClientEditPage'
 import CommercialOrdersPage from './pages/commercial/CommercialOrdersPage'
 import CommercialNewOrderPage from './pages/commercial/CommercialNewOrderPage'
 import CommercialMapPage from './pages/commercial/CommercialMapPage'
@@ -65,6 +66,7 @@ function App() {
         <Route path="/commercial/dashboard" element={<CommercialDashboardPage />} />
         <Route path="/commercial/products" element={<CommercialProductsPage />} />
         <Route path="/commercial/clients" element={<CommercialClientsPage />} />
+        <Route path="/commercial/clients/:id/edit" element={<CommercialClientEditPage />} />
         <Route path="/commercial/orders" element={<CommercialOrdersPage />} />
         <Route path="/commercial/orders/new" element={<CommercialNewOrderPage />} />
         <Route path="/commercial/map" element={<CommercialMapPage />} />

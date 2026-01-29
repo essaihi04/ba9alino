@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { ArrowLeft, MapPin, Camera, Clock, Save, Navigation } from 'lucide-react'
+import { ArrowLeft, MapPin, Camera, Clock, Save, Navigation, Plus } from 'lucide-react'
 
 interface Client {
   id: string

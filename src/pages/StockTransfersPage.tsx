@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Search, Plus, ArrowRight, ArrowLeft, CheckCircle, XCircle, Clock, Trash2, Eye } from 'lucide-react'
+import { Search, Plus, ArrowRight, ArrowLeft, CheckCircle, XCircle, Clock, Trash2, Eye, Edit2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { useInputPad } from '../components/useInputPad'
 
 interface Warehouse {
   id: string
@@ -14,9 +15,10 @@ interface Product {
   name_ar: string
   name_en?: string
   sku: string
-  price_a: number
+  price: number
   cost_price?: number
   image_url?: string
+  stock?: number
 }
 
 interface WarehouseStock {
@@ -49,6 +51,7 @@ interface StockTransferItem {
 }
 
 export default function StockTransfersPage() {
+  const inputPad = useInputPad()
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
   const [fromWarehouseStock, setFromWarehouseStock] = useState<WarehouseStock[]>([])
   const [transfers, setTransfers] = useState<StockTransfer[]>([])
@@ -75,6 +78,7 @@ export default function StockTransfersPage() {
   }, [fromWarehouse])
 
   const loadWarehouses = async () => {
+    console.log('🏢 Loading warehouses...')
     try {
       const { data, error } = await supabase
         .from('warehouses')
@@ -82,29 +86,69 @@ export default function StockTransfersPage() {
         .eq('is_active', true)
         .order('name')
 
+      console.log('📋 Warehouses result:', { data, error })
       if (error) throw error
       setWarehouses(data || [])
     } catch (error) {
-      console.error('Error loading warehouses:', error)
+      console.error('❌ Error loading warehouses:', error)
     }
   }
 
   const loadFromWarehouseStock = async (warehouseId: string) => {
+    console.log('🔍 Loading warehouse stock for:', warehouseId)
     try {
       const { data, error } = await supabase
         .from('warehouse_stock')
         .select(`
           *,
-          product:products(id, name_ar, name_en, sku, price_a, cost_price, image_url)
+          product:products(id, name_ar, name_en, sku, price, cost_price, image_url, stock)
         `)
         .eq('warehouse_id', warehouseId)
         .gt('quantity', 0)
         .order('product(name_ar)')
 
-      if (error) throw error
-      setFromWarehouseStock(data || [])
+      console.log('📦 Warehouse stock query result:', { data, error })
+
+      // Si warehouse_stock est vide ou a une erreur, utiliser le fallback
+      if (error || !data || data.length === 0) {
+        if (error) {
+          console.error('❌ Error loading warehouse stock:', error)
+        } else {
+          console.log('📦 Warehouse stock is empty, using fallback...')
+        }
+        console.log('🔄 Trying fallback to products table...')
+        
+        // Fallback: try loading products directly if warehouse_stock fails
+        const { data: productsData, error: productsError } = await supabase
+          .from('products')
+          .select('id, name_ar, name_en, sku, price, cost_price, image_url, stock')
+          .eq('is_active', true)
+          .gt('stock', 0)
+          .order('name_ar')
+        
+        console.log('📋 Products fallback result:', { data: productsData, error: productsError })
+        
+        if (productsError) throw productsError
+        
+        // Convert products to warehouse_stock format
+        const warehouseStockFormat = (productsData || []).map(product => ({
+          id: product.id,
+          warehouse_id: warehouseId,
+          product_id: product.id,
+          quantity: product.stock || 0,
+          min_alert_level: 5,
+          product: product
+        }))
+        
+        console.log('🔄 Converted to warehouse stock format:', warehouseStockFormat)
+        setFromWarehouseStock(warehouseStockFormat)
+      } else {
+        console.log('✅ Setting warehouse stock:', data)
+        setFromWarehouseStock(data || [])
+      }
     } catch (error) {
-      console.error('Error loading warehouse stock:', error)
+      console.error('💥 Critical error loading warehouse stock:', error)
+      setFromWarehouseStock([])
     }
   }
 
@@ -147,7 +191,7 @@ export default function StockTransfersPage() {
         .from('stock_transfer_items')
         .select(`
           *,
-          product:products(id, name_ar, name_en, sku, price_a, cost_price)
+          product:products(id, name_ar, name_en, sku, price, cost_price)
         `)
         .eq('transfer_id', transferId)
 
@@ -208,6 +252,7 @@ export default function StockTransfersPage() {
       setFromWarehouse('')
       setToWarehouse('')
       setSelectedProducts([])
+      setSearchTerm('')
       
       await loadTransfers()
       alert('✅ تم إنشاء طلب النقل بنجاح')
@@ -221,17 +266,26 @@ export default function StockTransfersPage() {
     if (!confirm('هل أنت متأكد من إتمام هذا النقل؟')) return
 
     try {
-      const { error } = await supabase.rpc('complete_stock_transfer', {
+      // Essayer d'abord la fonction simplifiée
+      const { error: simpleError } = await supabase.rpc('complete_stock_transfer_simple', {
         p_transfer_id: transferId
       })
 
-      if (error) throw error
+      if (simpleError) {
+        console.log('🔄 Simple function failed, trying original...')
+        // Si la fonction simplifiée échoue, essayer l'originale
+        const { error } = await supabase.rpc('complete_stock_transfer', {
+          p_transfer_id: transferId
+        })
+
+        if (error) throw error
+      }
 
       await loadTransfers()
       alert('✅ تم إتمام النقل بنجاح')
     } catch (error) {
       console.error('Error completing transfer:', error)
-      alert('❌ حدث خطأ أثناء إتمام النقل')
+      alert('❌ حدث خطأ أثناء إتمام النقل: ' + (error as any)?.message || 'Erreur inconnue')
     }
   }
 
@@ -281,6 +335,26 @@ export default function StockTransfersPage() {
 
   const removeProductFromTransfer = (productId: string) => {
     setSelectedProducts(selectedProducts.filter(p => p.product_id !== productId))
+  }
+
+  const openQuantityEditor = (productId: string) => {
+    const stockItem = fromWarehouseStock.find(item => item.product_id === productId)
+    const selected = selectedProducts.find(item => item.product_id === productId)
+    if (!stockItem || !selected) return
+
+    inputPad.open({
+      title: `الكمية - ${stockItem.product.name_ar}`,
+      mode: 'number',
+      dir: 'ltr',
+      min: 1,
+      max: stockItem.quantity,
+      initialValue: String(selected.quantity),
+      onConfirm: (value) => {
+        const parsed = parseInt(value, 10)
+        if (Number.isNaN(parsed)) return
+        updateProductQuantity(productId, parsed, stockItem.quantity)
+      }
+    })
   }
 
   const getStatusLabel = (status: string) => {
@@ -486,15 +560,23 @@ export default function StockTransfersPage() {
                               <div>
                                 <div className="font-medium">{product?.name_ar}</div>
                                 <div className="flex items-center gap-2">
-                                  <input
-                                    type="number"
-                                    min="1"
-                                    max={stockItem?.quantity || 1}
-                                    value={selected.quantity}
-                                    onChange={(e) => updateProductQuantity(selected.product_id, parseInt(e.target.value) || 0, stockItem?.quantity || 0)}
-                                    className="w-20 px-2 py-1 border rounded text-sm"
-                                  />
-                                  <span className="text-sm text-gray-500">/ {stockItem?.quantity || 0}</span>
+                                  <span className="inline-flex items-center gap-2 bg-gray-100 px-3 py-1 rounded-full text-sm font-semibold">
+                                    {selected.quantity}
+                                    <span className="text-xs text-gray-500">
+                                      / {stockItem?.quantity || 0}
+                                    </span>
+                                  </span>
+                                  <button
+                                    onClick={(e) => {
+                                      e.preventDefault()
+                                      e.stopPropagation()
+                                      openQuantityEditor(selected.product_id)
+                                    }}
+                                    className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded text-sm flex items-center gap-1"
+                                  >
+                                    <Edit2 size={12} />
+                                    تعديل
+                                  </button>
                                 </div>
                               </div>
                               <button
@@ -590,6 +672,8 @@ export default function StockTransfersPage() {
           </div>
         </div>
       )}
+
+      {inputPad.Modal}
     </div>
   )
 }

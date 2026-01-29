@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { ArrowLeft, Plus, Minus, ShoppingCart, X, Check } from 'lucide-react'
+import { useInputPad } from '../../components/useInputPad'
 
 interface Product {
   id: string
@@ -21,6 +22,7 @@ interface Client {
 
 export default function EmployeePOSPage() {
   const navigate = useNavigate()
+  const inputPad = useInputPad()
   const [products, setProducts] = useState<Product[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [cart, setCart] = useState<CartItem[]>([])
@@ -336,6 +338,7 @@ export default function EmployeePOSPage() {
           </div>
         </div>
       )}
+      {inputPad.Modal}
     </div>
   )
 }

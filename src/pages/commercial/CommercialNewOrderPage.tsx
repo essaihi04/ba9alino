@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { ArrowLeft, Plus, Minus, ShoppingCart, User, Check, Package, Phone, MapPin } from 'lucide-react'
+import { useInputPad } from '../../components/useInputPad'
 
 interface ProductVariant {
   price_a: number
@@ -62,6 +63,7 @@ interface NewClientForm {
 
 export default function CommercialNewOrderPage() {
   const navigate = useNavigate()
+  const inputPad = useInputPad()
   const [searchParams] = useSearchParams()
   const preselectedClientId = searchParams.get('client')
 
@@ -728,47 +730,76 @@ export default function CommercialNewOrderPage() {
 
               <div>
                 <label className="block text-sm font-medium mb-1">رقم الهاتف *</label>
-                <input
-                  type="tel"
-                  required
-                  value={clientForm.contact_person_phone}
-                  onChange={(e) => setClientForm({ ...clientForm, contact_person_phone: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="06xxxxxxxx"
-                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    inputPad.open({
+                      title: 'رقم الهاتف *',
+                      mode: 'alphanumeric',
+                      dir: 'ltr',
+                      initialValue: clientForm.contact_person_phone || '',
+                      onConfirm: (v) => setClientForm({ ...clientForm, contact_person_phone: v }),
+                    })
+                  }
+                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-left"
+                >
+                  {clientForm.contact_person_phone || '06xxxxxxxx'}
+                </button>
               </div>
 
               <div>
                 <label className="block text-sm font-medium mb-1">البريد الإلكتروني</label>
-                <input
-                  type="email"
-                  value={clientForm.contact_person_email}
-                  onChange={(e) => setClientForm({ ...clientForm, contact_person_email: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="email@example.com"
-                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    inputPad.open({
+                      title: 'البريد الإلكتروني',
+                      mode: 'alphanumeric',
+                      dir: 'ltr',
+                      initialValue: clientForm.contact_person_email || '',
+                      onConfirm: (v) => setClientForm({ ...clientForm, contact_person_email: v }),
+                    })
+                  }
+                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-left"
+                >
+                  {clientForm.contact_person_email || 'email@example.com'}
+                </button>
               </div>
 
               <div>
                 <label className="block text-sm font-medium mb-1">العنوان</label>
-                <input
-                  type="text"
-                  value={clientForm.address}
-                  onChange={(e) => setClientForm({ ...clientForm, address: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="العنوان الكامل..."
-                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    inputPad.open({
+                      title: 'العنوان',
+                      mode: 'text',
+                      initialValue: clientForm.address || '',
+                      onConfirm: (v) => setClientForm({ ...clientForm, address: v }),
+                    })
+                  }
+                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-right"
+                >
+                  {clientForm.address || 'العنوان الكامل...'}
+                </button>
               </div>
 
               <div>
                 <label className="block text-sm font-medium mb-1">المدينة</label>
-                <input
-                  type="text"
-                  value={clientForm.city}
-                  onChange={(e) => setClientForm({ ...clientForm, city: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="المدينة..."
-                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    inputPad.open({
+                      title: 'المدينة',
+                      mode: 'text',
+                      initialValue: clientForm.city || '',
+                      onConfirm: (v) => setClientForm({ ...clientForm, city: v }),
+                    })
+                  }
+                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-right"
+                >
+                  {clientForm.city || 'المدينة...'}
+                </button>
               </div>
 
               <div>
@@ -788,14 +819,22 @@ export default function CommercialNewOrderPage() {
 
               <div>
                 <label className="block text-sm font-medium mb-1">حد الائتمان</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={clientForm.credit_limit}
-                  onChange={(e) => setClientForm({ ...clientForm, credit_limit: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="0.00"
-                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    inputPad.open({
+                      title: 'حد الائتمان',
+                      mode: 'decimal',
+                      dir: 'ltr',
+                      initialValue: clientForm.credit_limit || '0',
+                      min: 0,
+                      onConfirm: (v) => setClientForm({ ...clientForm, credit_limit: v }),
+                    })
+                  }
+                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-left"
+                >
+                  {clientForm.credit_limit || '0.00'}
+                </button>
               </div>
 
               <div className="flex gap-3 pt-4">
@@ -817,6 +856,7 @@ export default function CommercialNewOrderPage() {
           </div>
         </div>
       )}
+      {inputPad.Modal}
     </div>
   )
 }

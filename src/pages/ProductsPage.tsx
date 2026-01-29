@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { Search, Plus, Package, Edit2, AlertCircle, TrendingUp, Upload, Barcode, Trash2, Box } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import * as XLSX from 'xlsx'
+import { useInputPad } from '../components/useInputPad'
 
 interface ProductVariant {
   id?: string
@@ -50,6 +51,7 @@ interface Category {
 }
 
 export default function ProductsPage() {
+  const inputPad = useInputPad()
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
@@ -1309,13 +1311,22 @@ export default function ProductsPage() {
           <div className="bg-white rounded-xl p-6 w-96" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-xl font-bold mb-4">تعديل سعر المنتج</h3>
             <p className="text-gray-600 mb-4">{selectedProduct.name_ar}</p>
-            <input
-              type="number"
-              value={editPrice}
-              onChange={(e) => setEditPrice(e.target.value)}
-              className="w-full p-3 border-2 border-gray-200 rounded-lg mb-4"
-              placeholder="السعر الجديد"
-            />
+            <button
+              type="button"
+              onClick={() =>
+                inputPad.open({
+                  title: 'تعديل السعر',
+                  mode: 'decimal',
+                  dir: 'ltr',
+                  initialValue: editPrice || '0',
+                  min: 0,
+                  onConfirm: (v) => setEditPrice(v),
+                })
+              }
+              className="w-full p-3 border-2 border-gray-200 rounded-lg mb-4 text-left"
+            >
+              {editPrice || '0'}
+            </button>
             <div className="flex gap-3">
               <button
                 onClick={handleEditPrice}
@@ -1341,13 +1352,21 @@ export default function ProductsPage() {
             <h3 className="text-xl font-bold mb-4">إضافة مخزون</h3>
             <p className="text-gray-600 mb-2">{selectedProduct.name_ar}</p>
             <p className="text-sm text-gray-500 mb-4">المخزون الحالي: {selectedProduct.stock}</p>
-            <input
-              type="number"
-              value={stockQuantity}
-              onChange={(e) => setStockQuantity(e.target.value)}
-              className="w-full p-3 border-2 border-gray-200 rounded-lg mb-4"
-              placeholder="الكمية المضافة"
-            />
+            <button
+              type="button"
+              onClick={() =>
+                inputPad.open({
+                  title: 'كمية المخزون',
+                  mode: 'number',
+                  dir: 'ltr',
+                  initialValue: stockQuantity || '0',
+                  onConfirm: (v) => setStockQuantity(v),
+                })
+              }
+              className="w-full p-3 border-2 border-gray-200 rounded-lg mb-4 text-left"
+            >
+              {stockQuantity || '0'}
+            </button>
             <div className="flex gap-3">
               <button
                 onClick={handleAddStock}
@@ -1669,14 +1688,23 @@ export default function ProductsPage() {
                           </div>
                           <div>
                             <label className="block text-xs font-bold text-gray-600 mb-1">الكمية المحتواة</label>
-                            <input
-                              type="number"
-                              value={variant.quantity_contained}
-                              onChange={(e) => updateVariant(index, 'quantity_contained', parseFloat(e.target.value) || 1)}
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-                              min="0.001"
-                              step="0.001"
-                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                inputPad.open({
+                                  title: 'الكمية المحتواة',
+                                  mode: 'decimal',
+                                  dir: 'ltr',
+                                  initialValue: variant.quantity_contained.toString(),
+                                  min: 0.001,
+                                  step: 0.001,
+                                  onConfirm: (v) => updateVariant(index, 'quantity_contained', parseFloat(v) || 1),
+                                })
+                              }
+                              className="w-full p-2 border border-gray-300 rounded-lg text-sm text-left"
+                            >
+                              {variant.quantity_contained}
+                            </button>
                           </div>
                           <div>
                             <label className="block text-xs font-bold text-gray-600 mb-1">الكود</label>
@@ -1703,72 +1731,135 @@ export default function ProductsPage() {
                         <div className="grid grid-cols-3 md:grid-cols-7 gap-3 mt-3">
                           <div>
                             <label className="block text-xs font-bold text-gray-600 mb-1">سعر الشراء</label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={variant.purchase_price}
-                              onChange={(e) => updateVariant(index, 'purchase_price', parseFloat(e.target.value) || 0)}
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                inputPad.open({
+                                  title: 'سعر الشراء',
+                                  mode: 'decimal',
+                                  dir: 'ltr',
+                                  initialValue: variant.purchase_price.toString(),
+                                  min: 0,
+                                  onConfirm: (v) => updateVariant(index, 'purchase_price', parseFloat(v) || 0),
+                                })
+                              }
+                              className="w-full p-2 border border-gray-300 rounded-lg text-sm text-left"
+                            >
+                              {variant.purchase_price}
+                            </button>
                           </div>
                           <div>
                             <label className="block text-xs font-bold text-gray-600 mb-1">سعر A</label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={variant.price_a}
-                              onChange={(e) => updateVariant(index, 'price_a', parseFloat(e.target.value) || 0)}
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                inputPad.open({
+                                  title: 'السعر A',
+                                  mode: 'decimal',
+                                  dir: 'ltr',
+                                  initialValue: variant.price_a.toString(),
+                                  min: 0,
+                                  onConfirm: (v) => updateVariant(index, 'price_a', parseFloat(v) || 0),
+                                })
+                              }
+                              className="w-full p-2 border border-gray-300 rounded-lg text-sm text-left"
+                            >
+                              {variant.price_a}
+                            </button>
                           </div>
                           <div>
                             <label className="block text-xs font-bold text-gray-600 mb-1">سعر B</label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={variant.price_b}
-                              onChange={(e) => updateVariant(index, 'price_b', parseFloat(e.target.value) || 0)}
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                inputPad.open({
+                                  title: 'السعر B',
+                                  mode: 'decimal',
+                                  dir: 'ltr',
+                                  initialValue: variant.price_b.toString(),
+                                  min: 0,
+                                  onConfirm: (v) => updateVariant(index, 'price_b', parseFloat(v) || 0),
+                                })
+                              }
+                              className="w-full p-2 border border-gray-300 rounded-lg text-sm text-left"
+                            >
+                              {variant.price_b}
+                            </button>
                           </div>
                           <div>
                             <label className="block text-xs font-bold text-gray-600 mb-1">سعر C</label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={variant.price_c}
-                              onChange={(e) => updateVariant(index, 'price_c', parseFloat(e.target.value) || 0)}
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                inputPad.open({
+                                  title: 'السعر C',
+                                  mode: 'decimal',
+                                  dir: 'ltr',
+                                  initialValue: variant.price_c.toString(),
+                                  min: 0,
+                                  onConfirm: (v) => updateVariant(index, 'price_c', parseFloat(v) || 0),
+                                })
+                              }
+                              className="w-full p-2 border border-gray-300 rounded-lg text-sm text-left"
+                            >
+                              {variant.price_c}
+                            </button>
                           </div>
                           <div>
                             <label className="block text-xs font-bold text-gray-600 mb-1">سعر D</label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={variant.price_d}
-                              onChange={(e) => updateVariant(index, 'price_d', parseFloat(e.target.value) || 0)}
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                inputPad.open({
+                                  title: 'السعر D',
+                                  mode: 'decimal',
+                                  dir: 'ltr',
+                                  initialValue: variant.price_d.toString(),
+                                  min: 0,
+                                  onConfirm: (v) => updateVariant(index, 'price_d', parseFloat(v) || 0),
+                                })
+                              }
+                              className="w-full p-2 border border-gray-300 rounded-lg text-sm text-left"
+                            >
+                              {variant.price_d}
+                            </button>
                           </div>
                           <div>
                             <label className="block text-xs font-bold text-gray-600 mb-1">سعر E</label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={variant.price_e}
-                              onChange={(e) => updateVariant(index, 'price_e', parseFloat(e.target.value) || 0)}
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                inputPad.open({
+                                  title: 'السعر E',
+                                  mode: 'decimal',
+                                  dir: 'ltr',
+                                  initialValue: variant.price_e.toString(),
+                                  min: 0,
+                                  onConfirm: (v) => updateVariant(index, 'price_e', parseFloat(v) || 0),
+                                })
+                              }
+                              className="w-full p-2 border border-gray-300 rounded-lg text-sm text-left"
+                            >
+                              {variant.price_e}
+                            </button>
                           </div>
                           <div>
                             <label className="block text-xs font-bold text-gray-600 mb-1">المخزون</label>
-                            <input
-                              type="number"
-                              value={variant.stock}
-                              onChange={(e) => updateVariant(index, 'stock', parseFloat(e.target.value) || 0)}
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                inputPad.open({
+                                  title: 'المخزون',
+                                  mode: 'number',
+                                  dir: 'ltr',
+                                  initialValue: variant.stock.toString(),
+                                  onConfirm: (v) => updateVariant(index, 'stock', parseFloat(v) || 0),
+                                })
+                              }
+                              className="w-full p-2 border border-gray-300 rounded-lg text-sm text-left"
+                            >
+                              {variant.stock}
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -1903,14 +1994,23 @@ export default function ProductsPage() {
                           </div>
                           <div>
                             <label className="block text-xs font-bold text-gray-600 mb-1">الكمية المحتواة</label>
-                            <input
-                              type="number"
-                              value={variant.quantity_contained}
-                              onChange={(e) => updateVariant(index, 'quantity_contained', parseFloat(e.target.value) || 1)}
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-                              min="0.001"
-                              step="0.001"
-                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                inputPad.open({
+                                  title: 'الكمية المحتواة',
+                                  mode: 'decimal',
+                                  dir: 'ltr',
+                                  initialValue: variant.quantity_contained.toString(),
+                                  min: 0.001,
+                                  step: 0.001,
+                                  onConfirm: (v) => updateVariant(index, 'quantity_contained', parseFloat(v) || 1),
+                                })
+                              }
+                              className="w-full p-2 border border-gray-300 rounded-lg text-sm text-left"
+                            >
+                              {variant.quantity_contained}
+                            </button>
                           </div>
                           <div>
                             <label className="block text-xs font-bold text-gray-600 mb-1">الكود</label>
@@ -1937,72 +2037,135 @@ export default function ProductsPage() {
                         <div className="grid grid-cols-3 md:grid-cols-7 gap-3 mt-3">
                           <div>
                             <label className="block text-xs font-bold text-gray-600 mb-1">سعر الشراء</label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={variant.purchase_price}
-                              onChange={(e) => updateVariant(index, 'purchase_price', parseFloat(e.target.value) || 0)}
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                inputPad.open({
+                                  title: 'سعر الشراء',
+                                  mode: 'decimal',
+                                  dir: 'ltr',
+                                  initialValue: variant.purchase_price.toString(),
+                                  min: 0,
+                                  onConfirm: (v) => updateVariant(index, 'purchase_price', parseFloat(v) || 0),
+                                })
+                              }
+                              className="w-full p-2 border border-gray-300 rounded-lg text-sm text-left"
+                            >
+                              {variant.purchase_price}
+                            </button>
                           </div>
                           <div>
                             <label className="block text-xs font-bold text-gray-600 mb-1">سعر A</label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={variant.price_a}
-                              onChange={(e) => updateVariant(index, 'price_a', parseFloat(e.target.value) || 0)}
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                inputPad.open({
+                                  title: 'السعر A',
+                                  mode: 'decimal',
+                                  dir: 'ltr',
+                                  initialValue: variant.price_a.toString(),
+                                  min: 0,
+                                  onConfirm: (v) => updateVariant(index, 'price_a', parseFloat(v) || 0),
+                                })
+                              }
+                              className="w-full p-2 border border-gray-300 rounded-lg text-sm text-left"
+                            >
+                              {variant.price_a}
+                            </button>
                           </div>
                           <div>
                             <label className="block text-xs font-bold text-gray-600 mb-1">سعر B</label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={variant.price_b}
-                              onChange={(e) => updateVariant(index, 'price_b', parseFloat(e.target.value) || 0)}
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                inputPad.open({
+                                  title: 'السعر B',
+                                  mode: 'decimal',
+                                  dir: 'ltr',
+                                  initialValue: variant.price_b.toString(),
+                                  min: 0,
+                                  onConfirm: (v) => updateVariant(index, 'price_b', parseFloat(v) || 0),
+                                })
+                              }
+                              className="w-full p-2 border border-gray-300 rounded-lg text-sm text-left"
+                            >
+                              {variant.price_b}
+                            </button>
                           </div>
                           <div>
                             <label className="block text-xs font-bold text-gray-600 mb-1">سعر C</label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={variant.price_c}
-                              onChange={(e) => updateVariant(index, 'price_c', parseFloat(e.target.value) || 0)}
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                inputPad.open({
+                                  title: 'السعر C',
+                                  mode: 'decimal',
+                                  dir: 'ltr',
+                                  initialValue: variant.price_c.toString(),
+                                  min: 0,
+                                  onConfirm: (v) => updateVariant(index, 'price_c', parseFloat(v) || 0),
+                                })
+                              }
+                              className="w-full p-2 border border-gray-300 rounded-lg text-sm text-left"
+                            >
+                              {variant.price_c}
+                            </button>
                           </div>
                           <div>
                             <label className="block text-xs font-bold text-gray-600 mb-1">سعر D</label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={variant.price_d}
-                              onChange={(e) => updateVariant(index, 'price_d', parseFloat(e.target.value) || 0)}
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                inputPad.open({
+                                  title: 'السعر D',
+                                  mode: 'decimal',
+                                  dir: 'ltr',
+                                  initialValue: variant.price_d.toString(),
+                                  min: 0,
+                                  onConfirm: (v) => updateVariant(index, 'price_d', parseFloat(v) || 0),
+                                })
+                              }
+                              className="w-full p-2 border border-gray-300 rounded-lg text-sm text-left"
+                            >
+                              {variant.price_d}
+                            </button>
                           </div>
                           <div>
                             <label className="block text-xs font-bold text-gray-600 mb-1">سعر E</label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={variant.price_e}
-                              onChange={(e) => updateVariant(index, 'price_e', parseFloat(e.target.value) || 0)}
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                inputPad.open({
+                                  title: 'السعر E',
+                                  mode: 'decimal',
+                                  dir: 'ltr',
+                                  initialValue: variant.price_e.toString(),
+                                  min: 0,
+                                  onConfirm: (v) => updateVariant(index, 'price_e', parseFloat(v) || 0),
+                                })
+                              }
+                              className="w-full p-2 border border-gray-300 rounded-lg text-sm text-left"
+                            >
+                              {variant.price_e}
+                            </button>
                           </div>
                           <div>
                             <label className="block text-xs font-bold text-gray-600 mb-1">المخزون</label>
-                            <input
-                              type="number"
-                              value={variant.stock}
-                              onChange={(e) => updateVariant(index, 'stock', parseFloat(e.target.value) || 0)}
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                inputPad.open({
+                                  title: 'المخزون',
+                                  mode: 'number',
+                                  dir: 'ltr',
+                                  initialValue: variant.stock.toString(),
+                                  onConfirm: (v) => updateVariant(index, 'stock', parseFloat(v) || 0),
+                                })
+                              }
+                              className="w-full p-2 border border-gray-300 rounded-lg text-sm text-left"
+                            >
+                              {variant.stock}
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -2030,6 +2193,7 @@ export default function ProductsPage() {
           </div>
         </div>
       )}
+      {inputPad.Modal}
     </div>
   )
 }

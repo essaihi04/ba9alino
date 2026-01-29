@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useInputPad } from '../components/useInputPad'
 import { 
   Search, 
   ShoppingCart, 
@@ -141,6 +142,8 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
   const employeeIdFromAuth = isEmployeeMode ? localStorage.getItem('employee_id') : null
   const employeeNameFromAuth = isEmployeeMode ? localStorage.getItem('employee_name') : null
 
+  const inputPad = useInputPad()
+
   const CASH_SESSION_KEY = isEmployeeMode ? 'employee_pos_cash_session_id' : 'pos_cash_session_id'
   const EMPLOYEE_KEY = isEmployeeMode ? 'employee_pos_employee_id' : 'pos_employee_id'
   const WAREHOUSE_KEY = isEmployeeMode ? 'employee_pos_warehouse_id' : 'pos_warehouse_id'
@@ -183,8 +186,6 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
   const [editingInvoiceLine, setEditingInvoiceLine] = useState<InvoiceLine | null>(null)
   const [editLineQuantity, setEditLineQuantity] = useState('')
   const [editLinePrice, setEditLinePrice] = useState('')
-  const [editingField, setEditingField] = useState<'quantity' | 'price' | null>(null)
-  const [numericInput, setNumericInput] = useState('')
   
   // États pour popup type de paiement
   const [showPaymentTypeModal, setShowPaymentTypeModal] = useState(false)
@@ -225,7 +226,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     expectedCash: 0,
   })
 
-  const [showSessionDashboard, setShowSessionDashboard] = useState(true)
+  const [showSessionDashboard, setShowSessionDashboard] = useState(false)
 
   const [showOpenCashModal, setShowOpenCashModal] = useState(false)
   const [openEmployeeId, setOpenEmployeeId] = useState('')
@@ -235,6 +236,14 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
   const [showCloseCashModal, setShowCloseCashModal] = useState(false)
   const [closingCashInput, setClosingCashInput] = useState('')
   const [closingNoteInput, setClosingNoteInput] = useState('')
+
+  const searchInputRef = useRef<HTMLInputElement>(null)
+
+  const focusSearchInput = () => {
+    requestAnimationFrame(() => {
+      searchInputRef.current?.focus()
+    })
+  }
 
   useEffect(() => {
     // Désactivé temporairement car on utilise virtual_accounts IDs comme fallback
@@ -364,6 +373,10 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       await checkForOpenSession()
     }
   }
+
+  useEffect(() => {
+    focusSearchInput()
+  }, [])
 
   const checkForOpenSession = async () => {
     try {
@@ -850,7 +863,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
 
   const handleBarcodeSearch = () => {
     if (!searchQuery.trim()) return
-    
+
     const normalizedSearch = searchQuery.trim().replace(/[\s-]/g, '') // Remove spaces and dashes
     console.log('🔍 Recherche pour:', searchQuery.trim(), '→ normalisé:', normalizedSearch)
     console.log('📦 Produits disponibles:', products.map(p => ({
@@ -871,6 +884,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       // Add product to invoice
       addToInvoice(exactBarcodeMatch)
       setSearchQuery('') // Clear search after adding
+      focusSearchInput()
       return
     }
     
@@ -885,6 +899,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     if (partialBarcodeMatch) {
       addToInvoice(partialBarcodeMatch)
       setSearchQuery('') // Clear search after adding
+      focusSearchInput()
       return
     }
     
@@ -897,6 +912,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     if (nameMatch) {
       addToInvoice(nameMatch)
       setSearchQuery('') // Clear search after adding
+      focusSearchInput()
       return
     }
     
@@ -911,20 +927,51 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     if (matchingProducts.length === 1) {
       addToInvoice(matchingProducts[0])
       setSearchQuery('') // Clear search after adding
+      focusSearchInput()
       return
     }
     
     // If multiple matches or no match, keep search query for manual selection
     console.log('🔍 Multiple matches or no match found, showing results for manual selection')
+    focusSearchInput()
   }
 
   const filteredProducts = products.filter(p =>
     p.name_ar?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.barcode?.includes(searchQuery)
   ).filter(p => {
+    if (selectedCategory === 'no-category') {
+      // Show only products without categories
+      return !p.category_id || p.category_id === ''
+    }
     if (selectedCategory && p.category_id !== selectedCategory) return false
     return true
   })
+
+  useEffect(() => {
+    if (!searchQuery.trim()) return
+
+    const normalizedSearch = searchQuery.trim().replace(/[\s-]/g, '')
+
+    const exactBarcodeMatch = products.find(p => {
+      if (!p.barcode) return false
+      const normalizedBarcode = p.barcode.replace(/[\s-]/g, '')
+      return normalizedBarcode === normalizedSearch
+    })
+
+    if (exactBarcodeMatch) {
+      addToInvoice(exactBarcodeMatch)
+      setSearchQuery('')
+      focusSearchInput()
+      return
+    }
+
+    if (filteredProducts.length === 1) {
+      addToInvoice(filteredProducts[0])
+      setSearchQuery('')
+      focusSearchInput()
+    }
+  }, [searchQuery, products, filteredProducts.length])
 
   const getProductPrice = (item: Product | CartItem) => {
     // Si c'est un CartItem et a un prix personnalisé, l'utiliser
@@ -1243,8 +1290,13 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
   const handleAddClient = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!clientFormData.company_name_ar.trim() || !clientFormData.contact_person_name.trim()) {
-      alert('الرجاء إدخال اسم الشركة واسم جهة الاتصال')
+    if (
+      !clientFormData.company_name_ar.trim() ||
+      !clientFormData.contact_person_name.trim() ||
+      !clientFormData.contact_person_email.trim() ||
+      !clientFormData.contact_person_phone.trim()
+    ) {
+      alert('الرجاء إدخال اسم الشركة واسم جهة الاتصال والبريد الإلكتروني والهاتف')
       return
     }
 
@@ -1443,46 +1495,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     setEditingInvoiceLine(line)
     setEditLineQuantity(line.quantity.toString())
     setEditLinePrice(line.unit_price.toFixed(2))
-    setEditingField(null)
-    setNumericInput('')
     setShowEditInvoiceLineModal(true)
-  }
-
-  const openNumericKeypad = (field: 'quantity' | 'price') => {
-    setEditingField(field)
-    setNumericInput(field === 'quantity' ? editLineQuantity : editLinePrice)
-  }
-
-  const handleNumericInput = (value: string) => {
-    if (value === 'clear') {
-      setNumericInput('')
-    } else if (value === 'backspace') {
-      setNumericInput(prev => prev.slice(0, -1))
-    } else if (value === '.') {
-      // Allow only one decimal point for price
-      if (editingField === 'price' && !numericInput.includes('.')) {
-        setNumericInput(prev => prev + value)
-      }
-    } else {
-      setNumericInput(prev => prev + value)
-    }
-  }
-
-  const handleNumericConfirm = () => {
-    if (editingField === 'quantity') {
-      const qty = parseInt(numericInput) || 1
-      setEditLineQuantity(qty.toString())
-    } else if (editingField === 'price') {
-      const price = parseFloat(numericInput) || 0
-      setEditLinePrice(price.toFixed(2))
-    }
-    setEditingField(null)
-    setNumericInput('')
-  }
-
-  const handleNumericCancel = () => {
-    setEditingField(null)
-    setNumericInput('')
   }
 
   const openEditItemModal = (item: CartItem) => {
@@ -1819,24 +1832,24 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
             </div>
           </div>
 
-          <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 11px; border: 1px solid #000;">
             <thead>
-              <tr style="border-bottom: 1px solid #000;">
-                <th style="text-align: right; padding: 2px 0;">الكمية</th>
-                <th style="text-align: right; padding: 2px 0;">الوحدة</th>
-                <th style="text-align: right; padding: 2px 0;">الثمن</th>
-                <th style="text-align: right; padding: 2px 0;">الاسم</th>
-                <th style="text-align: left; padding: 2px 0;">المجموع</th>
+              <tr style="background: #f9f9f9;">
+                <th style="text-align: right; padding: 3px 2px; border: 1px solid #000;">الكمية</th>
+                <th style="text-align: right; padding: 3px 2px; border: 1px solid #000;">الوحدة</th>
+                <th style="text-align: right; padding: 3px 2px; border: 1px solid #000;">الثمن</th>
+                <th style="text-align: right; padding: 3px 2px; border: 1px solid #000;">الاسم</th>
+                <th style="text-align: left; padding: 3px 2px; border: 1px solid #000;">المجموع</th>
               </tr>
             </thead>
             <tbody>
               ${confirmedInvoice.lines.filter(l => !l.deleted).map(line => `
                 <tr>
-                  <td style=\"padding: 2px 0; text-align: right; white-space: nowrap;\">${line.quantity}</td>
-                  <td style=\"padding: 2px 0; text-align: right; white-space: nowrap;\">وحدة</td>
-                  <td style=\"padding: 2px 0; text-align: right; white-space: nowrap;\">${line.unit_price.toFixed(2)}</td>
-                  <td style=\"padding: 2px 0; text-align: right;\">${line.product_name_ar}</td>
-                  <td style=\"padding: 2px 0; text-align: left; white-space: nowrap;\">${line.total.toFixed(2)}</td>
+                  <td style=\"padding: 3px 2px; text-align: right; white-space: nowrap; border: 1px solid #000;\">${line.quantity}</td>
+                  <td style=\"padding: 3px 2px; text-align: right; white-space: nowrap; border: 1px solid #000;\">وحدة</td>
+                  <td style=\"padding: 3px 2px; text-align: right; white-space: nowrap; border: 1px solid #000;\">${line.unit_price.toFixed(2)}</td>
+                  <td style=\"padding: 3px 2px; text-align: right; border: 1px solid #000;\">${line.product_name_ar}</td>
+                  <td style=\"padding: 3px 2px; text-align: left; white-space: nowrap; border: 1px solid #000;\">${line.total.toFixed(2)}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -2082,14 +2095,22 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
 
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">Fond de caisse initial</label>
-                <input
-                  type="number"
-                  value={openingCashInput}
-                  onChange={(e) => setOpeningCashInput(e.target.value)}
-                  className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
-                  placeholder="0"
-                  min={0}
-                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    inputPad.open({
+                      title: 'Fond de caisse initial',
+                      mode: 'decimal',
+                      dir: 'ltr',
+                      initialValue: openingCashInput || '0',
+                      min: 0,
+                      onConfirm: (v) => setOpeningCashInput(v),
+                    })
+                  }
+                  className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none bg-white text-left font-bold"
+                >
+                  {openingCashInput || '0'}
+                </button>
               </div>
 
               <button
@@ -2136,14 +2157,22 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
             <div className="mt-4 space-y-3">
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">Cash réel compté</label>
-                <input
-                  type="number"
-                  value={closingCashInput}
-                  onChange={(e) => setClosingCashInput(e.target.value)}
-                  className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none"
-                  placeholder="0"
-                  min={0}
-                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    inputPad.open({
+                      title: 'Cash réel compté',
+                      mode: 'decimal',
+                      dir: 'ltr',
+                      initialValue: closingCashInput || '0',
+                      min: 0,
+                      onConfirm: (v) => setClosingCashInput(v),
+                    })
+                  }
+                  className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none bg-white text-left font-bold"
+                >
+                  {closingCashInput || '0'}
+                </button>
                 {closingCashInput !== '' && (
                   <div className="text-xs text-gray-600 mt-1">
                     Écart: {(Number(closingCashInput || 0) - cashSessionSummary.expectedCash).toFixed(2)} MAD
@@ -2153,12 +2182,20 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
 
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-2">ملاحظة (إجباري إذا كان هناك فرق)</label>
-                <textarea
-                  value={closingNoteInput}
-                  onChange={(e) => setClosingNoteInput(e.target.value)}
-                  className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none"
-                  rows={3}
-                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    inputPad.open({
+                      title: 'ملاحظة',
+                      mode: 'text',
+                      initialValue: closingNoteInput || '',
+                      onConfirm: (v) => setClosingNoteInput(v),
+                    })
+                  }
+                  className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-red-500 focus:outline-none bg-white text-right font-bold whitespace-pre-wrap min-h-[92px]"
+                >
+                  {closingNoteInput || 'اضغط لإدخال ملاحظة...'}
+                </button>
               </div>
 
               <div className="flex gap-3">
@@ -2203,7 +2240,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                   handleBarcodeSearch()
                 }
               }}
-              autoFocus
+              ref={searchInputRef}
             />
             {searchQuery && (
               <button
@@ -2228,6 +2265,16 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
               }`}
             >
               الكل
+            </button>
+            <button
+              onClick={() => setSelectedCategory('no-category')}
+              className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${
+                selectedCategory === 'no-category'
+                  ? 'bg-green-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              بدون عائلة
             </button>
             {categories.map((category) => (
               <button
@@ -2412,19 +2459,25 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                           >
                             −
                           </button>
-                          <input
-                            type="number"
-                            min="1"
-                            value={line.deleted ? 0 : line.quantity}
-                            onChange={(e) => {
-                              const qty = parseInt(e.target.value)
-                              if (!line.deleted && qty > 0) updateInvoiceLineQuantity(line.id, qty)
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (line.deleted) return
+                              inputPad.open({
+                                title: 'الكمية',
+                                mode: 'number',
+                                initialValue: String(line.quantity || 1),
+                                min: 1,
+                                onConfirm: (v) => updateInvoiceLineQuantity(line.id, parseInt(v) || 1),
+                              })
                             }}
-                            className={`w-8 text-center text-xs font-bold border border-gray-200 rounded ${
-                              line.deleted ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''
+                            className={`w-10 text-center text-xs font-bold border border-gray-200 rounded py-1 ${
+                              line.deleted ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-gray-50'
                             }`}
                             disabled={!!line.deleted}
-                          />
+                          >
+                            {line.deleted ? 0 : line.quantity}
+                          </button>
                           <button
                             onClick={() => {
                               if (!line.deleted) updateInvoiceLineQuantity(line.id, line.quantity + 1)
@@ -2461,51 +2514,64 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
               )}
             </div>
 
-            {/* RÉSUMÉ FINANCIER */}
-            <div className="mb-2 pb-2 border-b-2 border-gray-200">
-              <div className="flex justify-between mb-1 text-xs">
-                <span className="text-gray-600">الإجمالي:</span>
-                <span className="font-bold text-gray-800">{currentInvoice.subtotal.toFixed(2)} MAD</span>
+            <div className="space-y-3">
+              {/* RÉSUMÉ FINANCIER */}
+              <div className="p-3 rounded-xl border border-gray-200 bg-gray-50 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">الإجمالي:</span>
+                  <span className="font-bold text-gray-800">{currentInvoice.subtotal.toFixed(2)} MAD</span>
+                </div>
+                <div className="flex justify-between text-lg font-bold text-green-600">
+                  <span>المجموع:</span>
+                  <span>{currentInvoice.total_amount.toFixed(2)} MAD</span>
+                </div>
               </div>
-              <div className="flex justify-between text-lg font-bold text-green-600">
-                <span>المجموع:</span>
-                <span>{currentInvoice.total_amount.toFixed(2)} MAD</span>
-              </div>
-            </div>
 
-            {/* ZONE PAIEMENT */}
-            <div className="mb-2 pb-2 border-b-2 border-gray-200 space-y-1">
-              <div>
-                <label className="text-xs font-bold text-gray-600">المبلغ المدفوع:</label>
-                <input
-                  type="number"
-                  value={paidAmount}
-                  onChange={(e) => updatePaidAmount(parseFloat(e.target.value) || 0)}
-                  className="w-full p-1 border-2 border-gray-200 rounded font-bold text-sm focus:border-green-500 focus:outline-none"
-                />
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-gray-600">الباقي:</span>
-                <span className={`font-bold ${currentInvoice.remaining_amount > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                  {currentInvoice.remaining_amount.toFixed(2)} MAD
-                </span>
+              {/* ZONE PAIEMENT */}
+              <div className="p-3 rounded-xl border border-gray-200 bg-white space-y-2">
+                <div>
+                  <label className="text-xs font-bold text-gray-600 block mb-1">المبلغ المدفوع:</label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      inputPad.open({
+                        title: 'المبلغ المدفوع',
+                        mode: 'decimal',
+                        dir: 'ltr',
+                        initialValue: String(paidAmount ?? 0),
+                        min: 0,
+                        onConfirm: (v) => updatePaidAmount(parseFloat(v) || 0),
+                      })
+                    }
+                    className="w-full p-2 border-2 border-gray-200 rounded-lg font-bold text-base focus:border-green-500 focus:outline-none bg-gray-50 text-left"
+                  >
+                    {(paidAmount ?? 0).toFixed(2)}
+                  </button>
+                </div>
+                <div className="flex items-center justify-between rounded-lg px-3 py-2 bg-gray-100">
+                  <span className="text-sm font-bold text-gray-600">الباقي:</span>
+                  <span className={`text-lg font-extrabold ${currentInvoice.remaining_amount > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {currentInvoice.remaining_amount.toFixed(2)} MAD
+                  </span>
+                </div>
               </div>
             </div>
 
             {/* BOUTONS ACTIONS */}
-            <div className="grid grid-cols-2 gap-1">
-              <button
-                onClick={() => {
-                  setCurrentInvoice(null)
-                  setInvoiceNumber('')
-                }}
-                className="bg-gray-500 hover:bg-gray-600 text-white py-1 rounded font-bold text-xs transition-all"
-              >
-                جديدة
-              </button>
-              <button
-                onClick={async () => {
-                  if (currentInvoice.lines && currentInvoice.lines.length > 0) {
+            <div className="mt-4 space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => {
+                    setCurrentInvoice(null)
+                    setInvoiceNumber('')
+                  }}
+                  className="bg-gray-500 hover:bg-gray-600 text-white py-1 rounded font-bold text-xs transition-all"
+                >
+                  جديدة
+                </button>
+                <button
+                  onClick={async () => {
+                    if (currentInvoice.lines && currentInvoice.lines.length > 0) {
                     try {
                       // Get or create general client
                       let clientId = selectedClient?.id
@@ -2575,18 +2641,19 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                 disabled={!currentInvoice.lines || currentInvoice.lines.length === 0}
                 className="bg-orange-500 hover:bg-orange-600 text-white py-1 rounded font-bold text-xs disabled:opacity-50 transition-all"
               >
-                انتظار
-              </button>
+                  انتظار
+                </button>
+              </div>
               <button
                 onClick={() => setShowDraftsModal(true)}
-                className="bg-blue-500 hover:bg-blue-600 text-white py-1 rounded font-bold text-xs transition-all col-span-2"
+                className="bg-blue-500 hover:bg-blue-600 text-white py-2 rounded font-bold text-xs transition-all w-full"
               >
                 قائمة الانتظار ({onHoldInvoices.length})
               </button>
               <button
                 onClick={handleCheckout}
                 disabled={!currentInvoice.lines || currentInvoice.lines.length === 0}
-                className="bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-bold text-sm disabled:opacity-50 transition-all col-span-2"
+                className="bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-bold text-sm disabled:opacity-50 transition-all w-full"
               >
                 تأكيد البيع
               </button>
@@ -2651,103 +2718,61 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
             </div>
 
             <div className="p-6">
-              {!editingField ? (
-                // Main edit screen
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">الكمية</label>
-                    <button
-                      onClick={() => openNumericKeypad('quantity')}
-                      className="w-full p-4 border-2 border-gray-200 rounded-xl hover:border-green-500 focus:border-green-500 focus:outline-none transition-colors text-left bg-gray-50"
-                    >
-                      <span className="text-lg font-semibold text-gray-800">{editLineQuantity}</span>
-                    </button>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">الثمن (MAD)</label>
-                    <button
-                      onClick={() => openNumericKeypad('price')}
-                      className="w-full p-4 border-2 border-gray-200 rounded-xl hover:border-green-500 focus:border-green-500 focus:outline-none transition-colors text-left bg-gray-50"
-                    >
-                      <span className="text-lg font-semibold text-gray-800">{editLinePrice}</span>
-                    </button>
-                  </div>
-
-                  <div className="flex gap-3 pt-4">
-                    <button
-                      onClick={handleEditInvoiceLineConfirm}
-                      className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-xl font-bold transition-colors shadow-lg"
-                    >
-                      تأكيد
-                    </button>
-                    <button
-                      onClick={handleEditInvoiceLineCancel}
-                      className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-3 px-4 rounded-xl font-bold transition-colors"
-                    >
-                      إلغاء
-                    </button>
-                  </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">الكمية</label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      inputPad.open({
+                        title: 'الكمية',
+                        mode: 'number',
+                        initialValue: editLineQuantity || '1',
+                        min: 1,
+                        onConfirm: (v) => setEditLineQuantity(String(parseInt(v) || 1)),
+                      })
+                    }
+                    className="w-full p-4 border-2 border-gray-200 rounded-xl hover:border-green-500 focus:border-green-500 focus:outline-none transition-colors text-left bg-gray-50"
+                  >
+                    <span className="text-lg font-semibold text-gray-800">{editLineQuantity || '1'}</span>
+                  </button>
                 </div>
-              ) : (
-                // Numeric keypad screen
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">
-                      {editingField === 'quantity' ? 'الكمية' : 'الثمن (MAD)'}
-                    </label>
-                    <div className="w-full p-4 border-2 border-green-500 rounded-xl bg-green-50">
-                      <span className="text-2xl font-bold text-green-800">
-                        {numericInput || '0'}
-                      </span>
-                    </div>
-                  </div>
 
-                  {/* Numeric keypad */}
-                  <div className="grid grid-cols-3 gap-2">
-                    {['7', '8', '9', '4', '5', '6', '1', '2', '3', 'clear', '0', 'backspace'].map((key) => (
-                      <button
-                        key={key}
-                        onClick={() => handleNumericInput(key)}
-                        className={`p-4 rounded-xl font-bold text-lg transition-all ${
-                          key === 'clear' 
-                            ? 'bg-red-100 hover:bg-red-200 text-red-700 col-span-1'
-                            : key === 'backspace'
-                            ? 'bg-orange-100 hover:bg-orange-200 text-orange-700 col-span-1'
-                            : key === '0'
-                            ? 'bg-gray-100 hover:bg-gray-200 text-gray-800 col-span-1'
-                            : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
-                        }`}
-                      >
-                        {key === 'clear' ? 'مسح' : key === 'backspace' ? '⌫' : key}
-                      </button>
-                    ))}
-                    {editingField === 'price' && (
-                      <button
-                        onClick={() => handleNumericInput('.')}
-                        className="p-4 rounded-xl font-bold text-lg bg-blue-100 hover:bg-blue-200 text-blue-700"
-                      >
-                        .
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="flex gap-3 pt-2">
-                    <button
-                      onClick={handleNumericConfirm}
-                      className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-xl font-bold transition-colors shadow-lg"
-                    >
-                      موافق
-                    </button>
-                    <button
-                      onClick={handleNumericCancel}
-                      className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-3 px-4 rounded-xl font-bold transition-colors"
-                    >
-                      إلغاء
-                    </button>
-                  </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">الثمن (MAD)</label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      inputPad.open({
+                        title: 'الثمن (MAD)',
+                        mode: 'decimal',
+                        dir: 'ltr',
+                        initialValue: editLinePrice || '0',
+                        min: 0,
+                        onConfirm: (v) => setEditLinePrice((parseFloat(v) || 0).toFixed(2)),
+                      })
+                    }
+                    className="w-full p-4 border-2 border-gray-200 rounded-xl hover:border-green-500 focus:border-green-500 focus:outline-none transition-colors text-left bg-gray-50"
+                  >
+                    <span className="text-lg font-semibold text-gray-800">{editLinePrice || '0.00'}</span>
+                  </button>
                 </div>
-              )}
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    onClick={handleEditInvoiceLineConfirm}
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-xl font-bold transition-colors shadow-lg"
+                  >
+                    تأكيد
+                  </button>
+                  <button
+                    onClick={handleEditInvoiceLineCancel}
+                    className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-3 px-4 rounded-xl font-bold transition-colors"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -2775,72 +2800,113 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
             <form onSubmit={handleAddClient} className="space-y-3 sm:space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">اسم الشركة (عربي)</label>
-                <input
-                  type="text"
-                  value={clientFormData.company_name_ar}
-                  onChange={(e) => setClientFormData({ ...clientFormData, company_name_ar: e.target.value })}
-                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none text-sm sm:text-base"
-                  placeholder="أدخل اسم الشركة بالعربي..."
-                  required
-                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    inputPad.open({
+                      title: 'اسم الشركة (عربي)',
+                      mode: 'text',
+                      initialValue: clientFormData.company_name_ar || '',
+                      onConfirm: (v) => setClientFormData({ ...clientFormData, company_name_ar: v }),
+                    })
+                  }}
+                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none text-sm sm:text-base bg-white text-right font-bold"
+                >
+                  {clientFormData.company_name_ar || 'أدخل اسم الشركة بالعربي...'}
+                </button>
               </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">اسم الشركة (English)</label>
-                <input
-                  type="text"
-                  value={clientFormData.company_name_en}
-                  onChange={(e) => setClientFormData({ ...clientFormData, company_name_en: e.target.value })}
-                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none text-sm sm:text-base"
-                  placeholder="Enter company name in English..."
-                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    inputPad.open({
+                      title: 'Company name (English)',
+                      mode: 'alphanumeric',
+                      dir: 'ltr',
+                      initialValue: clientFormData.company_name_en || '',
+                      onConfirm: (v) => setClientFormData({ ...clientFormData, company_name_en: v }),
+                    })
+                  }}
+                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none text-sm sm:text-base bg-white text-left font-bold"
+                >
+                  {clientFormData.company_name_en || 'Enter company name in English...'}
+                </button>
               </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">اسم جهة الاتصال</label>
-                <input
-                  type="text"
-                  value={clientFormData.contact_person_name}
-                  onChange={(e) => setClientFormData({ ...clientFormData, contact_person_name: e.target.value })}
-                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none text-sm sm:text-base"
-                  placeholder="أدخل اسم جهة الاتصال..."
-                  required
-                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    inputPad.open({
+                      title: 'اسم جهة الاتصال',
+                      mode: 'text',
+                      initialValue: clientFormData.contact_person_name || '',
+                      onConfirm: (v) => setClientFormData({ ...clientFormData, contact_person_name: v }),
+                    })
+                  }}
+                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none text-sm sm:text-base bg-white text-right font-bold"
+                >
+                  {clientFormData.contact_person_name || 'أدخل اسم جهة الاتصال...'}
+                </button>
               </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">البريد الإلكتروني</label>
-                <input
-                  type="email"
-                  value={clientFormData.contact_person_email}
-                  onChange={(e) => setClientFormData({ ...clientFormData, contact_person_email: e.target.value })}
-                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none text-sm sm:text-base"
-                  placeholder="example@email.com"
-                  required
-                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    inputPad.open({
+                      title: 'Email',
+                      mode: 'alphanumeric',
+                      dir: 'ltr',
+                      initialValue: clientFormData.contact_person_email || '',
+                      onConfirm: (v) => setClientFormData({ ...clientFormData, contact_person_email: v }),
+                    })
+                  }}
+                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none text-sm sm:text-base bg-white text-left font-bold"
+                >
+                  {clientFormData.contact_person_email || 'example@email.com'}
+                </button>
               </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">الهاتف</label>
-                <input
-                  type="tel"
-                  value={clientFormData.contact_person_phone}
-                  onChange={(e) => setClientFormData({ ...clientFormData, contact_person_phone: e.target.value })}
-                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none text-sm sm:text-base"
-                  placeholder="06xxxxxxxx ou 07xxxxxxxx"
-                  required
-                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    inputPad.open({
+                      title: 'الهاتف',
+                      mode: 'alphanumeric',
+                      dir: 'ltr',
+                      initialValue: clientFormData.contact_person_phone || '',
+                      onConfirm: (v) => setClientFormData({ ...clientFormData, contact_person_phone: v }),
+                    })
+                  }}
+                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none text-sm sm:text-base bg-white text-left font-bold"
+                >
+                  {clientFormData.contact_person_phone || '06xxxxxxxx ou 07xxxxxxxx'}
+                </button>
               </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 sm:mb-2">العنوان</label>
-                <textarea
-                  value={clientFormData.address}
-                  onChange={(e) => setClientFormData({ ...clientFormData, address: e.target.value })}
-                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none text-sm sm:text-base resize-none"
-                  placeholder="أدخل العنوان الكامل..."
-                  rows={3}
-                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    inputPad.open({
+                      title: 'العنوان',
+                      mode: 'text',
+                      initialValue: clientFormData.address || '',
+                      onConfirm: (v) => setClientFormData({ ...clientFormData, address: v }),
+                    })
+                  }}
+                  className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none text-sm sm:text-base bg-white text-right font-bold whitespace-pre-wrap min-h-[80px]"
+                >
+                  {clientFormData.address || 'أدخل العنوان الكامل...'}
+                </button>
               </div>
               
               <div>
@@ -2953,25 +3019,41 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">الكمية</label>
-                <input
-                  type="number"
-                  min="1"
-                  value={editQuantity}
-                  onChange={(e) => setEditQuantity(e.target.value)}
-                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
-                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    inputPad.open({
+                      title: 'الكمية',
+                      mode: 'number',
+                      initialValue: editQuantity || '1',
+                      min: 1,
+                      onConfirm: (v) => setEditQuantity(String(parseInt(v) || 1)),
+                    })
+                  }
+                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none bg-white text-left font-bold"
+                >
+                  {editQuantity || '1'}
+                </button>
               </div>
               
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">الثمن (MAD)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={editPrice}
-                  onChange={(e) => setEditPrice(e.target.value)}
-                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
-                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    inputPad.open({
+                      title: 'الثمن (MAD)',
+                      mode: 'decimal',
+                      dir: 'ltr',
+                      initialValue: editPrice || '0',
+                      min: 0,
+                      onConfirm: (v) => setEditPrice((parseFloat(v) || 0).toFixed(2)),
+                    })
+                  }
+                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none bg-white text-left font-bold"
+                >
+                  {editPrice || '0.00'}
+                </button>
               </div>
               
               <div className="flex gap-2">
@@ -3567,13 +3649,21 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">رقم الشيك</label>
-                  <input
-                    type="text"
-                    value={paymentDetails.check_number}
-                    onChange={(e) => setPaymentDetails({...paymentDetails, check_number: e.target.value})}
-                    className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none"
-                    placeholder="أدخل رقم الشيك"
-                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      inputPad.open({
+                        title: 'رقم الشيك',
+                        mode: 'alphanumeric',
+                        dir: 'ltr',
+                        initialValue: paymentDetails.check_number || '',
+                        onConfirm: (v) => setPaymentDetails({ ...paymentDetails, check_number: v }),
+                      })
+                    }
+                    className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none bg-white text-left font-bold"
+                  >
+                    {paymentDetails.check_number || 'أدخل رقم الشيك'}
+                  </button>
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">تاريخ الشيك</label>
@@ -3633,6 +3723,8 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
           </div>
         </div>
       )}
+
+      {inputPad.Modal}
     </div>
   )
 }

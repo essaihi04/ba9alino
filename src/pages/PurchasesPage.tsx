@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Search, Plus, Package, DollarSign, CheckCircle, Truck, AlertCircle, Trash2, X, ShoppingCart, CreditCard, Edit, PlusCircle, Eye } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { useInputPad } from '../components/useInputPad'
 
 interface Supplier {
   id: string
@@ -35,6 +36,8 @@ interface Warehouse {
   is_active: boolean
 }
 
+type UnitType = 'kilo' | 'carton' | 'paquet' | 'sac'
+
 interface PurchaseLineItem {
   product_id: string
   product_name_ar: string
@@ -42,6 +45,11 @@ interface PurchaseLineItem {
   quantity: number
   unit_price: number
   line_total: number
+  unit_type?: UnitType
+  units_per_carton?: number | null
+  weight_per_unit?: number | null
+  base_quantity?: number
+  packaging_mode?: 'none' | 'carton' | 'sachet'
 }
 
 interface Purchase {
@@ -70,6 +78,7 @@ interface Purchase {
 }
 
 export default function PurchasesPage() {
+  const inputPad = useInputPad()
   const [purchases, setPurchases] = useState<Purchase[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
@@ -84,7 +93,11 @@ export default function PurchasesPage() {
   const [editingItem, setEditingItem] = useState<PurchaseLineItem | null>(null)
   const [editForm, setEditForm] = useState({
     quantity: 1,
-    unit_price: 0
+    unit_price: 0,
+    unit_type: 'kilo' as UnitType,
+    units_per_carton: null as number | null,
+    weight_per_unit: null as number | null,
+    packaging_mode: 'none' as 'none' | 'carton' | 'sachet',
   })
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null)
@@ -190,15 +203,13 @@ export default function PurchasesPage() {
 
   const loadCategories = async () => {
     try {
-      const [categoriesRes, clientsRes] = await Promise.all([
-        supabase.from('product_categories').select('*').order('name_ar'),
-        supabase.from('clients').select('*').eq('created_by', commercialId).order('company_name_ar')
-      ])
+      const { data, error } = await supabase
+        .from('product_categories')
+        .select('*')
+        .order('name_ar')
 
-      if (categoriesRes.error) throw categoriesRes.error
-      if (clientsRes.error) throw clientsRes.error
-
-      setCategories((categoriesRes.data || []) as Category[])
+      if (error) throw error
+      setCategories((data || []) as Category[])
     } catch (error) {
       console.error('Error loading categories:', error)
     }
@@ -210,6 +221,26 @@ export default function PurchasesPage() {
     : products
 
   // Ajouter un produit à la facture
+  const calculateBaseQuantity = (form: { quantity: number; unit_type: UnitType; units_per_carton?: number | null; weight_per_unit?: number | null; packaging_mode?: 'none' | 'carton' | 'sachet' }) => {
+    const safeQuantity = Number(form.quantity) || 0
+    const hasUnitsPerCarton = form.units_per_carton !== null && form.units_per_carton !== undefined && form.units_per_carton > 0
+    const hasWeightPerUnit = form.weight_per_unit !== null && form.weight_per_unit !== undefined && form.weight_per_unit > 0
+    const unitsPerCarton = hasUnitsPerCarton ? Number(form.units_per_carton) : 1
+    const weightPerUnit = hasWeightPerUnit ? Number(form.weight_per_unit) : 1
+
+    switch (form.unit_type) {
+      case 'carton':
+        return safeQuantity * unitsPerCarton * weightPerUnit
+      case 'paquet':
+        return safeQuantity * weightPerUnit
+      case 'sac':
+        return safeQuantity * weightPerUnit
+      case 'kilo':
+      default:
+        return safeQuantity
+    }
+  }
+
   const addProductToInvoice = (product: Product) => {
     const existingItem = purchaseItems.find(item => item.product_id === product.id)
     
@@ -220,13 +251,26 @@ export default function PurchasesPage() {
           ? {
               ...item,
               quantity: item.quantity + 1,
-              line_total: (item.quantity + 1) * item.unit_price
+              line_total: (item.quantity + 1) * item.unit_price,
+              base_quantity: calculateBaseQuantity({
+                quantity: item.quantity + 1,
+                unit_type: item.unit_type || 'kilo',
+                units_per_carton: item.units_per_carton || 1,
+                weight_per_unit: item.weight_per_unit || 1,
+              })
             }
           : item
       ))
     } else {
       // Ajouter un nouvel item
       const unitPrice = product.cost_price || product.price_a
+      const defaultForm = {
+        quantity: 1,
+        unit_type: 'kilo' as UnitType,
+        units_per_carton: null as number | null,
+        weight_per_unit: null as number | null,
+        packaging_mode: 'none' as 'none' | 'carton' | 'sachet'
+      }
       setPurchaseItems([
         ...purchaseItems,
         {
@@ -235,7 +279,12 @@ export default function PurchasesPage() {
           product_sku: product.sku,
           quantity: 1,
           unit_price: unitPrice,
-          line_total: unitPrice
+          line_total: unitPrice,
+          unit_type: defaultForm.unit_type,
+          units_per_carton: defaultForm.units_per_carton,
+          weight_per_unit: defaultForm.weight_per_unit,
+          packaging_mode: defaultForm.packaging_mode,
+          base_quantity: calculateBaseQuantity(defaultForm),
         }
       ])
     }
@@ -252,7 +301,11 @@ export default function PurchasesPage() {
     setEditingItem(item)
     setEditForm({
       quantity: item.quantity,
-      unit_price: item.unit_price
+      unit_price: item.unit_price,
+      unit_type: item.unit_type || 'kilo',
+      units_per_carton: item.units_per_carton ?? null,
+      weight_per_unit: item.weight_per_unit ?? null,
+      packaging_mode: item.packaging_mode || 'none',
     })
     setShowEditModal(true)
   }
@@ -270,6 +323,10 @@ export default function PurchasesPage() {
               ...item,
               quantity: editForm.quantity,
               unit_price: editForm.unit_price,
+              unit_type: editForm.unit_type,
+              units_per_carton: editForm.units_per_carton,
+              weight_per_unit: editForm.weight_per_unit,
+              base_quantity: calculateBaseQuantity(editForm),
               line_total: editForm.quantity * editForm.unit_price
             }
           : item
@@ -360,6 +417,7 @@ export default function PurchasesPage() {
       // Ajouter les produits au stock
       if (purchaseForm.status === 'received' && purchaseForm.warehouse_id) {
         for (const item of purchaseItems) {
+          const baseQuantity = item.base_quantity ?? item.quantity
           // Vérifier si le produit existe déjà dans le stock de ce dépôt
           const { data: existingStock } = await supabase
             .from('stock')
@@ -373,7 +431,7 @@ export default function PurchasesPage() {
             await supabase
               .from('stock')
               .update({
-                quantity_available: existingStock.quantity_available + item.quantity,
+                quantity_available: existingStock.quantity_available + baseQuantity,
                 cost_price: item.unit_price, // Mettre à jour le prix d'achat
                 updated_at: new Date().toISOString()
               })
@@ -385,7 +443,7 @@ export default function PurchasesPage() {
               .insert({
                 product_id: item.product_id,
                 warehouse_id: purchaseForm.warehouse_id,
-                quantity_available: item.quantity,
+                quantity_available: baseQuantity,
                 cost_price: item.unit_price,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
@@ -403,7 +461,7 @@ export default function PurchasesPage() {
             await supabase
               .from('products')
               .update({
-                stock: product.stock + item.quantity,
+                stock: product.stock + baseQuantity,
                 cost_price: item.unit_price // Mettre à jour le prix d'achat par défaut
               })
               .eq('id', item.product_id)
@@ -421,7 +479,7 @@ export default function PurchasesPage() {
               await supabase
                 .from('product_variants')
                 .update({
-                  stock: variant.stock + item.quantity,
+                  stock: variant.stock + baseQuantity,
                   purchase_price: item.unit_price // Mettre à jour le prix d'achat
                 })
                 .eq('id', variant.id)
@@ -524,6 +582,7 @@ export default function PurchasesPage() {
       // Retirer les quantités du stock pour chaque produit dans la facture
       if (purchase.items && purchase.items.length > 0) {
         for (const item of purchase.items) {
+          const baseQty = item.base_quantity ?? item.quantity ?? 1
           // Retirer du stock principal du produit
           const { data: product } = await supabase
             .from('products')
@@ -532,7 +591,7 @@ export default function PurchasesPage() {
             .single()
 
           if (product) {
-            const newStock = Math.max(0, product.stock - item.quantity)
+            const newStock = Math.max(0, product.stock - baseQty)
             await supabase
               .from('products')
               .update({ stock: newStock })
@@ -547,7 +606,7 @@ export default function PurchasesPage() {
 
           if (variants && variants.length > 0) {
             for (const variant of variants) {
-              const newVariantStock = Math.max(0, variant.stock - item.quantity)
+              const newVariantStock = Math.max(0, variant.stock - baseQty)
               await supabase
                 .from('product_variants')
                 .update({ stock: newVariantStock })
@@ -563,7 +622,7 @@ export default function PurchasesPage() {
 
           if (stockRecords && stockRecords.length > 0) {
             for (const stockRecord of stockRecords) {
-              const newWarehouseStock = Math.max(0, stockRecord.quantity_available - item.quantity)
+              const newWarehouseStock = Math.max(0, stockRecord.quantity_available - baseQty)
               await supabase
                 .from('stock')
                 .update({ quantity_available: newWarehouseStock })
@@ -811,13 +870,22 @@ export default function PurchasesPage() {
                   </div>
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-1">نسبة الضريبة (%)</label>
-                    <input
-                      type="number"
-                      value={purchaseForm.tax_rate}
-                      onChange={(e) => setPurchaseForm({ ...purchaseForm, tax_rate: e.target.value })}
-                      className="w-full p-2 border rounded-lg text-sm"
-                      placeholder="0"
-                    />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        inputPad.open({
+                          title: 'نسبة الضريبة (%)',
+                          mode: 'decimal',
+                          dir: 'ltr',
+                          initialValue: purchaseForm.tax_rate || '0',
+                          min: 0,
+                          onConfirm: (v) => setPurchaseForm({ ...purchaseForm, tax_rate: v }),
+                        })
+                      }
+                      className="w-full p-2 border rounded-lg text-sm text-left"
+                    >
+                      {purchaseForm.tax_rate || '0'}
+                    </button>
                   </div>
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-1">نوع الدفع</label>
@@ -903,13 +971,22 @@ export default function PurchasesPage() {
                   </div>
                   <div className="mt-3">
                     <label className="block text-sm font-bold text-gray-700 mb-1">المبلغ المدفوع</label>
-                    <input
-                      type="number"
-                      value={purchaseForm.paid_amount}
-                      onChange={(e) => setPurchaseForm({ ...purchaseForm, paid_amount: e.target.value })}
-                      className="w-full p-2 border rounded-lg text-sm"
-                      placeholder="0"
-                    />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        inputPad.open({
+                          title: 'المبلغ المدفوع',
+                          mode: 'decimal',
+                          dir: 'ltr',
+                          initialValue: purchaseForm.paid_amount || '0',
+                          min: 0,
+                          onConfirm: (v) => setPurchaseForm({ ...purchaseForm, paid_amount: v }),
+                        })
+                      }
+                      className="w-full p-2 border rounded-lg text-sm text-left"
+                    >
+                      {purchaseForm.paid_amount || '0'}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1012,50 +1089,245 @@ export default function PurchasesPage() {
             {/* Popup d'édition de produit */}
             {showEditModal && editingItem && (
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                <div className="bg-white rounded-xl p-6 w-full max-w-md">
-                  <h3 className="text-xl font-bold text-gray-800 mb-4">تعديل المنتج</h3>
-                  
-                  <div className="mb-4">
-                    <p className="text-sm text-gray-600 mb-2">المنتج:</p>
-                    <p className="font-bold text-gray-800">{editingItem.product_name_ar}</p>
-                    <p className="text-xs text-gray-500">SKU: {editingItem.product_sku}</p>
+                <div className="bg-white rounded-2xl p-4 sm:p-5 w-full max-w-[420px] max-h-[92vh] overflow-y-auto shadow-2xl">
+                  <h3 className="text-lg font-bold text-gray-800 mb-3">تعديل المنتج</h3>
+
+                  <div className="mb-3">
+                    <p className="text-xs text-gray-500 mb-1">المنتج:</p>
+                    <p className="font-bold text-gray-800 text-sm">{editingItem.product_name_ar}</p>
+                    <p className="text-[11px] text-gray-500">SKU: {editingItem.product_sku}</p>
                   </div>
 
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-bold text-gray-700 mb-1">الكمية</label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={editForm.quantity}
-                        onChange={(e) => setEditForm({ ...editForm, quantity: parseInt(e.target.value) || 1 })}
-                        className="w-full p-2 border rounded-lg"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-bold text-gray-700 mb-1">سعر الوحدة (MAD)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={editForm.unit_price}
-                        onChange={(e) => setEditForm({ ...editForm, unit_price: parseFloat(e.target.value) || 0 })}
-                        className="w-full p-2 border rounded-lg"
-                      />
-                    </div>
-
-                    <div className="bg-gray-50 rounded-lg p-3">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">المجموع:</span>
-                        <span className="font-bold text-green-600">
-                          {(editForm.quantity * editForm.unit_price).toFixed(2)} MAD
-                        </span>
+                  <div className="space-y-3 text-sm">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">الكمية</label>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            inputPad.open({
+                              title: 'الكمية',
+                              mode: 'number',
+                              dir: 'ltr',
+                              initialValue: editForm.quantity.toString(),
+                              min: 1,
+                              onConfirm: (v) => setEditForm({ ...editForm, quantity: parseInt(v) || 1 }),
+                            })
+                          }
+                          className="w-full p-2 border rounded-lg text-left"
+                        >
+                          {editForm.quantity}
+                        </button>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">سعر وحدة الشراء (MAD)</label>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            inputPad.open({
+                              title: 'سعر وحدة الشراء (MAD)',
+                              mode: 'decimal',
+                              dir: 'ltr',
+                              initialValue: editForm.unit_price.toString(),
+                              min: 0,
+                              onConfirm: (v) => setEditForm({ ...editForm, unit_price: parseFloat(v) || 0 }),
+                            })
+                          }
+                          className="w-full p-2 border rounded-lg text-left"
+                        >
+                          {editForm.unit_price}
+                        </button>
                       </div>
                     </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">وحدة الشراء</label>
+                      <select
+                        value={editForm.unit_type}
+                        onChange={(e) => {
+                          const newUnit = e.target.value as UnitType
+                          setEditForm(prev => ({
+                            ...prev,
+                            unit_type: newUnit,
+                            packaging_mode: newUnit === 'kilo' ? prev.packaging_mode : 'none'
+                          }))
+                        }}
+                        className="w-full p-2 border rounded-lg bg-white"
+                      >
+                        <option value="kilo">كيلو</option>
+                        <option value="carton">كرتون</option>
+                        <option value="paquet">باكيت</option>
+                        <option value="sac">كيس</option>
+                      </select>
+                    </div>
+
+                    {editForm.unit_type === 'kilo' && (
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">خيارات التعبئة للكِيلو</label>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          {[
+                            { key: 'none', label: 'بدون' },
+                            { key: 'carton', label: 'يوجد كرتون' },
+                            { key: 'sachet', label: 'يوجد كيس/ساشي' },
+                          ].map(option => (
+                            <button
+                              key={option.key}
+                              type="button"
+                              onClick={() => setEditForm({ ...editForm, packaging_mode: option.key as 'none' | 'carton' | 'sachet' })}
+                              className={`border rounded-lg py-2 ${editForm.packaging_mode === option.key ? 'border-green-500 text-green-600 font-bold' : 'border-gray-200 text-gray-600'}`}
+                            >
+                              {option.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {(editForm.unit_type === 'carton' || editForm.unit_type === 'kilo' && editForm.packaging_mode === 'carton') && (
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-xs font-bold text-gray-700">عدد الوحدات في الكرتون (اختياري)</label>
+                          {editForm.units_per_carton !== null && (
+                            <button
+                              type="button"
+                              onClick={() => setEditForm({ ...editForm, units_per_carton: null })}
+                              className="text-xs text-red-500 hover:underline"
+                            >
+                              مسح
+                            </button>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            inputPad.open({
+                              title: 'عدد الوحدات في الكرتون',
+                              mode: 'number',
+                              dir: 'ltr',
+                              initialValue: editForm.units_per_carton?.toString() || '',
+                              min: 1,
+                              onConfirm: (v) => {
+                                const parsed = parseInt(v)
+                                setEditForm({ ...editForm, units_per_carton: Number.isNaN(parsed) ? null : parsed })
+                              },
+                            })
+                          }
+                          className="w-full p-2 border rounded-lg text-left"
+                        >
+                          {editForm.units_per_carton ?? 'غير محدد'}
+                        </button>
+                      </div>
+                    )}
+
+                    {(editForm.unit_type !== 'kilo' || editForm.packaging_mode !== 'none') && (
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-xs font-bold text-gray-700">
+                            وزن الوحدة ({(editForm.unit_type === 'carton' || (editForm.unit_type === 'kilo' && editForm.packaging_mode === 'carton')) ? 'داخل الكرتون' : (editForm.unit_type === 'sac' || (editForm.unit_type === 'kilo' && editForm.packaging_mode === 'sachet')) ? 'الكيس' : 'الوحدة'}) - اختياري
+                          </label>
+                          {editForm.weight_per_unit !== null && (
+                            <button
+                              type="button"
+                              onClick={() => setEditForm({ ...editForm, weight_per_unit: null })}
+                              className="text-xs text-red-500 hover:underline"
+                            >
+                              مسح
+                            </button>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            inputPad.open({
+                              title: 'وزن الوحدة (كغ)',
+                              mode: 'decimal',
+                              dir: 'ltr',
+                              initialValue: editForm.weight_per_unit?.toString() || '',
+                              min: 0,
+                              onConfirm: (v) => {
+                                const parsed = parseFloat(v)
+                                setEditForm({ ...editForm, weight_per_unit: Number.isNaN(parsed) ? null : parsed })
+                              },
+                            })
+                          }
+                          className="w-full p-2 border rounded-lg text-left"
+                        >
+                          {editForm.weight_per_unit ?? 'غير محدد'}
+                        </button>
+                        <p className="text-[11px] text-gray-500 mt-1">يمكن تركه فارغًا إذا لم تكن هذه المعلومة متوفرة.</p>
+                      </div>
+                    )}
+
+                    {(() => {
+                      const totalCost = editForm.quantity * editForm.unit_price
+                      const baseQty = calculateBaseQuantity(editForm)
+                      const baseCost = baseQty > 0 ? totalCost / baseQty : 0
+                      let packagingInfo: {
+                        packagesLabel: string
+                        packagesCount: number
+                        unitsCount: number
+                        costPerPackage: number
+                        costPerUnit: number
+                      } | null = null
+
+                      const hasPackagingQuantities = (editForm.units_per_carton ?? 0) > 0 && (editForm.weight_per_unit ?? 0) > 0
+                      if (editForm.unit_type === 'kilo' && editForm.packaging_mode !== 'none' && hasPackagingQuantities) {
+                        const kilosPerPackage = (editForm.units_per_carton || 0) * (editForm.weight_per_unit || 0)
+                        if (kilosPerPackage > 0) {
+                          const packagesCount = editForm.quantity / kilosPerPackage
+                          const unitsCount = packagesCount * (editForm.units_per_carton || 0)
+                          const costPerPackage = kilosPerPackage * editForm.unit_price
+                          const costPerUnit = (editForm.weight_per_unit || 0) * editForm.unit_price
+                          packagingInfo = {
+                            packagesLabel: editForm.packaging_mode === 'carton' ? 'الكراتين المحسوبة' : 'الأكياس المحسوبة',
+                            packagesCount,
+                            unitsCount,
+                            costPerPackage,
+                            costPerUnit,
+                          }
+                        }
+                      }
+
+                      return (
+                        <div className="bg-gray-50 rounded-lg p-2.5 space-y-1 text-xs">
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">المجموع:</span>
+                            <span className="font-bold text-green-600">{totalCost.toFixed(2)} MAD</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">الكمية الأساسية المضافة:</span>
+                            <span className="font-bold text-gray-800">{baseQty.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">التكلفة لكل وحدة أساسية:</span>
+                            <span className="font-bold text-gray-800">{baseCost.toFixed(2)} MAD</span>
+                          </div>
+                          {packagingInfo && (
+                            <div className="pt-2 mt-1 border-t border-dashed border-gray-200 space-y-1">
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">{packagingInfo.packagesLabel}:</span>
+                                <span className="font-bold text-gray-800">{packagingInfo.packagesCount.toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">عدد الوحدات/القطع:</span>
+                                <span className="font-bold text-gray-800">{packagingInfo.unitsCount.toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">التكلفة لكل {editForm.packaging_mode === 'carton' ? 'كرتون' : 'كيس'}:</span>
+                                <span className="font-bold text-gray-800">{packagingInfo.costPerPackage.toFixed(2)} MAD</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-gray-600">التكلفة لكل وحدة/قطعة:</span>
+                                <span className="font-bold text-gray-800">{packagingInfo.costPerUnit.toFixed(2)} MAD</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()}
                   </div>
 
-                  <div className="flex gap-3 mt-6">
+                  <div className="flex gap-2 mt-5 text-sm">
                     <button
                       onClick={() => setShowEditModal(false)}
                       className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300 font-bold"
@@ -1102,16 +1374,23 @@ export default function PurchasesPage() {
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-bold text-gray-700 mb-1">المبلغ *</label>
-                      <input
-                        type="number"
-                        min="0.01"
-                        max={selectedPurchase.remaining_amount}
-                        step="0.01"
-                        value={paymentForm.amount}
-                        onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
-                        className="w-full p-2 border rounded-lg"
-                        placeholder="0.00"
-                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          inputPad.open({
+                            title: 'المبلغ *',
+                            mode: 'decimal',
+                            dir: 'ltr',
+                            initialValue: paymentForm.amount || '0',
+                            min: 0.01,
+                            max: selectedPurchase.remaining_amount,
+                            onConfirm: (v) => setPaymentForm({ ...paymentForm, amount: v }),
+                          })
+                        }
+                        className="w-full p-2 border rounded-lg text-left"
+                      >
+                        {paymentForm.amount || '0'}
+                      </button>
                     </div>
 
                     <div>
@@ -1269,6 +1548,7 @@ export default function PurchasesPage() {
           </div>
         </div>
       )}
+      {inputPad.Modal}
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { Search, Plus, Trash2, Edit2, Users, CheckCircle, AlertCircle, DollarSign } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { useInputPad } from '../components/useInputPad'
 
 interface Employee {
   id: string
@@ -50,6 +51,7 @@ const ROLE_COLORS = {
 }
 
 export default function EmployeesPage() {
+  const inputPad = useInputPad()
   const [employees, setEmployees] = useState<Employee[]>([])
   const [transactions, setTransactions] = useState<EmployeeTransaction[]>([])
   const [loading, setLoading] = useState(true)
@@ -684,15 +686,22 @@ export default function EmployeesPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium mb-1">المبلغ *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  value={txnForm.amount}
-                  onChange={(e) => setTxnForm({ ...txnForm, amount: e.target.value })}
-                  className="w-full px-2 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  placeholder="0.00"
-                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    inputPad.open({
+                      title: 'المبلغ *',
+                      mode: 'decimal',
+                      dir: 'ltr',
+                      initialValue: txnForm.amount || '0',
+                      min: 0.01,
+                      onConfirm: (v) => setTxnForm({ ...txnForm, amount: v }),
+                    })
+                  }
+                  className="w-full px-2 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 text-left"
+                >
+                  {txnForm.amount || '0.00'}
+                </button>
               </div>
               <div>
                 <label className="block text-xs font-medium mb-1">طريقة الدفع *</label>
@@ -788,26 +797,42 @@ export default function EmployeesPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">الأجر الشهري (MAD)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formData.monthly_salary}
-                    onChange={(e) => setFormData({...formData, monthly_salary: e.target.value})}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    placeholder="0.00"
-                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      inputPad.open({
+                        title: 'الأجر الشهري (MAD)',
+                        mode: 'decimal',
+                        dir: 'ltr',
+                        initialValue: formData.monthly_salary || '0',
+                        min: 0,
+                        onConfirm: (v) => setFormData({...formData, monthly_salary: v}),
+                      })
+                    }
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-left"
+                  >
+                    {formData.monthly_salary || '0.00'}
+                  </button>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium mb-1">سقف السلفة (MAD)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formData.advance_limit}
-                    onChange={(e) => setFormData({...formData, advance_limit: e.target.value})}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    placeholder="0.00"
-                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      inputPad.open({
+                        title: 'سقف السلفة (MAD)',
+                        mode: 'decimal',
+                        dir: 'ltr',
+                        initialValue: formData.advance_limit || '0',
+                        min: 0,
+                        onConfirm: (v) => setFormData({...formData, advance_limit: v}),
+                      })
+                    }
+                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-left"
+                  >
+                    {formData.advance_limit || '0.00'}
+                  </button>
                 </div>
 
                 <div>
@@ -898,6 +923,7 @@ export default function EmployeesPage() {
           </div>
         </div>
       )}
+      {inputPad.Modal}
     </div>
   )
 }
