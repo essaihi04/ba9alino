@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Plus, Search, Edit2, Trash2, Eye } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useInputPad } from '../components/useInputPad'
+import { getCategoryLabelArabic } from '../utils/categoryLabels'
 
 interface Client {
   id: string
@@ -129,14 +130,6 @@ export default function ClientsPage() {
     client.company_name_en?.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
-  const categoryLabels: Record<string, string> = {
-    'A': 'زبون خاص (A)',
-    'B': 'الجملة (B)',
-    'C': 'نصف الجملة (C)',
-    'D': 'مول الحانوت (D)',
-    'E': 'التقسيط (E)',
-  }
-
   const getCategoryColor = (category: string) => {
     const colors: Record<string, string> = {
       'A': 'bg-green-100 text-green-800',
@@ -147,8 +140,6 @@ export default function ClientsPage() {
     }
     return colors[category] || 'bg-gray-100 text-gray-800'
   }
-
-  const getCategoryLabel = (category: string) => categoryLabels[category] || category
 
   return (
     <div className="space-y-6" dir="rtl">
@@ -212,7 +203,7 @@ export default function ClientsPage() {
                     <td className="py-4 px-6 text-gray-600">{client.address || '-'}</td>
                     <td className="py-4 px-6">
                       <span className={`px-3 py-1 rounded-full text-sm font-medium ${getCategoryColor(client.subscription_tier)}`}>
-                        {getCategoryLabel(client.subscription_tier)}
+                        {getCategoryLabelArabic(client.subscription_tier)}
                       </span>
                     </td>
                     <td className="py-4 px-6">

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { ArrowLeft, Search, Package, Plus } from 'lucide-react'
+import { getCategoryLabelArabic } from '../../utils/categoryLabels'
 
 interface ProductVariant {
   id: string
@@ -101,6 +102,18 @@ export default function EmployeeProductsPage() {
 
   const getAvailableStock = (product: Product) => {
     const stockRow = stocks.get(product.id)
+
+    const variants = product.product_variants || []
+    const unitVariant = variants.find(v => v.unit_type === 'unit')
+    if (unitVariant && typeof unitVariant.stock === 'number') {
+      return unitVariant.stock
+    }
+
+    const cartonVariant = variants.find(v => v.unit_type === 'carton')
+    const unitsPerCarton = cartonVariant?.quantity_contained ? Number(cartonVariant.quantity_contained) : 0
+    if (cartonVariant && typeof cartonVariant.stock === 'number' && unitsPerCarton > 0) {
+      return cartonVariant.stock * unitsPerCarton
+    }
     
     // Debug: Afficher les informations de stock pour ce produit
     console.log(`Stock debug for ${product.name_ar} (${product.id}):`, {
@@ -284,23 +297,23 @@ export default function EmployeeProductsPage() {
 
                   <div className="space-y-3 mb-4">
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-600">سعر A:</span>
+                      <span className="text-gray-600">{getCategoryLabelArabic('A')}:</span>
                       <span className="font-bold text-green-600">{(priceA || 0).toFixed(2)} MAD</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-600">سعر B:</span>
+                      <span className="text-gray-600">{getCategoryLabelArabic('B')}:</span>
                       <span className="font-bold text-green-600">{(priceB || 0).toFixed(2)} MAD</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-600">سعر C:</span>
+                      <span className="text-gray-600">{getCategoryLabelArabic('C')}:</span>
                       <span className="font-bold text-green-600">{(priceC || 0).toFixed(2)} MAD</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-600">سعر D:</span>
+                      <span className="text-gray-600">{getCategoryLabelArabic('D')}:</span>
                       <span className="font-bold text-green-600">{(priceD || 0).toFixed(2)} MAD</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-600">سعر E:</span>
+                      <span className="text-gray-600">{getCategoryLabelArabic('E')}:</span>
                       <span className="font-bold text-green-600">{(priceE || 0).toFixed(2)} MAD</span>
                     </div>
                     <div className="flex justify-between items-center">

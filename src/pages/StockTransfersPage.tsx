@@ -531,9 +531,21 @@ export default function StockTransfersPage() {
                     <h3 className="font-medium text-gray-700 mb-2">المنتجات المتاحة</h3>
                     <div className="max-h-60 overflow-y-auto border rounded-lg p-2">
                       {filteredStock.map((item) => (
-                        <div key={item.product_id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded">
-                          <div>
-                            <div className="font-medium">{item.product.name_ar}</div>
+                        <div key={item.product_id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded gap-3">
+                          <div className="w-12 h-12 rounded border bg-gray-50 overflow-hidden flex-shrink-0">
+                            {item.product.image_url ? (
+                              <img
+                                src={item.product.image_url}
+                                alt={item.product.name_ar}
+                                className="w-full h-full object-cover"
+                                onError={(e) => { e.currentTarget.style.display = 'none' }}
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-gray-300 text-xs">لا صورة</div>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium truncate">{item.product.name_ar}</div>
                             <div className="text-sm text-gray-500">المتاح: {item.quantity}</div>
                           </div>
                           <button
@@ -556,9 +568,21 @@ export default function StockTransfersPage() {
                           const stockItem = fromWarehouseStock.find(item => item.product_id === selected.product_id)
                           const product = stockItem?.product
                           return (
-                            <div key={selected.product_id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded">
-                              <div>
-                                <div className="font-medium">{product?.name_ar}</div>
+                            <div key={selected.product_id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded gap-3">
+                              <div className="w-12 h-12 rounded border bg-gray-50 overflow-hidden flex-shrink-0">
+                                {product?.image_url ? (
+                                  <img
+                                    src={product.image_url}
+                                    alt={product.name_ar}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => { e.currentTarget.style.display = 'none' }}
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-gray-300 text-xs">لا صورة</div>
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium truncate">{product?.name_ar}</div>
                                 <div className="flex items-center gap-2">
                                   <span className="inline-flex items-center gap-2 bg-gray-100 px-3 py-1 rounded-full text-sm font-semibold">
                                     {selected.quantity}

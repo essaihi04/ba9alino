@@ -136,7 +136,7 @@ export default function InputPadModal({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[90] p-4" onClick={onClose}>
       <div
-        className="bg-white rounded-2xl shadow-2xl w-[520px] max-w-[96vw] max-h-[92vh] overflow-hidden"
+        className="bg-white rounded-2xl shadow-2xl w-[520px] max-w-[96vw] max-h-[96vh] overflow-auto"
         onClick={(e) => e.stopPropagation()}
         dir={dir}
       >
@@ -159,7 +159,7 @@ export default function InputPadModal({
           </button>
         </div>
 
-        <div className="p-5">
+        <div className="p-5 flex flex-col gap-4">
           <div className="w-full p-4 border-2 border-green-500 rounded-xl bg-green-50">
             <div className="text-2xl font-bold text-green-800 whitespace-pre-wrap break-words">
               {value || placeholder || '0'}
@@ -168,7 +168,7 @@ export default function InputPadModal({
 
           {error && <div className="mt-2 text-sm font-bold text-red-600">{error}</div>}
 
-          <div className="mt-4">
+          <div className="mt-1 overflow-auto max-h-[58vh] pr-1">
             {(mode === 'number' || mode === 'decimal') && (
               <div className="grid grid-cols-3 gap-2">
                 {(keys as string[]).map((k) => (
@@ -272,7 +272,7 @@ export default function InputPadModal({
             )}
           </div>
 
-          <div className="flex gap-3 pt-5">
+          <div className="flex gap-3 pt-3 sticky bottom-0 bg-white pb-1">
             <button
               type="button"
               onClick={() => {

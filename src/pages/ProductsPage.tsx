@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { Search, Plus, Package, Edit2, AlertCircle, TrendingUp, Upload, Barcode, Trash2, Box } from 'lucide-react'
+import { getCategoryLabelArabic } from '../utils/categoryLabels'
 import { supabase } from '../lib/supabase'
 import * as XLSX from 'xlsx'
 import { useInputPad } from '../components/useInputPad'
@@ -7,6 +8,7 @@ import { useInputPad } from '../components/useInputPad'
 interface ProductVariant {
   id?: string
   product_id?: string
+  primary_variant_id?: string
   variant_name: string
   unit_type: string
   quantity_contained: number
@@ -19,6 +21,20 @@ interface ProductVariant {
   price_e: number
   stock: number
   alert_threshold: number
+  is_active: boolean
+  is_default: boolean
+}
+
+interface ProductPrimaryVariant {
+  id?: string
+  product_id?: string
+  variant_name: string
+  barcode: string
+  price_a: number
+  price_b: number
+  price_c: number
+  price_d: number
+  price_e: number
   is_active: boolean
   is_default: boolean
 }
@@ -79,6 +95,7 @@ export default function ProductsPage() {
     image_url: '',
   })
   const [variants, setVariants] = useState<ProductVariant[]>([])
+  const [primaryVariants, setPrimaryVariants] = useState<ProductPrimaryVariant[]>([])
 
   const [barcodeInput, setBarcodeInput] = useState('')
   const [barcodeLookupLoading, setBarcodeLookupLoading] = useState(false)
@@ -128,6 +145,15 @@ export default function ProductsPage() {
     setTimeout(() => barcodeInputRef.current?.focus(), 50)
   }, [showAddModal])
 
+  // Auto lookup on barcode scan/type in add modal
+  useEffect(() => {
+    if (!showAddModal) return
+    const trimmed = barcodeInput.trim()
+    if (trimmed.length < 6) return
+    const timeout = setTimeout(() => handleBarcodeLookup(trimmed), 250)
+    return () => clearTimeout(timeout)
+  }, [barcodeInput, showAddModal])
+
   const loadProducts = async () => {
     setLoading(true)
     try {
@@ -140,26 +166,83 @@ export default function ProductsPage() {
       if (error) throw error
       
       console.log('Produits récupérés:', data?.length, 'produits')
-      console.log('Stock examples:', data?.slice(0, 3).map(p => ({ name: p.name_ar, stock: p.stock })))
-      
-      setProducts(data || [])
-      
-      // Forcer la mise à jour du stock en vérifiant les variants
+
       if (data && data.length > 0) {
         const { data: variants, error: variantsError } = await supabase
           .from('product_variants')
-          .select('product_id, stock')
+          .select('product_id, unit_type, quantity_contained, stock')
+          .eq('is_active', true)
           .in('product_id', data.map(p => p.id))
-        
-        if (!variantsError && variants) {
-          console.log('Variants stock check:', variants.slice(0, 3))
+
+        if (variantsError) {
+          setProducts(data || [])
+          return
         }
+
+        const byProduct = new Map<string, any[]>()
+        ;(variants || []).forEach(v => {
+          const list = byProduct.get(v.product_id) || []
+          list.push(v)
+          byProduct.set(v.product_id, list)
+        })
+
+        const enriched = (data || []).map(p => {
+          const vs = byProduct.get(p.id) || []
+          const unitV = vs.find(v => v.unit_type === 'unit')
+          const cartonV = vs.find(v => v.unit_type === 'carton')
+          const unitsPerCarton = cartonV?.quantity_contained ? Number(cartonV.quantity_contained) : 0
+
+          const piecesFromUnit = unitV?.stock !== null && unitV?.stock !== undefined ? Number(unitV.stock) : null
+          const piecesFromCarton = cartonV?.stock !== null && cartonV?.stock !== undefined && unitsPerCarton > 0
+            ? Number(cartonV.stock) * unitsPerCarton
+            : null
+
+          const displayPieces = (typeof piecesFromUnit === 'number' && Number.isFinite(piecesFromUnit))
+            ? piecesFromUnit
+            : (typeof piecesFromCarton === 'number' && Number.isFinite(piecesFromCarton) ? piecesFromCarton : (p.stock || 0))
+
+          return {
+            ...p,
+            stock: displayPieces,
+          }
+        })
+
+        console.log('Stock examples:', enriched?.slice(0, 3).map(p => ({ name: p.name_ar, stock: p.stock })))
+        setProducts(enriched)
+      } else {
+        console.log('Stock examples:', data?.slice(0, 3).map(p => ({ name: p.name_ar, stock: p.stock })))
+        setProducts(data || [])
       }
     } catch (error) {
       console.error('Error loading products:', error)
     } finally {
       setLoading(false)
     }
+  }
+
+  const openAddModal = () => {
+    setSelectedProduct(null)
+    setFormData({
+      name_ar: '',
+      sku: '',
+      category_id: '',
+      category_name: '',
+      cost_price: '',
+      price_a: '',
+      price_b: '',
+      price_c: '',
+      price_d: '',
+      price_e: '',
+      quantity_in_stock: '0',
+      image_url: '',
+    })
+    setVariants([])
+    setPrimaryVariants([])
+    setImagePreview('')
+    setBarcodeInput('')
+    setBarcodeLookupError(null)
+    setBarcodeLookupResult(null)
+    setShowAddModal(true)
   }
 
   const loadCategories = async () => {
@@ -479,14 +562,11 @@ export default function ProductsPage() {
       const product = await fetchGoUpcProduct(barcode)
       setBarcodeLookupResult(product)
 
-      const normalizedCategory = simplifyAndTranslateCategory(product.category)
-      const catId = normalizedCategory ? await ensureCategoryId(normalizedCategory) : null
-
       setFormData((prev) => ({
         ...prev,
         name_ar: product.name || prev.name_ar,
         sku: barcode,
-        category_id: catId || prev.category_id,
+        // category_id intentionally left as-is (filled later from purchases)
         image_url: product.image || prev.image_url,
       }))
 
@@ -494,52 +574,6 @@ export default function ProductsPage() {
       if (product.image) {
         setImagePreview(product.image)
       }
-
-      // If there are no variants yet, prefill a default variant barcode
-      setVariants((prev) => {
-        const parsed = parseSizeToVariantFields(product.size)
-
-        if (prev.length === 0) {
-          return [
-            {
-              variant_name: parsed.variant_name,
-              unit_type: parsed.unit_type,
-              quantity_contained: parsed.quantity_contained,
-              barcode,
-              purchase_price: 0,
-              price_a: 0,
-              price_b: 0,
-              price_c: 0,
-              price_d: 0,
-              price_e: 0,
-              stock: 0,
-              alert_threshold: 10,
-              is_active: true,
-              is_default: true,
-            }
-          ]
-        }
-
-        // If there's an existing placeholder variant, update it from size
-        if (
-          prev.length === 1 &&
-          prev[0].variant_name === 'وحدة' &&
-          prev[0].unit_type === 'unit' &&
-          prev[0].quantity_contained === 1
-        ) {
-          return [
-            {
-              ...prev[0],
-              variant_name: parsed.variant_name,
-              unit_type: parsed.unit_type,
-              quantity_contained: parsed.quantity_contained,
-              barcode: prev[0].barcode || barcode,
-            }
-          ]
-        }
-
-        return prev
-      })
     } catch (err: any) {
       console.error('Barcode lookup error:', err)
       setBarcodeLookupError(err?.message || 'Barcode lookup failed')
@@ -616,6 +650,7 @@ export default function ProductsPage() {
     if (!selectedProduct) return
 
     try {
+      const packagingManagedByPurchases = true
       const productData: any = {
         name_ar: formData.name_ar,
         sku: formData.sku,
@@ -651,83 +686,163 @@ export default function ProductsPage() {
 
       if (error) throw error
 
+      {
+        const { data: existingPrimary } = await supabase
+          .from('product_primary_variants')
+          .select('id')
+          .eq('product_id', selectedProduct.id)
+
+        const existingIds = (existingPrimary || []).map((v: any) => v.id)
+        const currentIds = primaryVariants.filter(v => v.id).map(v => v.id)
+
+        const toDelete = existingIds.filter((id: string) => !currentIds.includes(id))
+        if (toDelete.length > 0) {
+          await supabase
+            .from('product_primary_variants')
+            .update({ is_active: false, is_default: false })
+            .in('id', toDelete)
+        }
+
+        const activePrimary = primaryVariants.filter(v => v.is_active !== false)
+        const normalizedPrimary = activePrimary.length > 0
+          ? (() => {
+              const hasDefault = activePrimary.some(v => v.is_default)
+              if (hasDefault) return activePrimary
+              const copy = [...activePrimary]
+              copy[0] = { ...copy[0], is_default: true }
+              return copy
+            })()
+          : [{
+              variant_name: 'افتراضي',
+              barcode: String(formData.sku || '').trim() || generateBarcode(),
+              price_a: parsePrice(formData.price_a),
+              price_b: parsePrice(formData.price_b),
+              price_c: parsePrice(formData.price_c),
+              price_d: parsePrice(formData.price_d),
+              price_e: parsePrice(formData.price_e),
+              is_active: true,
+              is_default: true,
+            } as ProductPrimaryVariant]
+
+        for (const pv of normalizedPrimary.filter(v => v.id)) {
+          await supabase
+            .from('product_primary_variants')
+            .update({
+              variant_name: pv.variant_name,
+              barcode: pv.barcode,
+              price_a: pv.price_a,
+              price_b: pv.price_b,
+              price_c: pv.price_c,
+              price_d: pv.price_d,
+              price_e: pv.price_e,
+              is_active: pv.is_active,
+              is_default: pv.is_default,
+            })
+            .eq('id', pv.id)
+        }
+
+        const newPrimary = normalizedPrimary.filter(v => !v.id)
+        if (newPrimary.length > 0) {
+          await supabase
+            .from('product_primary_variants')
+            .insert(
+              newPrimary.map(v => ({
+                product_id: selectedProduct.id,
+                variant_name: v.variant_name,
+                barcode: v.barcode,
+                price_a: v.price_a,
+                price_b: v.price_b,
+                price_c: v.price_c,
+                price_d: v.price_d,
+                price_e: v.price_e,
+                is_active: v.is_active,
+                is_default: v.is_default,
+              }))
+            )
+        }
+      }
+
       // Handle variants: delete removed, update existing, insert new
       // First, get current variants from DB to compare
-      const { data: existingVariants } = await supabase
-        .from('product_variants')
-        .select('id')
-        .eq('product_id', selectedProduct.id)
-      
-      const existingIds = (existingVariants || []).map(v => v.id)
-      const currentIds = variants.filter(v => v.id).map(v => v.id)
-      
-      // Delete variants that were removed
-      const toDelete = existingIds.filter(id => !currentIds.includes(id))
-      if (toDelete.length > 0) {
-        await supabase
+      if (!packagingManagedByPurchases) {
+        const { data: existingVariants } = await supabase
           .from('product_variants')
-          .delete()
-          .in('id', toDelete)
-      }
-      
-      // Update existing variants
-      for (const variant of variants.filter(v => v.id)) {
-        await supabase
-          .from('product_variants')
-          .update({
-            variant_name: variant.variant_name,
-            unit_type: variant.unit_type,
-            quantity_contained: variant.quantity_contained,
-            barcode: variant.barcode,
-            purchase_price: variant.purchase_price,
-            price_a: variant.price_a,
-            price_b: variant.price_b,
-            price_c: variant.price_c,
-            price_d: variant.price_d,
-            price_e: variant.price_e,
-            stock: variant.stock,
-            alert_threshold: variant.alert_threshold,
-            is_active: variant.is_active,
-            is_default: variant.is_default,
-          })
-          .eq('id', variant.id)
-      }
-      
-      // Insert new variants
-      const newVariants = variants.filter(v => !v.id)
-      if (newVariants.length > 0) {
-        const variantsToInsert = newVariants.map(v => ({
-          product_id: selectedProduct.id,
-          variant_name: v.variant_name,
-          unit_type: v.unit_type,
-          quantity_contained: v.quantity_contained,
-          barcode: v.barcode,
-          purchase_price: v.purchase_price || parsePrice(formData.cost_price), // Utiliser le prix d'achat du produit si non défini
-          price_a: v.price_a,
-          price_b: v.price_b,
-          price_c: v.price_c,
-          price_d: v.price_d,
-          price_e: v.price_e,
-          stock: v.stock,
-          alert_threshold: v.alert_threshold,
-          is_active: v.is_active,
-          is_default: v.is_default,
-        }))
+          .select('id')
+          .eq('product_id', selectedProduct.id)
         
-        const { error: insertError } = await supabase
-          .from('product_variants')
-          .insert(variantsToInsert)
+        const existingIds = (existingVariants || []).map(v => v.id)
+        const currentIds = variants.filter(v => v.id).map(v => v.id)
         
-        if (insertError) throw insertError
+        // Delete variants that were removed
+        const toDelete = existingIds.filter(id => !currentIds.includes(id))
+        if (toDelete.length > 0) {
+          await supabase
+            .from('product_variants')
+            .delete()
+            .in('id', toDelete)
+        }
+        
+        // Update existing variants
+        for (const variant of variants.filter(v => v.id)) {
+          await supabase
+            .from('product_variants')
+            .update({
+              variant_name: variant.variant_name,
+              unit_type: variant.unit_type,
+              quantity_contained: variant.quantity_contained,
+              barcode: variant.barcode,
+              purchase_price: variant.purchase_price,
+              price_a: variant.price_a,
+              price_b: variant.price_b,
+              price_c: variant.price_c,
+              price_d: variant.price_d,
+              price_e: variant.price_e,
+              stock: variant.stock,
+              alert_threshold: variant.alert_threshold,
+              is_active: variant.is_active,
+              is_default: variant.is_default,
+            })
+            .eq('id', variant.id)
+        }
+        
+        // Insert new variants
+        const newVariants = variants.filter(v => !v.id)
+        if (newVariants.length > 0) {
+          const variantsToInsert = newVariants.map(v => ({
+            product_id: selectedProduct.id,
+            variant_name: v.variant_name,
+            unit_type: v.unit_type,
+            quantity_contained: v.quantity_contained,
+            barcode: v.barcode,
+            purchase_price: v.purchase_price || parsePrice(formData.cost_price), // Utiliser le prix d'achat du produit si non défini
+            price_a: v.price_a,
+            price_b: v.price_b,
+            price_c: v.price_c,
+            price_d: v.price_d,
+            price_e: v.price_e,
+            stock: v.stock,
+            alert_threshold: v.alert_threshold,
+            is_active: v.is_active,
+            is_default: v.is_default,
+          }))
+          
+          const { error: insertError } = await supabase
+            .from('product_variants')
+            .insert(variantsToInsert)
+          
+          if (insertError) throw insertError
+        }
       }
 
       // Synchroniser le prix d'achat du produit principal avec les variants
       const productCostPrice = parsePrice(formData.cost_price)
-      if (productCostPrice > 0) {
-        await supabase
-          .from('product_variants')
-          .update({ purchase_price: productCostPrice })
-          .eq('product_id', selectedProduct.id)
+      if (!packagingManagedByPurchases) {
+        if (productCostPrice > 0) {
+          await supabase
+            .from('product_variants')
+            .update({ purchase_price: productCostPrice })
+            .eq('product_id', selectedProduct.id)
+        }
       }
 
       await loadProducts()
@@ -746,6 +861,7 @@ export default function ProductsPage() {
         image_url: '',
       })
       setVariants([])
+      setPrimaryVariants([])
       setImagePreview('')
       alert('✅ تم تحديث المنتج بنجاح')
     } catch (error) {
@@ -771,6 +887,35 @@ export default function ProductsPage() {
     })
     setImagePreview(product.image_url || '')
     setShowEditProductModal(true)
+
+    try {
+      const { data: primaryData, error: primaryError } = await supabase
+        .from('product_primary_variants')
+        .select('id, product_id, variant_name, barcode, price_a, price_b, price_c, price_d, price_e, is_active, is_default')
+        .eq('product_id', product.id)
+        .eq('is_active', true)
+        .order('is_default', { ascending: false })
+
+      if (!primaryError && primaryData) {
+        const normalized = (primaryData as any[]).map(v => ({
+          ...v,
+          is_active: v.is_active !== false,
+          is_default: Boolean(v.is_default),
+        })) as ProductPrimaryVariant[]
+        if (normalized.length > 0 && !normalized.some(v => v.is_default)) {
+          const withDefault = [...normalized]
+          withDefault[0] = { ...withDefault[0], is_default: true }
+          setPrimaryVariants(withDefault)
+        } else {
+          setPrimaryVariants(normalized)
+        }
+      } else {
+        setPrimaryVariants([])
+      }
+    } catch (err) {
+      console.error('Error loading primary variants:', err)
+      setPrimaryVariants([])
+    }
     
     // Load variants for this product
     try {
@@ -781,7 +926,30 @@ export default function ProductsPage() {
         .order('is_default', { ascending: false })
       
       if (!error && variantsData) {
-        setVariants(variantsData)
+        const filtered = variantsData.filter(v => {
+          if (v.unit_type !== 'kilo') return true
+          const qc = v.quantity_contained === null || v.quantity_contained === undefined ? null : Number(v.quantity_contained)
+          if (!qc) return true
+          return !(qc > 0 && qc < 1)
+        })
+
+        const normalized = filtered.map(v => {
+          if (v.unit_type === 'kilo' && v.quantity_contained && (!v.variant_name || v.variant_name === 'kilo')) {
+            return {
+              ...v,
+              variant_name: `${v.quantity_contained}`
+            }
+          }
+          return v
+        })
+
+        if (normalized.length > 0 && !normalized.some(v => v.is_default)) {
+          const withDefault = [...normalized]
+          withDefault[0] = { ...withDefault[0], is_default: true }
+          setVariants(withDefault)
+        } else {
+          setVariants(normalized)
+        }
       } else {
         setVariants([])
       }
@@ -815,6 +983,40 @@ export default function ProductsPage() {
     setVariants([...variants, newVariant])
   }
 
+  const addPrimaryVariant = () => {
+    const newVariant: ProductPrimaryVariant = {
+      variant_name: '',
+      barcode: generateBarcode(),
+      price_a: parsePrice(formData.price_a),
+      price_b: parsePrice(formData.price_b),
+      price_c: parsePrice(formData.price_c),
+      price_d: parsePrice(formData.price_d),
+      price_e: parsePrice(formData.price_e),
+      is_active: true,
+      is_default: primaryVariants.length === 0,
+    }
+    setPrimaryVariants([...primaryVariants, newVariant])
+  }
+
+  const updatePrimaryVariant = (index: number, field: keyof ProductPrimaryVariant, value: any) => {
+    const updated = [...primaryVariants]
+    updated[index] = { ...updated[index], [field]: value }
+    if (field === 'is_default' && value === true) {
+      updated.forEach((v, i) => {
+        if (i !== index) v.is_default = false
+      })
+    }
+    setPrimaryVariants(updated)
+  }
+
+  const removePrimaryVariant = (index: number) => {
+    const updated = primaryVariants.filter((_, i) => i !== index)
+    if (primaryVariants[index]?.is_default && updated.length > 0) {
+      updated[0] = { ...updated[0], is_default: true }
+    }
+    setPrimaryVariants(updated)
+  }
+
   const updateVariant = (index: number, field: keyof ProductVariant, value: any) => {
     const updated = [...variants]
     updated[index] = { ...updated[index], [field]: value }
@@ -840,6 +1042,7 @@ export default function ProductsPage() {
 
   const unitTypes = [
     { value: 'unit', label: 'وحدة' },
+    { value: 'kilo', label: 'كيلو' },
     { value: 'kg', label: 'كيلو' },
     { value: 'litre', label: 'لتر' },
     { value: 'carton', label: 'كرتون' },
@@ -864,6 +1067,22 @@ export default function ProductsPage() {
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
+      const packagingManagedByPurchases = true
+      // Prevent duplicate SKU
+      const skuToCheck = String(formData.sku || '').trim()
+      if (skuToCheck) {
+        const { data: existingSku } = await supabase
+          .from('products')
+          .select('id')
+          .eq('sku', skuToCheck)
+          .maybeSingle()
+
+        if (existingSku) {
+          alert('❌ هذا الكود موجود مسبقًا، يرجى اختيار كود/باركود آخر')
+          return
+        }
+      }
+
       const productData: any = {
         name_ar: formData.name_ar,
         sku: formData.sku,
@@ -903,33 +1122,75 @@ export default function ProductsPage() {
       if (error) throw error
 
       setProducts(prev => [productResult as Product, ...prev])
+
+      const activePrimary = primaryVariants.filter(v => v.is_active !== false)
+      const normalizedPrimary = activePrimary.length > 0
+        ? (() => {
+            const hasDefault = activePrimary.some(v => v.is_default)
+            if (hasDefault) return activePrimary
+            const copy = [...activePrimary]
+            copy[0] = { ...copy[0], is_default: true }
+            return copy
+          })()
+        : [{
+            variant_name: 'افتراضي',
+            barcode: String(formData.sku || '').trim() || generateBarcode(),
+            price_a: parsePrice(formData.price_a),
+            price_b: parsePrice(formData.price_b),
+            price_c: parsePrice(formData.price_c),
+            price_d: parsePrice(formData.price_d),
+            price_e: parsePrice(formData.price_e),
+            is_active: true,
+            is_default: true,
+          } as ProductPrimaryVariant]
+
+      if (productResult?.id && normalizedPrimary.length > 0) {
+        await supabase
+          .from('product_primary_variants')
+          .insert(
+            normalizedPrimary.map(v => ({
+              product_id: productResult.id,
+              variant_name: v.variant_name,
+              barcode: v.barcode,
+              price_a: v.price_a,
+              price_b: v.price_b,
+              price_c: v.price_c,
+              price_d: v.price_d,
+              price_e: v.price_e,
+              is_active: v.is_active,
+              is_default: v.is_default,
+            }))
+          )
+      }
       
       // Save variants if any
-      if (variants.length > 0 && productResult) {
-        const variantsToInsert = variants.map(v => ({
-          product_id: productResult.id,
-          variant_name: v.variant_name,
-          unit_type: v.unit_type,
-          quantity_contained: v.quantity_contained,
-          barcode: v.barcode,
-          purchase_price: v.purchase_price,
-          price_a: v.price_a,
-          price_b: v.price_b,
-          price_c: v.price_c,
-          price_d: v.price_d,
-          price_e: v.price_e,
-          stock: v.stock,
-          alert_threshold: v.alert_threshold,
-          is_active: v.is_active,
-          is_default: v.is_default,
-        }))
-        
-        const { error: variantsError } = await supabase
-          .from('product_variants')
-          .insert(variantsToInsert)
-        
-        if (variantsError) {
-          console.error('Error saving variants:', variantsError)
+      if (!packagingManagedByPurchases) {
+        if (variants.length > 0 && productResult) {
+          const variantsToInsert = variants.map(v => ({
+            product_id: productResult.id,
+            variant_name: v.variant_name,
+            unit_type: v.unit_type,
+            quantity_contained: v.quantity_contained,
+            barcode: v.barcode,
+            purchase_price: v.purchase_price,
+            price_a: v.price_a,
+            price_b: v.price_b,
+            price_c: v.price_c,
+            price_d: v.price_d,
+            price_e: v.price_e,
+            stock: v.stock,
+            alert_threshold: v.alert_threshold,
+            is_active: v.is_active,
+            is_default: v.is_default,
+          }))
+          
+          const { error: variantsError } = await supabase
+            .from('product_variants')
+            .insert(variantsToInsert)
+          
+          if (variantsError) {
+            console.error('Error saving variants:', variantsError)
+          }
         }
       }
 
@@ -949,6 +1210,7 @@ export default function ProductsPage() {
         image_url: '',
       })
       setVariants([])
+      setPrimaryVariants([])
       setImagePreview('')
       setShowAddModal(false)
       setBarcodeInput('')
@@ -1053,8 +1315,8 @@ export default function ProductsPage() {
     <div className="space-y-6" dir="rtl">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-          <Package className="text-white" size={36} />
-          المنتجات
+          <Package size={32} />
+          إدارة المنتجات
         </h1>
         <div className="flex gap-2">
           <label className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 flex items-center gap-2 cursor-pointer">
@@ -1068,7 +1330,7 @@ export default function ProductsPage() {
             />
           </label>
           <button
-            onClick={() => setShowAddModal(true)}
+            onClick={openAddModal}
             className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 flex items-center gap-2"
           >
             <Plus size={20} />
@@ -1234,12 +1496,17 @@ export default function ProductsPage() {
                       className="border-b hover:bg-purple-50 transition-colors"
                     >
                       <td className="px-6 py-4">
-                        <div>
-                          <p className="font-bold text-gray-800">{product.name_ar}</p>
+                        <button
+                          onClick={() => openEditModal(product)}
+                          className="text-right w-full"
+                        >
+                          <p className="font-bold text-gray-800 hover:text-purple-700 underline-offset-4 hover:underline">
+                            {product.name_ar}
+                          </p>
                           {product.sku && (
                             <p className="text-sm text-gray-500">SKU: {product.sku}</p>
                           )}
-                        </div>
+                        </button>
                       </td>
                       <td className="px-6 py-4">
                         <span className="font-bold text-gray-800">
@@ -1265,35 +1532,30 @@ export default function ProductsPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => openEditModal(product)}
-                            className="bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-2 rounded-lg text-sm font-bold transition-colors"
-                          >
-                            <Edit2 size={14} />
-                            تعديل المنتج
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedProduct(product)
-                              setEditPrice(product.price_a.toString())
-                              setShowEditModal(true)
-                            }}
-                            className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-2 rounded-lg text-sm font-bold transition-colors"
-                          >
-                            تعديل السعر
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedProduct(product)
-                              setStockQuantity('')
-                              setShowStockModal(true)
-                            }}
-                            className="bg-green-100 hover:bg-green-200 text-green-700 px-3 py-2 rounded-lg text-sm font-bold transition-colors"
-                          >
-                            <Package size={14} />
-                            إضافة مخزون
-                          </button>
+                        <div className="flex items-center gap-2">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => openEditModal(product)}
+                              className="bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-2 rounded-lg text-sm font-bold transition-colors"
+                            >
+                              <Edit2 size={14} />
+                              تعديل المنتج
+                            </button>
+                            <button
+                              onClick={() => {
+                                setSelectedProduct(product)
+                                setEditPrice(product.price_a.toString())
+                                setShowEditModal(true)
+                              }}
+                              className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-2 rounded-lg text-sm font-bold transition-colors"
+                            >
+                              تعديل السعر
+                            </button>
+                          </div>
+                          <div className="bg-gray-100 text-gray-500 px-3 py-2 rounded-lg text-sm font-bold" title="المخزون يُحدَّث تلقائياً من فواتير الشراء">
+                            <Package size={14} className="inline mr-1" />
+                            المخزون من المشتريات فقط
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -1305,214 +1567,51 @@ export default function ProductsPage() {
         )}
       </div>
 
-      {/* Modal تعديل السعر */}
-      {showEditModal && selectedProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowEditModal(false)}>
-          <div className="bg-white rounded-xl p-6 w-96" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-xl font-bold mb-4">تعديل سعر المنتج</h3>
-            <p className="text-gray-600 mb-4">{selectedProduct.name_ar}</p>
-            <button
-              type="button"
-              onClick={() =>
-                inputPad.open({
-                  title: 'تعديل السعر',
-                  mode: 'decimal',
-                  dir: 'ltr',
-                  initialValue: editPrice || '0',
-                  min: 0,
-                  onConfirm: (v) => setEditPrice(v),
-                })
-              }
-              className="w-full p-3 border-2 border-gray-200 rounded-lg mb-4 text-left"
-            >
-              {editPrice || '0'}
-            </button>
-            <div className="flex gap-3">
-              <button
-                onClick={handleEditPrice}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-bold"
-              >
-                حفظ
-              </button>
-              <button
-                onClick={() => setShowEditModal(false)}
-                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 rounded-lg font-bold"
-              >
-                إلغاء
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal إضافة مخزون */}
-      {showStockModal && selectedProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowStockModal(false)}>
-          <div className="bg-white rounded-xl p-6 w-96" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-xl font-bold mb-4">إضافة مخزون</h3>
-            <p className="text-gray-600 mb-2">{selectedProduct.name_ar}</p>
-            <p className="text-sm text-gray-500 mb-4">المخزون الحالي: {selectedProduct.stock}</p>
-            <button
-              type="button"
-              onClick={() =>
-                inputPad.open({
-                  title: 'كمية المخزون',
-                  mode: 'number',
-                  dir: 'ltr',
-                  initialValue: stockQuantity || '0',
-                  onConfirm: (v) => setStockQuantity(v),
-                })
-              }
-              className="w-full p-3 border-2 border-gray-200 rounded-lg mb-4 text-left"
-            >
-              {stockQuantity || '0'}
-            </button>
-            <div className="flex gap-3">
-              <button
-                onClick={handleAddStock}
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-bold"
-              >
-                إضافة
-              </button>
-              <button
-                onClick={() => setShowStockModal(false)}
-                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 rounded-lg font-bold"
-              >
-                إلغاء
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Modal إضافة مخزون désactivée (mise à jour depuis المشتريات) */}
 
       {/* Modal Ajout Produit */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowAddModal(false)}>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => { setShowAddModal(false); setVariants([]); setPrimaryVariants([]); }}>
           <div className="bg-white rounded-xl p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-xl font-bold mb-6">إضافة منتج جديد</h3>
-            
+
             <form onSubmit={handleAddProduct} className="space-y-4">
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                <label className="block text-sm font-bold text-gray-700 mb-2">مسح الباركود (Go-UPC)</label>
-                <div className="flex gap-2">
-                  <input
-                    ref={barcodeInputRef}
-                    type="text"
-                    value={barcodeInput}
-                    onChange={(e) => setBarcodeInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        handleBarcodeLookup()
-                      }
-                    }}
-                    className="flex-1 p-3 border-2 border-gray-200 rounded-lg"
-                    placeholder="6111035000058"
-                    dir="ltr"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleBarcodeLookup()}
-                    disabled={barcodeLookupLoading}
-                    className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 py-3 rounded-lg font-bold flex items-center gap-2"
-                  >
-                    <Barcode size={18} />
-                    {barcodeLookupLoading ? 'جاري البحث...' : 'بحث'}
-                  </button>
-                </div>
-
-                {barcodeLookupError && (
-                  <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-                    {barcodeLookupError}
-                  </div>
-                )}
-
-                {barcodeLookupResult && (
-                  <div className="mt-3 space-y-3">
-                    <div className="flex gap-3 items-start">
-                      {barcodeLookupResult.image ? (
-                        <img
-                          src={barcodeLookupResult.image}
-                          alt={barcodeLookupResult.name}
-                          className="w-20 h-20 object-cover rounded-lg border"
-                        />
-                      ) : (
-                        <div className="w-20 h-20 rounded-lg border bg-white flex items-center justify-center">
-                          <Package size={22} className="text-gray-400" />
-                        </div>
-                      )}
-                      <div className="flex-1">
-                        <p className="font-bold text-gray-800">{barcodeLookupResult.name || '—'}</p>
-                        <p className="text-sm text-gray-600">{barcodeLookupResult.category || '—'}</p>
-                        {barcodeLookupResult.size && (
-                          <p className="text-xs text-gray-500">Size: {barcodeLookupResult.size}</p>
-                        )}
-                        {barcodeLookupResult.brand && (
-                          <p className="text-xs text-gray-500">{barcodeLookupResult.brand}</p>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {/* Champ pour modifier le nom de famille */}
-                    <div>
-                      <label className="block text-sm font-bold text-gray-700 mb-2">
-                        تعديل اسم العائلة (si détecté: {barcodeLookupResult.category || '—'})
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.category_name || ''}
-                        onChange={(e) => {
-                          const newCategoryName = e.target.value
-                          setFormData(prev => ({ ...prev, category_name: newCategoryName }))
-                          // Mettre à jour la catégorie sélectionnée si elle existe
-                          if (newCategoryName) {
-                            const existing = categories.find(c => c.name_ar === newCategoryName)
-                            if (existing) {
-                              setFormData(prev => ({ ...prev, category_id: existing.id, category_name: newCategoryName }))
-                            }
-                          }
-                        }}
-                        className="w-full p-3 border-2 border-gray-200 rounded-lg"
-                        placeholder="ادخل اسم العائلة الصحيح..."
-                      />
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          if (formData.category_name) {
-                            const catId = await ensureCategoryId(formData.category_name)
-                            if (catId) {
-                              setFormData(prev => ({ ...prev, category_id: catId }))
-                              alert('✅ تم إضافة/تحديث العائلة بنجاح')
-                            }
-                          }
-                        }}
-                        className="mt-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors"
-                      >
-                        تأكيد العائلة
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
+                <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">اسم المنتج</label>
                   <input
                     type="text"
                     value={formData.name_ar}
-                    onChange={(e) => setFormData({...formData, name_ar: e.target.value})}
-                    className="w-full p-3 border-2 border-gray-200 rounded-lg"
+                    onChange={(e) => setFormData({ ...formData, name_ar: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
                     required
                   />
                 </div>
-
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">الباركود / الكود</label>
+                  <input
+                    ref={barcodeInputRef}
+                    type="text"
+                    value={formData.sku || ''}
+                    onChange={(e) => {
+                      setFormData({ ...formData, sku: e.target.value })
+                      setBarcodeInput(e.target.value)
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        handleBarcodeLookup(e.currentTarget.value)
+                      }
+                    }}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">العائلة</label>
                   <select
                     value={formData.category_id}
                     onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
-                    className="w-full p-3 border-2 border-gray-200 rounded-lg"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
                   >
                     <option value="">بدون عائلة</option>
                     {categories.map((c) => (
@@ -1520,352 +1619,160 @@ export default function ProductsPage() {
                     ))}
                   </select>
                 </div>
-
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">SKU</label>
-                  <input
-                    type="text"
-                    value={formData.sku}
-                    onChange={(e) => setFormData({...formData, sku: e.target.value})}
-                    className="w-full p-3 border-2 border-gray-200 rounded-lg"
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* Section Image */}
-              <div className="mt-6 border-t-2 border-gray-200 pt-6">
-                <h4 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-                  <Upload size={20} />
-      📷 صورة المنتج
-                </h4>
-                
-                <div className="space-y-4">
-                  {/* Upload Button */}
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">اختر صورة المنتج</label>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">صورة المنتج</label>
+                  <div className="flex items-center gap-2">
                     <input
                       type="file"
                       accept="image/*"
                       onChange={handleImageUpload}
-                      className="hidden"
-                      id="product-image-upload"
+                      className="flex-1"
                     />
-                    <label
-                      htmlFor="product-image-upload"
-                      className="cursor-pointer bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 w-fit transition-colors"
-                    >
-                      <Upload size={18} />
-                      {isUploading ? 'جاري الرفع...' : 'رفع صورة'}
-                    </label>
-                    {isUploading && (
-                      <div className="mt-2 flex items-center gap-2 text-sm text-purple-600">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
-                        جاري رفع الصورة...
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Image Preview */}
-                  {(imagePreview || formData.image_url) && (
-                    <div className="mt-4">
-                      <label className="block text-sm font-bold text-gray-700 mb-2">معاينة الصورة</label>
-                      <div className="relative inline-block">
-                        <img
-                          src={imagePreview || formData.image_url}
-                          alt="معاينة المنتج"
-                          className="w-32 h-32 object-cover rounded-lg border-2 border-gray-200"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setImagePreview('')
-                            setFormData({ ...formData, image_url: '' })
-                          }}
-                          className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 shadow-lg transition-colors"
-                          title="حذف الصورة"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                      <p className="mt-2 text-sm text-gray-600">
-                        سيتم حفظ الصورة مع المنتج
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Alternative URL Input */}
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">أو أدخل رابط الصورة مباشرةً</label>
-                    <input
-                      type="url"
-                      value={formData.image_url}
-                      onChange={(e) => {
-                        setFormData({ ...formData, image_url: e.target.value })
-                        if (e.target.value) {
-                          setImagePreview(e.target.value)
-                        }
-                      }}
-                      className="w-full p-3 border-2 border-gray-200 rounded-lg"
-                      placeholder="https://example.com/image.jpg"
-                    />
+                    {imagePreview && <img src={imagePreview} alt="preview" className="w-12 h-12 object-cover rounded border" />}
                   </div>
                 </div>
               </div>
 
-              {/* Section Variantes */}
-              <div className="mt-6 border-t-2 border-gray-200 pt-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                    <Box size={20} />
-                    📦 المتغيرات ووحدات البيع
-                  </h4>
-                  <button
-                    type="button"
-                    onClick={addVariant}
-                    className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2"
-                  >
-                    <Plus size={18} />
-                    إضافة متغير
-                  </button>
-                </div>
-
-                {variants.length === 0 ? (
-                  <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-                    <Box size={48} className="mx-auto text-gray-400 mb-3" />
-                    <p className="text-gray-500 mb-2">لا توجد متغيرات</p>
-                    <p className="text-sm text-gray-400">أضف متغيرات للمنتج (وحدة، كرتون، باك...)</p>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                {(['price_a','price_b','price_c','price_d','price_e'] as const).map((field, idx) => (
+                  <div key={field}>
+                    <label className="block text-xs font-bold text-gray-600 mb-1">سعر {getCategoryLabelArabic(String.fromCharCode(65 + idx) as any)}</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={(formData as any)[field] ?? ''}
+                      onChange={(e) => setFormData({ ...formData, [field]: e.target.value })}
+                      className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                    />
                   </div>
-                ) : (
-                  <div className="space-y-4">
-                    {variants.map((variant, index) => (
-                      <div key={index} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="font-bold text-gray-700">المتغير {index + 1}</span>
-                          <div className="flex items-center gap-2">
-                            <label className="flex items-center gap-2 text-sm">
-                              <input
-                                type="checkbox"
-                                checked={variant.is_default}
-                                onChange={(e) => updateVariant(index, 'is_default', e.target.checked)}
-                                className="w-4 h-4"
-                              />
-                              افتراضي
-                            </label>
-                            <button
-                              type="button"
-                              onClick={() => removeVariant(index)}
-                              className="text-red-500 hover:text-red-700 p-1"
-                            >
-                              <Trash2 size={18} />
-                            </button>
-                          </div>
-                        </div>
+                ))}
+              </div>
 
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                          <div>
-                            <label className="block text-xs font-bold text-gray-600 mb-1">اسم المتغير</label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">سعر الشراء (محسوب من المشتريات)</label>
+                  <input
+                    type="text"
+                    value={formData.cost_price || '0'}
+                    readOnly
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-600 cursor-not-allowed"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">المخزون (يُحدَّث من المشتريات)</label>
+                  <input
+                    type="text"
+                    value={formData.quantity_in_stock || ''}
+                    readOnly
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-600 cursor-not-allowed"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                  <Box size={20} />
+                  المتغيرات الأساسية
+                </h4>
+                <button
+                  type="button"
+                  onClick={addPrimaryVariant}
+                  className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2"
+                >
+                  <Plus size={18} />
+                  إضافة متغير أساسي
+                </button>
+              </div>
+
+              {primaryVariants.length === 0 ? (
+                <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                  <Box size={48} className="mx-auto text-gray-400 mb-3" />
+                  <p className="text-gray-500 mb-2">لا توجد متغيرات أساسية</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {primaryVariants.filter(pv => pv.is_active !== false).map((pv, index) => (
+                    <div key={pv.id || index} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="font-bold text-gray-700">المتغير {index + 1} {pv.id ? '(محفوظ)' : '(جديد)'}</span>
+                        <div className="flex items-center gap-2">
+                          <label className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={pv.is_default}
+                              onChange={(e) => updatePrimaryVariant(index, 'is_default', e.target.checked)}
+                              className="w-4 h-4"
+                            />
+                            افتراضي
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => removePrimaryVariant(index)}
+                            className="text-red-500 hover:text-red-700 p-1"
+                            disabled={primaryVariants.length <= 1}
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-bold text-gray-600 mb-1">اسم المتغير</label>
+                          <input
+                            type="text"
+                            value={pv.variant_name}
+                            onChange={(e) => updatePrimaryVariant(index, 'variant_name', e.target.value)}
+                            className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                            placeholder="لون / حجم / ذوق..."
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-gray-600 mb-1">الباركود</label>
+                          <div className="flex gap-1">
                             <input
                               type="text"
-                              value={variant.variant_name}
-                              onChange={(e) => updateVariant(index, 'variant_name', e.target.value)}
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-                              placeholder="وحدة / كرتون 12..."
+                              value={pv.barcode}
+                              onChange={(e) => updatePrimaryVariant(index, 'barcode', e.target.value)}
+                              className="flex-1 p-2 border border-gray-300 rounded-lg text-sm"
                               required
                             />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-gray-600 mb-1">نوع الوحدة</label>
-                            <select
-                              value={variant.unit_type}
-                              onChange={(e) => updateVariant(index, 'unit_type', e.target.value)}
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-                            >
-                              {unitTypes.map(ut => (
-                                <option key={ut.value} value={ut.value}>{ut.label}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-gray-600 mb-1">الكمية المحتواة</label>
                             <button
                               type="button"
-                              onClick={() =>
-                                inputPad.open({
-                                  title: 'الكمية المحتواة',
-                                  mode: 'decimal',
-                                  dir: 'ltr',
-                                  initialValue: variant.quantity_contained.toString(),
-                                  min: 0.001,
-                                  step: 0.001,
-                                  onConfirm: (v) => updateVariant(index, 'quantity_contained', parseFloat(v) || 1),
-                                })
-                              }
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm text-left"
+                              onClick={() => updatePrimaryVariant(index, 'barcode', generateBarcode())}
+                              className="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded-lg"
+                              title="توليد كود"
                             >
-                              {variant.quantity_contained}
-                            </button>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-gray-600 mb-1">الكود</label>
-                            <div className="flex gap-1">
-                              <input
-                                type="text"
-                                value={variant.barcode}
-                                onChange={(e) => updateVariant(index, 'barcode', e.target.value)}
-                                className="flex-1 p-2 border border-gray-300 rounded-lg text-sm"
-                                required
-                              />
-                              <button
-                                type="button"
-                                onClick={() => updateVariant(index, 'barcode', generateBarcode())}
-                                className="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded-lg"
-                                title="توليد كود"
-                              >
-                                <Barcode size={16} />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-3 md:grid-cols-7 gap-3 mt-3">
-                          <div>
-                            <label className="block text-xs font-bold text-gray-600 mb-1">سعر الشراء</label>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                inputPad.open({
-                                  title: 'سعر الشراء',
-                                  mode: 'decimal',
-                                  dir: 'ltr',
-                                  initialValue: variant.purchase_price.toString(),
-                                  min: 0,
-                                  onConfirm: (v) => updateVariant(index, 'purchase_price', parseFloat(v) || 0),
-                                })
-                              }
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm text-left"
-                            >
-                              {variant.purchase_price}
-                            </button>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-gray-600 mb-1">سعر A</label>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                inputPad.open({
-                                  title: 'السعر A',
-                                  mode: 'decimal',
-                                  dir: 'ltr',
-                                  initialValue: variant.price_a.toString(),
-                                  min: 0,
-                                  onConfirm: (v) => updateVariant(index, 'price_a', parseFloat(v) || 0),
-                                })
-                              }
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm text-left"
-                            >
-                              {variant.price_a}
-                            </button>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-gray-600 mb-1">سعر B</label>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                inputPad.open({
-                                  title: 'السعر B',
-                                  mode: 'decimal',
-                                  dir: 'ltr',
-                                  initialValue: variant.price_b.toString(),
-                                  min: 0,
-                                  onConfirm: (v) => updateVariant(index, 'price_b', parseFloat(v) || 0),
-                                })
-                              }
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm text-left"
-                            >
-                              {variant.price_b}
-                            </button>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-gray-600 mb-1">سعر C</label>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                inputPad.open({
-                                  title: 'السعر C',
-                                  mode: 'decimal',
-                                  dir: 'ltr',
-                                  initialValue: variant.price_c.toString(),
-                                  min: 0,
-                                  onConfirm: (v) => updateVariant(index, 'price_c', parseFloat(v) || 0),
-                                })
-                              }
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm text-left"
-                            >
-                              {variant.price_c}
-                            </button>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-gray-600 mb-1">سعر D</label>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                inputPad.open({
-                                  title: 'السعر D',
-                                  mode: 'decimal',
-                                  dir: 'ltr',
-                                  initialValue: variant.price_d.toString(),
-                                  min: 0,
-                                  onConfirm: (v) => updateVariant(index, 'price_d', parseFloat(v) || 0),
-                                })
-                              }
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm text-left"
-                            >
-                              {variant.price_d}
-                            </button>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-gray-600 mb-1">سعر E</label>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                inputPad.open({
-                                  title: 'السعر E',
-                                  mode: 'decimal',
-                                  dir: 'ltr',
-                                  initialValue: variant.price_e.toString(),
-                                  min: 0,
-                                  onConfirm: (v) => updateVariant(index, 'price_e', parseFloat(v) || 0),
-                                })
-                              }
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm text-left"
-                            >
-                              {variant.price_e}
-                            </button>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-gray-600 mb-1">المخزون</label>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                inputPad.open({
-                                  title: 'المخزون',
-                                  mode: 'number',
-                                  dir: 'ltr',
-                                  initialValue: variant.stock.toString(),
-                                  onConfirm: (v) => updateVariant(index, 'stock', parseFloat(v) || 0),
-                                })
-                              }
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm text-left"
-                            >
-                              {variant.stock}
+                              <Barcode size={16} />
                             </button>
                           </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
+
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-3">
+                        {(['price_a','price_b','price_c','price_d','price_e'] as const).map((field, idx) => (
+                          <div key={field}>
+                            <label className="block text-xs font-bold text-gray-600 mb-1">سعر {getCategoryLabelArabic(String.fromCharCode(65 + idx) as any)}</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={(pv as any)[field] ?? 0}
+                              onChange={(e) => updatePrimaryVariant(index, field as any, parseFloat(e.target.value) || 0)}
+                              className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-4 text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-3">
+                وحدات البيع (وحدة/كرتون/كيلو) تُنشأ وتُحدَّث من صفحة المشتريات.
               </div>
 
               <div className="flex gap-3 mt-6">
@@ -1873,11 +1780,11 @@ export default function ProductsPage() {
                   type="submit"
                   className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg font-bold"
                 >
-                  إضافة المنتج
+                  حفظ المنتج
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setShowAddModal(false); setVariants([]); }}
+                  onClick={() => { setShowAddModal(false); setVariants([]); setPrimaryVariants([]); }}
                   className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 rounded-lg font-bold"
                 >
                   إلغاء
@@ -1888,290 +1795,175 @@ export default function ProductsPage() {
         </div>
       )}
 
-      {/* Modal تعديل المنتج */}
-      {showEditProductModal && selectedProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowEditProductModal(false)}>
-          <div className="bg-white rounded-xl p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+      {showEditProductModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => { setShowEditProductModal(false); setVariants([]); setPrimaryVariants([]); }}>
+          <div className="bg-white rounded-xl p-6 w-full max-w-6xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-xl font-bold mb-6">تعديل المنتج</h3>
             
             <form onSubmit={handleEditProduct} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-bold text-gray-700 mb-2">اسم المنتج</label>
-                  <input
-                    type="text"
-                    value={formData.name_ar}
-                    onChange={(e) => setFormData({...formData, name_ar: e.target.value})}
-                    className="w-full p-3 border-2 border-gray-200 rounded-lg"
-                    required
-                  />
-                </div>
-
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">SKU</label>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">سعر الشراء (محسوب من المشتريات)</label>
                   <input
                     type="text"
-                    value={formData.sku}
-                    onChange={(e) => setFormData({...formData, sku: e.target.value})}
-                    className="w-full p-3 border-2 border-gray-200 rounded-lg"
-                    required
+                    value={formData.cost_price || '0'}
+                    readOnly
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-600 cursor-not-allowed"
                   />
                 </div>
-              </div>
-
-              {/* Section Variantes Edit */}
-              <div className="mt-6 border-t-2 border-gray-200 pt-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                    <Box size={20} />
-                    📦 المتغيرات ووحدات البيع
-                  </h4>
-                  <button
-                    type="button"
-                    onClick={addVariant}
-                    className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2"
-                  >
-                    <Plus size={18} />
-                    إضافة متغير
-                  </button>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">المخزون (يُحدَّث من المشتريات)</label>
+                  <input
+                    type="text"
+                    value={formData.quantity_in_stock}
+                    readOnly
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-600 cursor-not-allowed"
+                  />
                 </div>
-
-                {variants.length === 0 ? (
-                  <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-                    <Box size={48} className="mx-auto text-gray-400 mb-3" />
-                    <p className="text-gray-500 mb-2">لا توجد متغيرات</p>
-                    <p className="text-sm text-gray-400">أضف متغيرات للمنتج (وحدة، كرتون، باك...)</p>
+                <div className="col-span-full">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                      <Box size={20} />
+                      المتغيرات الأساسية
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={addPrimaryVariant}
+                      className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2"
+                    >
+                      <Plus size={18} />
+                      إضافة متغير أساسي
+                    </button>
                   </div>
-                ) : (
-                  <div className="space-y-4">
-                    {variants.map((variant, index) => (
-                      <div key={index} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="font-bold text-gray-700">المتغير {index + 1} {variant.id ? '(محفوظ)' : '(جديد)'}</span>
-                          <div className="flex items-center gap-2">
-                            <label className="flex items-center gap-2 text-sm">
-                              <input
-                                type="checkbox"
-                                checked={variant.is_default}
-                                onChange={(e) => updateVariant(index, 'is_default', e.target.checked)}
-                                className="w-4 h-4"
-                              />
-                              افتراضي
-                            </label>
-                            <button
-                              type="button"
-                              onClick={() => removeVariant(index)}
-                              className="text-red-500 hover:text-red-700 p-1"
-                            >
-                              <Trash2 size={18} />
-                            </button>
-                          </div>
-                        </div>
 
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                          <div>
-                            <label className="block text-xs font-bold text-gray-600 mb-1">اسم المتغير</label>
-                            <input
-                              type="text"
-                              value={variant.variant_name}
-                              onChange={(e) => updateVariant(index, 'variant_name', e.target.value)}
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-                              placeholder="وحدة / كرتون 12..."
-                              required
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-gray-600 mb-1">نوع الوحدة</label>
-                            <select
-                              value={variant.unit_type}
-                              onChange={(e) => updateVariant(index, 'unit_type', e.target.value)}
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm"
-                            >
-                              {unitTypes.map(ut => (
-                                <option key={ut.value} value={ut.value}>{ut.label}</option>
+                  {primaryVariants.length === 0 ? (
+                    <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                      <Box size={48} className="mx-auto text-gray-400 mb-3" />
+                      <p className="text-gray-500 mb-2">لا توجد متغيرات أساسية</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {primaryVariants.filter(pv => pv.is_active !== false).map((pv, index) => {
+                        const packaging = variants.filter(v => {
+                          if (pv.id && v.primary_variant_id) return v.primary_variant_id === pv.id
+                          if (!v.primary_variant_id && pv.is_default) return true
+                          return false
+                        })
+
+                        return (
+                          <div key={pv.id || index} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="font-bold text-gray-700">المتغير {index + 1}</span>
+                              <div className="flex items-center gap-2">
+                                <label className="flex items-center gap-2 text-sm">
+                                  <input
+                                    type="checkbox"
+                                    checked={pv.is_default}
+                                    onChange={(e) => updatePrimaryVariant(index, 'is_default', e.target.checked)}
+                                    className="w-4 h-4"
+                                  />
+                                  افتراضي
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => removePrimaryVariant(index)}
+                                  className="text-red-500 hover:text-red-700 p-1"
+                                  disabled={primaryVariants.length <= 1}
+                                >
+                                  <Trash2 size={18} />
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1">اسم المتغير</label>
+                                <input
+                                  type="text"
+                                  value={pv.variant_name}
+                                  onChange={(e) => updatePrimaryVariant(index, 'variant_name', e.target.value)}
+                                  className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                                  placeholder="لون / حجم / ذوق..."
+                                  required
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1">الباركود</label>
+                                <div className="flex gap-1">
+                                  <input
+                                    type="text"
+                                    value={pv.barcode}
+                                    onChange={(e) => updatePrimaryVariant(index, 'barcode', e.target.value)}
+                                    className="flex-1 p-2 border border-gray-300 rounded-lg text-sm"
+                                    required
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => updatePrimaryVariant(index, 'barcode', generateBarcode())}
+                                    className="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded-lg"
+                                    title="توليد كود"
+                                  >
+                                    <Barcode size={16} />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-3">
+                              {(['price_a','price_b','price_c','price_d','price_e'] as const).map((field, idx) => (
+                                <div key={field}>
+                                  <label className="block text-xs font-bold text-gray-600 mb-1">سعر {getCategoryLabelArabic(String.fromCharCode(65 + idx) as any)}</label>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={(pv as any)[field] ?? 0}
+                                    onChange={(e) => updatePrimaryVariant(index, field as any, parseFloat(e.target.value) || 0)}
+                                    className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                                  />
+                                </div>
                               ))}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-gray-600 mb-1">الكمية المحتواة</label>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                inputPad.open({
-                                  title: 'الكمية المحتواة',
-                                  mode: 'decimal',
-                                  dir: 'ltr',
-                                  initialValue: variant.quantity_contained.toString(),
-                                  min: 0.001,
-                                  step: 0.001,
-                                  onConfirm: (v) => updateVariant(index, 'quantity_contained', parseFloat(v) || 1),
-                                })
-                              }
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm text-left"
-                            >
-                              {variant.quantity_contained}
-                            </button>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-gray-600 mb-1">الكود</label>
-                            <div className="flex gap-1">
-                              <input
-                                type="text"
-                                value={variant.barcode}
-                                onChange={(e) => updateVariant(index, 'barcode', e.target.value)}
-                                className="flex-1 p-2 border border-gray-300 rounded-lg text-sm"
-                                required
-                              />
-                              <button
-                                type="button"
-                                onClick={() => updateVariant(index, 'barcode', generateBarcode())}
-                                className="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded-lg"
-                                title="توليد كود"
-                              >
-                                <Barcode size={16} />
-                              </button>
+                            </div>
+
+                            <div className="mt-4 border border-gray-200 rounded-lg bg-white p-3">
+                              <div className="font-bold text-gray-700 mb-2">وحدات البيع</div>
+                              {packaging.length === 0 ? (
+                                <div className="text-sm text-gray-500">لا توجد وحدات بيع لهذا المتغير</div>
+                              ) : (
+                                <div className="space-y-2">
+                                  {packaging.map((v, vi) => (
+                                    <div key={v.id || vi} className="grid grid-cols-2 md:grid-cols-6 gap-2 text-sm bg-gray-50 border border-gray-200 rounded p-2">
+                                      <div className="col-span-2 md:col-span-2">
+                                        <div className="text-xs text-gray-500">الاسم</div>
+                                        <div className="font-semibold text-gray-800">{v.variant_name}</div>
+                                      </div>
+                                      <div>
+                                        <div className="text-xs text-gray-500">الوحدة</div>
+                                        <div className="text-gray-800">{v.unit_type}</div>
+                                      </div>
+                                      <div>
+                                        <div className="text-xs text-gray-500">المحتوى</div>
+                                        <div className="text-gray-800">{v.quantity_contained}</div>
+                                      </div>
+                                      <div>
+                                        <div className="text-xs text-gray-500">الباركود</div>
+                                        <div className="text-gray-800">{v.barcode || '-'}</div>
+                                      </div>
+                                      <div>
+                                        <div className="text-xs text-gray-500">المخزون</div>
+                                        <div className="text-gray-800">{v.stock}</div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           </div>
-                        </div>
-
-                        <div className="grid grid-cols-3 md:grid-cols-7 gap-3 mt-3">
-                          <div>
-                            <label className="block text-xs font-bold text-gray-600 mb-1">سعر الشراء</label>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                inputPad.open({
-                                  title: 'سعر الشراء',
-                                  mode: 'decimal',
-                                  dir: 'ltr',
-                                  initialValue: variant.purchase_price.toString(),
-                                  min: 0,
-                                  onConfirm: (v) => updateVariant(index, 'purchase_price', parseFloat(v) || 0),
-                                })
-                              }
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm text-left"
-                            >
-                              {variant.purchase_price}
-                            </button>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-gray-600 mb-1">سعر A</label>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                inputPad.open({
-                                  title: 'السعر A',
-                                  mode: 'decimal',
-                                  dir: 'ltr',
-                                  initialValue: variant.price_a.toString(),
-                                  min: 0,
-                                  onConfirm: (v) => updateVariant(index, 'price_a', parseFloat(v) || 0),
-                                })
-                              }
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm text-left"
-                            >
-                              {variant.price_a}
-                            </button>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-gray-600 mb-1">سعر B</label>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                inputPad.open({
-                                  title: 'السعر B',
-                                  mode: 'decimal',
-                                  dir: 'ltr',
-                                  initialValue: variant.price_b.toString(),
-                                  min: 0,
-                                  onConfirm: (v) => updateVariant(index, 'price_b', parseFloat(v) || 0),
-                                })
-                              }
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm text-left"
-                            >
-                              {variant.price_b}
-                            </button>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-gray-600 mb-1">سعر C</label>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                inputPad.open({
-                                  title: 'السعر C',
-                                  mode: 'decimal',
-                                  dir: 'ltr',
-                                  initialValue: variant.price_c.toString(),
-                                  min: 0,
-                                  onConfirm: (v) => updateVariant(index, 'price_c', parseFloat(v) || 0),
-                                })
-                              }
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm text-left"
-                            >
-                              {variant.price_c}
-                            </button>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-gray-600 mb-1">سعر D</label>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                inputPad.open({
-                                  title: 'السعر D',
-                                  mode: 'decimal',
-                                  dir: 'ltr',
-                                  initialValue: variant.price_d.toString(),
-                                  min: 0,
-                                  onConfirm: (v) => updateVariant(index, 'price_d', parseFloat(v) || 0),
-                                })
-                              }
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm text-left"
-                            >
-                              {variant.price_d}
-                            </button>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-gray-600 mb-1">سعر E</label>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                inputPad.open({
-                                  title: 'السعر E',
-                                  mode: 'decimal',
-                                  dir: 'ltr',
-                                  initialValue: variant.price_e.toString(),
-                                  min: 0,
-                                  onConfirm: (v) => updateVariant(index, 'price_e', parseFloat(v) || 0),
-                                })
-                              }
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm text-left"
-                            >
-                              {variant.price_e}
-                            </button>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-gray-600 mb-1">المخزون</label>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                inputPad.open({
-                                  title: 'المخزون',
-                                  mode: 'number',
-                                  dir: 'ltr',
-                                  initialValue: variant.stock.toString(),
-                                  onConfirm: (v) => updateVariant(index, 'stock', parseFloat(v) || 0),
-                                })
-                              }
-                              className="w-full p-2 border border-gray-300 rounded-lg text-sm text-left"
-                            >
-                              {variant.stock}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="flex gap-3 mt-6">
@@ -2183,7 +1975,7 @@ export default function ProductsPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setShowEditProductModal(false); setVariants([]); }}
+                  onClick={() => { setShowEditProductModal(false); setVariants([]); setPrimaryVariants([]); }}
                   className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 rounded-lg font-bold"
                 >
                   إلغاء

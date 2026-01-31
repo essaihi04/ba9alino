@@ -6,7 +6,7 @@ const { createClient } = require('@supabase/supabase-js')
 
 const isDev = !app.isPackaged
 
-const APP_URL = process.env.BA9ALINO_APP_URL || 'https://ba9alino.netlify.app/'
+const APP_URL = process.env.BA9ALINO_APP_URL || 'http://ba9alino.duckdns.org/'
 const DEV_URL = process.env.ELECTRON_RENDERER_URL || 'http://localhost:5173'
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL

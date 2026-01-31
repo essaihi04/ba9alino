@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
+import { getCategoryLabelArabic } from '../utils/categoryLabels'
 import { Search, Plus, Eye, Edit2, Truck, Package, CheckCircle, XCircle, Clock, Download, FileText, Receipt, Barcode, Save, Trash2, X, DollarSign } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useNavigate } from 'react-router-dom'
@@ -2207,7 +2208,7 @@ export default function OrdersPage() {
                       <option value="">اختر عميل...</option>
                       {clients.map((client) => (
                         <option key={client.id} value={client.id}>
-                          {client.company_name_ar} {client.subscription_tier && `(${client.subscription_tier})`}
+                          {client.company_name_ar} {client.subscription_tier && `(${getCategoryLabelArabic(client.subscription_tier)})`}
                         </option>
                       ))}
                     </select>

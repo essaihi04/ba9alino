@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { ArrowLeft, Plus, Barcode, Package, Upload, AlertCircle, X } from 'lucide-react'
+import { getCategoryLabelArabic } from '../../utils/categoryLabels'
 
 interface ProductVariant {
   id?: string
@@ -120,12 +121,12 @@ export default function EmployeeAddProductPage() {
 
   // Fonction pour sélectionner un produit existant
   const selectExistingProduct = (product: any) => {
+    if (!product) return
     setSelectedExistingProduct(product)
     setFormData({
       ...formData,
       name_ar: product.name_ar,
       sku: product.sku,
-      barcode: product.barcode || '',
       price_a: product.price_a?.toString() || '',
       price_b: product.price_b?.toString() || '',
       price_c: product.price_c?.toString() || '',
@@ -261,6 +262,10 @@ export default function EmployeeAddProductPage() {
 
     try {
       const product = await fetchGoUpcProduct(barcode)
+      if (!product) {
+        setBarcodeLookupLoading(false)
+        return
+      }
       setBarcodeLookupResult(product)
 
       const normalizedCategory = simplifyAndTranslateCategory(product.category)
@@ -285,7 +290,6 @@ export default function EmployeeAddProductPage() {
           variant_name: 'وحدة',
           unit_type: 'unit',
           quantity_contained: 1,
-          barcode,
           purchase_price: 0,
           price_a: 0,
           price_b: 0,
@@ -672,57 +676,62 @@ export default function EmployeeAddProductPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">سعر الفئة A</label>
+                <label className="block text-sm font-bold text-gray-700 mb-2">{getCategoryLabelArabic('A')}</label>
                 <input
                   type="number"
                   step="0.01"
                   value={formData.price_a}
                   onChange={(e) => setFormData({...formData, price_a: e.target.value})}
                   className="w-full p-3 border-2 border-gray-200 rounded-lg"
+                  placeholder={getCategoryLabelArabic('A')}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">سعر الفئة B</label>
+                <label className="block text-sm font-bold text-gray-700 mb-2">{getCategoryLabelArabic('B')}</label>
                 <input
                   type="number"
                   step="0.01"
                   value={formData.price_b}
                   onChange={(e) => setFormData({...formData, price_b: e.target.value})}
                   className="w-full p-3 border-2 border-gray-200 rounded-lg"
+                  placeholder={getCategoryLabelArabic('B')}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">سعر الفئة C</label>
+                <label className="block text-sm font-bold text-gray-700 mb-2">{getCategoryLabelArabic('C')}</label>
                 <input
                   type="number"
                   step="0.01"
                   value={formData.price_c}
                   onChange={(e) => setFormData({...formData, price_c: e.target.value})}
                   className="w-full p-3 border-2 border-gray-200 rounded-lg"
+                  placeholder={getCategoryLabelArabic('C')}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">سعر الفئة D</label>
+                <label className="block text-sm font-bold text-gray-700 mb-2">{getCategoryLabelArabic('D')}</label>
                 <input
                   type="number"
                   step="0.01"
                   value={formData.price_d}
                   onChange={(e) => setFormData({...formData, price_d: e.target.value})}
                   className="w-full p-3 border-2 border-gray-200 rounded-lg"
+                  placeholder={getCategoryLabelArabic('D')}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2">سعر الفئة E</label>
+                <label className="block text-sm font-bold text-gray-700 mb-2">{getCategoryLabelArabic('E')}</label>
                 <input
                   type="number"
                   step="0.01"
                   value={formData.price_e}
                   onChange={(e) => setFormData({...formData, price_e: e.target.value})}
                   className="w-full p-3 border-2 border-gray-200 rounded-lg"
+                  placeholder={getCategoryLabelArabic('E')}
                 />
               </div>
 
@@ -847,7 +856,39 @@ export default function EmployeeAddProductPage() {
                           value={variant.price_a}
                           onChange={(e) => updateVariant(index, 'price_a', parseFloat(e.target.value) || 0)}
                           className="p-2 border border-gray-200 rounded"
-                          placeholder="سعر A"
+                          placeholder={getCategoryLabelArabic('A')}
+                        />
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={variant.price_b}
+                          onChange={(e) => updateVariant(index, 'price_b', parseFloat(e.target.value) || 0)}
+                          className="p-2 border border-gray-200 rounded"
+                          placeholder={getCategoryLabelArabic('B')}
+                        />
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={variant.price_c}
+                          onChange={(e) => updateVariant(index, 'price_c', parseFloat(e.target.value) || 0)}
+                          className="p-2 border border-gray-200 rounded"
+                          placeholder={getCategoryLabelArabic('C')}
+                        />
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={variant.price_d}
+                          onChange={(e) => updateVariant(index, 'price_d', parseFloat(e.target.value) || 0)}
+                          className="p-2 border border-gray-200 rounded"
+                          placeholder={getCategoryLabelArabic('D')}
+                        />
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={variant.price_e}
+                          onChange={(e) => updateVariant(index, 'price_e', parseFloat(e.target.value) || 0)}
+                          className="p-2 border border-gray-200 rounded"
+                          placeholder={getCategoryLabelArabic('E')}
                         />
                         <input
                           type="number"

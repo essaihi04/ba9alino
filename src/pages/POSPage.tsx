@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useInputPad } from '../components/useInputPad'
+import { getCategoryLabelArabic } from '../utils/categoryLabels'
 import { 
   Search, 
   ShoppingCart, 
@@ -34,6 +35,7 @@ interface CompanyInfo {
 
 interface Product {
   id: string
+  primary_variant_id: string
   name_ar: string
   price_a: number
   price_b: number
@@ -54,6 +56,7 @@ interface Category {
 
 interface CartItem {
   id: string
+  primary_variant_id: string
   name_ar: string
   price_a: number
   price_b: number
@@ -62,6 +65,8 @@ interface CartItem {
   price_e: number
   stock: number
   quantity: number
+  unit_type?: string
+  quantity_contained?: number
   deleted?: boolean
   customPrice?: number
 }
@@ -69,13 +74,30 @@ interface CartItem {
 interface InvoiceLine {
   id: string
   product_id: string
+  primary_variant_id: string
   product_name_ar: string
   quantity: number
   unit_price: number
   total: number
+  unit_type?: string
+  pricing_tier?: string
   customPrice?: number
   deleted?: boolean
   image_url?: string
+}
+
+interface PackagingVariant {
+  id: string
+  product_id: string
+  primary_variant_id: string
+  unit_type: string
+  quantity_contained: number
+  barcode?: string
+  price_a: number
+  price_b: number
+  price_c: number
+  price_d: number
+  price_e: number
 }
 
 interface Invoice {
@@ -186,6 +208,11 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
   const [editingInvoiceLine, setEditingInvoiceLine] = useState<InvoiceLine | null>(null)
   const [editLineQuantity, setEditLineQuantity] = useState('')
   const [editLinePrice, setEditLinePrice] = useState('')
+  const [editLineUnitType, setEditLineUnitType] = useState('unit')
+  const [editLinePricingTier, setEditLinePricingTier] = useState<'auto' | 'A' | 'B' | 'C' | 'D' | 'E'>('auto')
+
+  const [packagingVariantsByPrimaryId, setPackagingVariantsByPrimaryId] = useState<Record<string, PackagingVariant[]>>({})
+  const [packagingVariantsFlat, setPackagingVariantsFlat] = useState<PackagingVariant[]>([])
   
   // États pour popup type de paiement
   const [showPaymentTypeModal, setShowPaymentTypeModal] = useState(false)
@@ -703,76 +730,100 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
 
   const loadProducts = async () => {
     try {
-      // Récupérer les produits avec leurs variants (prix réels)
       const { data: products, error: productsError } = await supabase
         .from('products')
-        .select('id, name_ar, sku, stock, price_a, price_b, price_c, price_d, price_e, category_id, image_url')
+        .select('id, name_ar, sku, category_id, image_url')
         .eq('is_active', true)
         .order('name_ar')
-      
-      if (productsError) {
-        console.error('Error loading products:', productsError)
+
+      if (productsError) throw productsError
+
+      const productIds = (products || []).map(p => p.id)
+      if (productIds.length === 0) {
+        setProducts([])
+        setPackagingVariantsByPrimaryId({})
+        setPackagingVariantsFlat([])
         return
       }
-      
-      // Récupérer les variants pour avoir les vrais prix, stocks et codes barres
-      const { data: variants, error: variantsError } = await supabase
-        .from('product_variants')
-        .select('product_id, price_a, price_b, price_c, price_d, price_e, stock, is_default, barcode')
+
+      const { data: primaryVariants, error: primaryError } = await supabase
+        .from('product_primary_variants')
+        .select('id, product_id, variant_name, barcode, price_a, price_b, price_c, price_d, price_e, is_active')
         .eq('is_active', true)
-        .in('product_id', (products || []).map(p => p.id))
-      
-      if (variantsError) {
-        console.error('Error loading variants:', variantsError)
+        .in('product_id', productIds)
+
+      if (primaryError) throw primaryError
+
+      const { data: packagingVariants, error: packagingError } = await supabase
+        .from('product_variants')
+        .select('id, product_id, primary_variant_id, unit_type, quantity_contained, barcode, price_a, price_b, price_c, price_d, price_e')
+        .eq('is_active', true)
+        .in('product_id', productIds)
+
+      if (packagingError) {
+        console.error('Error loading packaging variants:', packagingError)
       }
-      
-      // Fusionner les données : utiliser les prix des variants si disponibles, sinon ceux du produit
-      const enrichedProducts = (products || []).map(product => {
-        const productVariants = (variants || []).filter(v => v.product_id === product.id)
-        const defaultVariant = productVariants.find(v => v.is_default) || productVariants[0]
-        
-        // Si un variant existe, utiliser ses prix (priorité)
-        if (defaultVariant) {
-          return {
-            ...product,
-            price_a: defaultVariant.price_a,
-            price_b: defaultVariant.price_b,
-            price_c: defaultVariant.price_c,
-            price_d: defaultVariant.price_d,
-            price_e: defaultVariant.price_e,
-            stock: defaultVariant.stock,
-            barcode: defaultVariant.barcode, // Ajouter le code barre du variant
-            // Garder une trace de la source
-            _priceSource: 'variant',
-            _variantId: defaultVariant.product_id
-          }
-        }
-        
-        // Sinon utiliser les prix du produit
+
+      const packagingByPrimary: Record<string, PackagingVariant[]> = {}
+      ;(packagingVariants || []).forEach((v: any) => {
+        const pid = String(v.primary_variant_id || '')
+        if (!pid) return
+        if (!packagingByPrimary[pid]) packagingByPrimary[pid] = []
+        packagingByPrimary[pid].push(v as PackagingVariant)
+      })
+      setPackagingVariantsByPrimaryId(packagingByPrimary)
+      setPackagingVariantsFlat((packagingVariants || []) as PackagingVariant[])
+
+      const warehouseId = cashSession?.warehouse_id
+      let stockQuery = supabase
+        .from('stock')
+        .select('product_id, primary_variant_id, quantity_in_stock')
+        .in('product_id', productIds)
+
+      if (warehouseId) {
+        stockQuery = stockQuery.eq('warehouse_id', warehouseId)
+      }
+
+      const { data: stockRows, error: stockError } = await stockQuery
+      if (stockError) {
+        console.warn('Error loading stock for POS (will default to 0):', stockError)
+      }
+
+      const stockMap = new Map<string, number>()
+      ;(stockRows || []).forEach((row: any) => {
+        const key = `${row.product_id}:${row.primary_variant_id}`
+        const qty = Number(row.quantity_in_stock || 0) || 0
+        stockMap.set(key, (stockMap.get(key) || 0) + qty)
+      })
+
+      const productsById = new Map<string, any>()
+      ;(products || []).forEach(p => productsById.set(p.id, p))
+
+      const enrichedProducts: Product[] = (primaryVariants || []).map((pv: any) => {
+        const base = productsById.get(pv.product_id)
+        const suffix = pv.variant_name && pv.variant_name !== 'افتراضي' ? ` - ${pv.variant_name}` : ''
+        const name = `${base?.name_ar || ''}${suffix}`
+        const stockKey = `${pv.product_id}:${pv.id}`
         return {
-          ...product,
-          _priceSource: 'product'
+          id: pv.product_id,
+          primary_variant_id: pv.id,
+          name_ar: name,
+          price_a: Number(pv.price_a || 0),
+          price_b: Number(pv.price_b || 0),
+          price_c: Number(pv.price_c || 0),
+          price_d: Number(pv.price_d || 0),
+          price_e: Number(pv.price_e || 0),
+          stock: Math.max(0, Number(stockMap.get(stockKey) || 0)),
+          barcode: pv.barcode || undefined,
+          category_id: base?.category_id,
+          image_url: base?.image_url,
         }
       })
-      
-      console.log('🔍 Products loaded:', enrichedProducts?.length, 'products')
-      if (enrichedProducts && enrichedProducts.length > 0) {
-        console.log('📋 First product prices:', {
-          name: enrichedProducts[0].name_ar,
-          source: enrichedProducts[0]._priceSource,
-          price_a: enrichedProducts[0].price_a,
-          price_e: enrichedProducts[0].price_e
-        })
-      }
-      
-      setProducts(enrichedProducts || [])
-      console.log('📦 Produits chargés:', enrichedProducts?.length || 0)
-      console.log('📊 Codes barres disponibles:', enrichedProducts?.filter(p => p.barcode).map(p => ({
-        name: p.name_ar,
-        barcode: p.barcode
-      })) || [])
+
+      setProducts(enrichedProducts)
     } catch (error) {
       console.error('Error loading products:', error)
+      setProducts([])
     }
   }
 
@@ -780,14 +831,14 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     try {
       const { data, error } = await supabase
         .from('product_categories')
-        .select('*')
+        .select('id, name_ar')
         .order('name_ar')
 
       if (error) throw error
-      
-      setCategories(data || [])
+      setCategories((data || []) as Category[])
     } catch (error) {
       console.error('Error loading categories:', error)
+      setCategories([])
     }
   }
 
@@ -814,6 +865,22 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     }
   }
 
+  const handleSelectClient = (client: any) => {
+    setSelectedClient(client)
+
+    // Si une facture est déjà en cours, synchroniser le client dessus
+    setCurrentInvoice((prev) => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        client_id: client.id,
+        client_name: client.company_name_ar || client.company_name_en || client.name || 'زبون'
+      }
+    })
+
+    setShowClientModal(false)
+  }
+
   const loadOnHoldInvoices = async () => {
     try {
       console.log('🔍 Chargement des factures en attente...')
@@ -836,10 +903,13 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         lines: (invoice.items || []).map((item: any, index: number) => ({
           id: `line-${index}-${Date.now()}`,
           product_id: item.product_id,
+          primary_variant_id: item.primary_variant_id || '',
           product_name_ar: item.product_name,
           quantity: item.quantity,
           unit_price: item.unit_price,
           total: item.total,
+          unit_type: item.unit_type || 'unit',
+          pricing_tier: item.pricing_tier || undefined,
           deleted: false,
           image_url: undefined
         }))
@@ -872,35 +942,65 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       hasBarcode: !!p.barcode
     })))
     
-    // Search for exact barcode match (normalized)
-    const exactBarcodeMatch = products.find(p => {
+    const exactPrimaryBarcodeMatch = products.find(p => {
       if (!p.barcode) return false
       const normalizedBarcode = p.barcode.replace(/[\s-]/g, '')
       return normalizedBarcode === normalizedSearch
     })
-    console.log('🎯 Exact barcode match:', exactBarcodeMatch?.name_ar)
-    
-    if (exactBarcodeMatch) {
-      // Add product to invoice
-      addToInvoice(exactBarcodeMatch)
-      setSearchQuery('') // Clear search after adding
+
+    const exactPackagingBarcodeMatch = packagingVariantsFlat.find(v => {
+      if (!v.barcode) return false
+      const normalizedBarcode = String(v.barcode).replace(/[\s-]/g, '')
+      return normalizedBarcode === normalizedSearch
+    })
+    console.log('🎯 Exact barcode match:', exactPrimaryBarcodeMatch?.name_ar)
+
+    if (exactPrimaryBarcodeMatch) {
+      addToInvoice(exactPrimaryBarcodeMatch, { unitType: 'unit' })
+      setSearchQuery('')
       focusSearchInput()
       return
     }
-    
+
+    if (exactPackagingBarcodeMatch) {
+      const p = products.find(x => x.primary_variant_id === exactPackagingBarcodeMatch.primary_variant_id)
+      if (p) {
+        addToInvoice(p, { unitType: exactPackagingBarcodeMatch.unit_type })
+        setSearchQuery('')
+        focusSearchInput()
+        return
+      }
+    }
+
     // If no exact match, search for partial barcode match (normalized)
-    const partialBarcodeMatch = products.find(p => {
+    const partialPrimaryBarcodeMatch = products.find(p => {
       if (!p.barcode) return false
       const normalizedBarcode = p.barcode.replace(/[\s-]/g, '')
       return normalizedBarcode.includes(normalizedSearch) || normalizedSearch.includes(normalizedBarcode)
     })
-    console.log('🔍 Partial barcode match:', partialBarcodeMatch?.name_ar)
-    
-    if (partialBarcodeMatch) {
-      addToInvoice(partialBarcodeMatch)
+    console.log('🔍 Partial barcode match:', partialPrimaryBarcodeMatch?.name_ar)
+
+    const partialPackagingBarcodeMatch = packagingVariantsFlat.find(v => {
+      if (!v.barcode) return false
+      const normalizedBarcode = String(v.barcode).replace(/[\s-]/g, '')
+      return normalizedBarcode.includes(normalizedSearch) || normalizedSearch.includes(normalizedBarcode)
+    })
+
+    if (partialPrimaryBarcodeMatch) {
+      addToInvoice(partialPrimaryBarcodeMatch, { unitType: 'unit' })
       setSearchQuery('') // Clear search after adding
       focusSearchInput()
       return
+    }
+
+    if (partialPackagingBarcodeMatch) {
+      const p = products.find(x => x.primary_variant_id === partialPackagingBarcodeMatch.primary_variant_id)
+      if (p) {
+        addToInvoice(p, { unitType: partialPackagingBarcodeMatch.unit_type })
+        setSearchQuery('')
+        focusSearchInput()
+        return
+      }
     }
     
     // If no barcode match, search by name (case-insensitive)
@@ -953,17 +1053,33 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
 
     const normalizedSearch = searchQuery.trim().replace(/[\s-]/g, '')
 
-    const exactBarcodeMatch = products.find(p => {
+    const exactPrimaryBarcodeMatch = products.find(p => {
       if (!p.barcode) return false
       const normalizedBarcode = p.barcode.replace(/[\s-]/g, '')
       return normalizedBarcode === normalizedSearch
     })
 
-    if (exactBarcodeMatch) {
-      addToInvoice(exactBarcodeMatch)
+    if (exactPrimaryBarcodeMatch) {
+      addToInvoice(exactPrimaryBarcodeMatch, { unitType: 'unit' })
       setSearchQuery('')
       focusSearchInput()
       return
+    }
+
+    const exactPackagingBarcodeMatch = packagingVariantsFlat.find(v => {
+      if (!v.barcode) return false
+      const normalizedBarcode = String(v.barcode).replace(/[\s-]/g, '')
+      return normalizedBarcode === normalizedSearch
+    })
+
+    if (exactPackagingBarcodeMatch) {
+      const p = products.find(x => x.primary_variant_id === exactPackagingBarcodeMatch.primary_variant_id)
+      if (p) {
+        addToInvoice(p, { unitType: exactPackagingBarcodeMatch.unit_type })
+        setSearchQuery('')
+        focusSearchInput()
+        return
+      }
     }
 
     if (filteredProducts.length === 1) {
@@ -1055,6 +1171,61 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     return price
   }
 
+  const getPricingForPrimaryAndUnitType = (primaryVariantId: string, unitType: string) => {
+    const vs = packagingVariantsByPrimaryId[primaryVariantId] || []
+    const match = vs.find(v => v.unit_type === unitType)
+    if (match) {
+      const hasAny = [match.price_a, match.price_b, match.price_c, match.price_d, match.price_e].some(x => Number(x || 0) > 0)
+      if (hasAny) {
+        return {
+          price_a: match.price_a,
+          price_b: match.price_b,
+          price_c: match.price_c,
+          price_d: match.price_d,
+          price_e: match.price_e,
+        }
+      }
+    }
+
+    const base = products.find(p => p.primary_variant_id === primaryVariantId)
+    return {
+      price_a: base?.price_a || 0,
+      price_b: base?.price_b || 0,
+      price_c: base?.price_c || 0,
+      price_d: base?.price_d || 0,
+      price_e: base?.price_e || 0,
+    }
+  }
+
+  const getProductPriceForTier = (item: Product | CartItem, tier: 'A' | 'B' | 'C' | 'D' | 'E') => {
+    const getFirstNonZeroPrice = (prices: number[]) => {
+      for (const price of prices) {
+        if (price && price > 0) return price
+      }
+      return null
+    }
+
+    const prices = {
+      A: item.price_a,
+      B: item.price_b,
+      C: item.price_c,
+      D: item.price_d,
+      E: item.price_e,
+    }
+
+    const primary = Number(prices[tier] || 0)
+    if (primary > 0) return primary
+    return getFirstNonZeroPrice([item.price_e, item.price_a, item.price_b, item.price_c, item.price_d]) || 10.0
+  }
+
+  const getProductPriceWithTierOverride = (
+    item: Product | CartItem,
+    tier: 'auto' | 'A' | 'B' | 'C' | 'D' | 'E'
+  ) => {
+    if (tier === 'auto') return getProductPrice(item)
+    return getProductPriceForTier(item, tier)
+  }
+
   // Générer numéro de facture unique
   const generateInvoiceNumber = () => {
     const date = new Date()
@@ -1088,15 +1259,25 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
   }
 
   // Ajouter un produit à la facture en cours
-  const addToInvoice = (product: Product) => {
+  const addToInvoice = (product: Product, opts?: { unitType?: string }) => {
     // Créer une facture si elle n'existe pas
     let invoice = currentInvoice
     if (!invoice) {
       invoice = createNewInvoice()
     }
 
-    const unitPrice = getProductPrice(product)
-    const existingLine = invoice.lines.find(line => line.product_id === product.id)
+    const chosenUnitType = opts?.unitType || 'unit'
+    const pricing = getPricingForPrimaryAndUnitType(product.primary_variant_id, chosenUnitType)
+    const unitPrice = getProductPrice({
+      ...product,
+      ...pricing,
+    } as any)
+
+    const existingLine = invoice.lines.find(line =>
+      line.product_id === product.id &&
+      line.primary_variant_id === product.primary_variant_id &&
+      (line.unit_type || 'unit') === chosenUnitType
+    )
 
     if (existingLine) {
       // Si la ligne était supprimée, la restaurer
@@ -1113,10 +1294,12 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       const newLine: InvoiceLine = {
         id: `line-${Date.now()}-${Math.random()}`,
         product_id: product.id,
+        primary_variant_id: product.primary_variant_id,
         product_name_ar: product.name_ar,
         quantity: 1,
         unit_price: unitPrice,
         total: unitPrice,
+        unit_type: chosenUnitType,
         deleted: false,
         image_url: product.image_url
       }
@@ -1469,6 +1652,8 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
 
       line.quantity = newQty
       line.unit_price = newPrice
+      line.unit_type = editLineUnitType || line.unit_type || 'unit'
+      line.pricing_tier = editLinePricingTier !== 'auto' ? editLinePricingTier : undefined
       line.total = newQty * newPrice
 
       // Recalculer les totaux
@@ -1481,6 +1666,8 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       setEditingInvoiceLine(null)
       setEditLineQuantity('')
       setEditLinePrice('')
+      setEditLineUnitType('unit')
+      setEditLinePricingTier('auto')
     }
   }
 
@@ -1489,12 +1676,16 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     setEditingInvoiceLine(null)
     setEditLineQuantity('')
     setEditLinePrice('')
+    setEditLineUnitType('unit')
+    setEditLinePricingTier('auto')
   }
 
   const openEditInvoiceLineModal = (line: InvoiceLine) => {
     setEditingInvoiceLine(line)
     setEditLineQuantity(line.quantity.toString())
     setEditLinePrice(line.unit_price.toFixed(2))
+    setEditLineUnitType(line.unit_type || 'unit')
+    setEditLinePricingTier((line.pricing_tier as any) || 'auto')
     setShowEditInvoiceLineModal(true)
   }
 
@@ -1577,11 +1768,14 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         cash_session_id: cashSession.id,
         employee_id: cashSession.employee_id,
         warehouse_id: cashSession.warehouse_id,
-        status: currentInvoice.status === 'credit' ? 'draft' : 
+        status: currentInvoice.status === 'credit' ? 'draft' :
                 currentInvoice.status === 'partial' ? 'sent' :
                 currentInvoice.status === 'paid' ? 'paid' : 'draft',
         items: currentInvoice.lines?.filter(line => !line.deleted).map(line => ({
           product_id: line.product_id,
+          primary_variant_id: (line as any).primary_variant_id,
+          unit_type: (line as any).unit_type || 'unit',
+          pricing_tier: (line as any).pricing_tier || null,
           product_name: line.product_name_ar,
           quantity: line.quantity,
           unit_price: line.unit_price,
@@ -1633,12 +1827,11 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
 
       // Créer l'enregistrement de paiement si payé
       // Unified payment method values: cash, check, card, bank_transfer, credit
-      const normalizedPaymentMethod = paymentMethod === 'cash' ? 'cash'
-        : paymentMethod === 'check' ? 'check'
-        : paymentMethod === 'card' ? 'card'
-        : paymentMethod === 'bank_transfer' ? 'bank_transfer'
-        : paymentMethod === 'credit' ? 'credit'
-        : 'cash' // default fallback
+      const normalizedPaymentMethod = paymentMethod === 'cash'
+        ? 'cash'
+        : paymentMethod === 'check'
+          ? 'check'
+          : 'credit'
 
       if (currentInvoice.paid_amount > 0) {
 
@@ -1662,17 +1855,108 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
 
       // Mettre à jour le stock
       for (const line of currentInvoice.lines?.filter(line => !line.deleted) || []) {
-        const { data: product } = await supabase
-          .from('products')
-          .select('stock')
-          .eq('id', line.product_id)
-          .single()
+        const saleQty = Number(line.quantity) || 0
+        if (saleQty <= 0) continue
 
-        if (product) {
-          await supabase
-            .from('products')
-            .update({ stock: product.stock - line.quantity })
-            .eq('id', line.product_id)
+        const primaryVariantId = String((line as any).primary_variant_id || '')
+        const unitType = String((line as any).unit_type || 'unit')
+
+        const { data: variants } = await supabase
+          .from('product_variants')
+          .select('id, unit_type, quantity_contained, stock, primary_variant_id')
+          .eq('product_id', line.product_id)
+
+        const scopedVariants = primaryVariantId
+          ? (variants || []).filter(v => String((v as any).primary_variant_id || '') === primaryVariantId)
+          : (variants || [])
+
+        const unitVariant = scopedVariants.find(v => v.unit_type === 'unit')
+        const cartonVariant = scopedVariants.find(v => v.unit_type === 'carton')
+        const kiloVariant = scopedVariants.find(v => v.unit_type === 'kilo')
+        const unitsPerCarton = cartonVariant?.quantity_contained ? Number(cartonVariant.quantity_contained) : 0
+
+        if (unitType === 'carton') {
+          const cartonQty = saleQty
+          const pieces = unitsPerCarton > 0 ? cartonQty * unitsPerCarton : cartonQty
+
+          if (cartonVariant?.id) {
+            await supabase
+              .from('product_variants')
+              .update({ stock: Math.max(0, Number(cartonVariant.stock || 0) - cartonQty) })
+              .eq('id', cartonVariant.id)
+          }
+          if (unitVariant?.id) {
+            await supabase
+              .from('product_variants')
+              .update({ stock: Math.max(0, Number(unitVariant.stock || 0) - pieces) })
+              .eq('id', unitVariant.id)
+          }
+        } else if (unitType === 'kilo') {
+          if (kiloVariant?.id) {
+            await supabase
+              .from('product_variants')
+              .update({ stock: Math.max(0, Number(kiloVariant.stock || 0) - saleQty) })
+              .eq('id', kiloVariant.id)
+          }
+        } else {
+          // unit
+          if (unitVariant?.id) {
+            const nextUnitStock = Math.max(0, Number(unitVariant.stock || 0) - saleQty)
+            await supabase
+              .from('product_variants')
+              .update({ stock: nextUnitStock })
+              .eq('id', unitVariant.id)
+          }
+
+          if (cartonVariant?.id && unitsPerCarton > 0) {
+            const cartonDelta = saleQty / unitsPerCarton
+            const nextCartonStock = Math.max(0, Number(cartonVariant.stock || 0) - cartonDelta)
+            await supabase
+              .from('product_variants')
+              .update({ stock: nextCartonStock })
+              .eq('id', cartonVariant.id)
+          }
+        }
+
+        const warehouseId = cashSession?.warehouse_id
+        if (warehouseId) {
+          let stockRow: any = null
+          let stockErr: any = null
+
+          {
+            const res = await supabase
+              .from('stock')
+              .select('id, quantity_in_stock')
+              .eq('product_id', line.product_id)
+              .eq('primary_variant_id', primaryVariantId)
+              .eq('warehouse_id', warehouseId)
+              .maybeSingle()
+            stockRow = res.data
+            stockErr = res.error
+          }
+
+          if (stockErr && String(stockErr?.message || '').includes('warehouse_id')) {
+            const res2 = await supabase
+              .from('stock')
+              .select('id, quantity_in_stock')
+              .eq('product_id', line.product_id)
+              .eq('primary_variant_id', primaryVariantId)
+              .maybeSingle()
+            stockRow = res2.data
+            stockErr = res2.error
+          }
+
+          if (!stockErr && stockRow?.id) {
+            const currentInStock = Number(stockRow.quantity_in_stock || 0) || 0
+            const baseDelta = unitType === 'carton'
+              ? (unitsPerCarton > 0 ? saleQty * unitsPerCarton : saleQty)
+              : saleQty
+            const nextInStock = Math.max(0, currentInStock - baseDelta)
+            await supabase
+              .from('stock')
+              .update({ quantity_in_stock: nextInStock })
+              .eq('id', stockRow.id)
+          }
         }
       }
 
@@ -2342,7 +2626,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       </div>
 
       {/* 🧾 FACTURE EN COURS - Nouvelle Interface Professionnelle */}
-      <div className="w-96 bg-white rounded-xl shadow-lg p-4 flex flex-col overflow-hidden">
+      <div className="w-96 bg-white rounded-xl shadow-lg p-4 flex flex-col overflow-auto">
         {/* EN-TÊTE FACTURE */}
         {currentInvoice ? (
           <>
@@ -2351,7 +2635,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
               <div className="flex justify-between items-start mb-2">
                 <div>
                   <p className="text-xs text-gray-500">رقم الفاتورة</p>
-                  <p className="font-bold text-lg text-gray-800">{currentInvoice.invoice_number}</p>
+                  <p className="font-bold text-sm text-gray-800 break-all leading-5">{currentInvoice.invoice_number}</p>
                 </div>
                 <div className={`px-3 py-1 rounded-full text-xs font-bold text-white ${
                   currentInvoice.status === 'paid' ? 'bg-green-600' :
@@ -2365,7 +2649,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                    'مسودة'}
                 </div>
               </div>
-              <p className="text-xs text-gray-500">
+              <p className="text-[11px] text-gray-500 leading-4">
                 {new Date(currentInvoice.created_at).toLocaleString('ar-DZ')}
               </p>
             </div>
@@ -2525,6 +2809,16 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                   <span>المجموع:</span>
                   <span>{currentInvoice.total_amount.toFixed(2)} MAD</span>
                 </div>
+                <div className="flex justify-between text-sm font-semibold text-gray-700">
+                  <span>المبلغ المدفوع:</span>
+                  <span>{(paidAmount ?? 0).toFixed(2)} MAD</span>
+                </div>
+                <div className="flex justify-between text-sm font-semibold text-gray-700">
+                  <span>الباقي:</span>
+                  <span className={currentInvoice.remaining_amount > 0 ? 'text-red-600' : 'text-green-600'}>
+                    {currentInvoice.remaining_amount.toFixed(2)} MAD
+                  </span>
+                </div>
               </div>
 
               {/* ZONE PAIEMENT */}
@@ -2558,7 +2852,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
             </div>
 
             {/* BOUTONS ACTIONS */}
-            <div className="mt-4 space-y-2">
+            <div className="mt-4 space-y-2 sticky bottom-0 bg-white pt-2">
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => {
@@ -2615,6 +2909,8 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                           due_date: new Date().toISOString(),
                           items: currentInvoice.lines?.filter(line => !line.deleted).map(line => ({
                             product_id: line.product_id,
+                            primary_variant_id: (line as any).primary_variant_id,
+                            unit_type: (line as any).unit_type || 'unit',
                             product_name: line.product_name_ar,
                             quantity: line.quantity,
                             unit_price: line.unit_price,
@@ -2692,13 +2988,15 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
               {clients.map(client => (
                 <button
                   key={client.id}
-                  onClick={() => {
-                    setSelectedClient(client)
-                    setShowClientModal(false)
-                  }}
+                  onClick={() => handleSelectClient(client)}
                   className="w-full text-right p-3 hover:bg-green-100 rounded-lg transition-colors text-gray-800 font-medium border-2 border-gray-200"
                 >
-                  {client.company_name_ar || client.company_name_en || client.name_ar || client.name || 'عميل بدون اسم'}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex-1 truncate">{client.company_name_ar || client.company_name_en || client.name_ar || client.name || 'عميل بدون اسم'}</span>
+                    {client.subscription_tier && (
+                      <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700 border">{getCategoryLabelArabic(client.subscription_tier)}</span>
+                    )}
+                  </div>
                 </button>
               ))}
             </div>
@@ -2708,16 +3006,16 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
 
       {/* Modal d'édition ligne facture */}
       {showEditInvoiceLineModal && editingInvoiceLine && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => handleEditInvoiceLineCancel()}>
-          <div className="bg-white rounded-2xl shadow-2xl w-[450px] max-w-[95vw]" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => handleEditInvoiceLineCancel()}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[95vw] sm:w-[450px] max-h-[95vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200">
               <h3 className="text-xl font-bold text-gray-800">{editingInvoiceLine.product_name_ar}</h3>
               <button onClick={handleEditInvoiceLineCancel} className="text-gray-500 hover:text-gray-700 transition-colors">
                 <X size={24} />
               </button>
             </div>
 
-            <div className="p-6">
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1">
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">الكمية</label>
@@ -2758,21 +3056,78 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                   </button>
                 </div>
 
-                <div className="flex gap-3 pt-4">
-                  <button
-                    onClick={handleEditInvoiceLineConfirm}
-                    className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-xl font-bold transition-colors shadow-lg"
-                  >
-                    تأكيد
-                  </button>
-                  <button
-                    onClick={handleEditInvoiceLineCancel}
-                    className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-3 px-4 rounded-xl font-bold transition-colors"
-                  >
-                    إلغاء
-                  </button>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">نوع البيع</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(() => {
+                      const pid = (editingInvoiceLine as any).primary_variant_id
+                      const types = Array.from(
+                        new Set((packagingVariantsByPrimaryId[pid] || []).map(v => v.unit_type))
+                      )
+                      const available = (types.length ? types : ['unit']).includes('unit') ? (types.length ? types : ['unit']) : ['unit', ...types]
+
+                      return available.map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => {
+                            setEditLineUnitType(t)
+                            const base = products.find(p => p.primary_variant_id === pid)
+                            if (base) {
+                              const pricing = getPricingForPrimaryAndUnitType(pid, t)
+                              const nextPrice = getProductPriceWithTierOverride({ ...base, ...pricing } as any, editLinePricingTier)
+                              setEditLinePrice(Number(nextPrice || 0).toFixed(2))
+                            }
+                          }}
+                          className={`${editLineUnitType === t ? 'bg-green-600 text-white border-green-600' : 'bg-gray-50 text-gray-800 border-gray-200 hover:border-green-500'} border-2 rounded-xl py-3 font-bold transition-colors`}
+                        >
+                          {t === 'unit' ? 'وحدة' : t === 'carton' ? 'كرتون' : t === 'kilo' ? 'كيلو' : t}
+                        </button>
+                      ))
+                    })()}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">نوع الزبون</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['auto', 'A', 'B', 'C', 'D', 'E'] as const).map((tier) => (
+                      <button
+                        key={tier}
+                        type="button"
+                        onClick={() => {
+                          setEditLinePricingTier(tier)
+                          const pid = (editingInvoiceLine as any).primary_variant_id
+                          const base = products.find(p => p.primary_variant_id === pid)
+                          if (base) {
+                            const pricing = getPricingForPrimaryAndUnitType(pid, editLineUnitType)
+                            const nextPrice = getProductPriceWithTierOverride({ ...base, ...pricing } as any, tier)
+                            setEditLinePrice(Number(nextPrice || 0).toFixed(2))
+                          }
+                        }}
+                        className={`${editLinePricingTier === tier ? 'bg-green-600 text-white border-green-600' : 'bg-gray-50 text-gray-800 border-gray-200 hover:border-green-500'} border-2 rounded-xl py-3 font-bold transition-colors`}
+                      >
+                        {tier === 'auto' ? 'تلقائي' : getCategoryLabelArabic(tier)}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
+            </div>
+
+            <div className="p-4 sm:p-6 border-t border-gray-200 bg-white flex gap-3">
+              <button
+                onClick={handleEditInvoiceLineConfirm}
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-xl font-bold transition-colors shadow-lg"
+              >
+                تأكيد
+              </button>
+              <button
+                onClick={handleEditInvoiceLineCancel}
+                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-3 px-4 rounded-xl font-bold transition-colors"
+              >
+                إلغاء
+              </button>
             </div>
           </div>
         </div>
@@ -2781,7 +3136,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       {/* Modal Ajout Client */}
       {showAddClientModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setShowAddClientModal(false)}>
-          <div className="bg-white rounded-xl shadow-2xl p-4 sm:p-6 lg:p-8 max-w-md sm:max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-2xl p-4 sm:p-6 lg:p-8 max-w-md sm:max-w-lg w-full max-h-[95vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4 sm:mb-6">
               <h2 className="text-xl sm:text-2xl font-bold text-gray-800">
                 إضافة عميل جديد
@@ -2916,11 +3271,11 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                   onChange={(e) => setClientFormData({ ...clientFormData, subscription_tier: e.target.value })}
                   className="w-full px-3 sm:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 outline-none text-sm sm:text-base"
                 >
-                  <option value="A">فئة A</option>
-                  <option value="B">فئة B</option>
-                  <option value="C">فئة C</option>
-                  <option value="D">فئة D</option>
-                  <option value="E">فئة E</option>
+                  <option value="A">{getCategoryLabelArabic('A')}</option>
+                  <option value="B">{getCategoryLabelArabic('B')}</option>
+                  <option value="C">{getCategoryLabelArabic('C')}</option>
+                  <option value="D">{getCategoryLabelArabic('D')}</option>
+                  <option value="E">{getCategoryLabelArabic('E')}</option>
                 </select>
               </div>
               
