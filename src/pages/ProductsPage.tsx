@@ -1932,7 +1932,7 @@ export default function ProductsPage() {
                               ) : (
                                 <div className="space-y-2">
                                   {packaging.map((v, vi) => (
-                                    <div key={v.id || vi} className="grid grid-cols-2 md:grid-cols-6 gap-2 text-sm bg-gray-50 border border-gray-200 rounded p-2">
+                                    <div key={v.id || vi} className="grid grid-cols-2 md:grid-cols-7 gap-2 text-sm bg-gray-50 border border-gray-200 rounded p-2">
                                       <div className="col-span-2 md:col-span-2">
                                         <div className="text-xs text-gray-500">الاسم</div>
                                         <div className="font-semibold text-gray-800">{v.variant_name}</div>
@@ -1944,6 +1944,10 @@ export default function ProductsPage() {
                                       <div>
                                         <div className="text-xs text-gray-500">المحتوى</div>
                                         <div className="text-gray-800">{v.quantity_contained}</div>
+                                      </div>
+                                      <div>
+                                        <div className="text-xs text-gray-500">سعر الشراء</div>
+                                        <div className="text-gray-800">{Number(v.purchase_price ?? 0).toFixed(2)}</div>
                                       </div>
                                       <div>
                                         <div className="text-xs text-gray-500">الباركود</div>
