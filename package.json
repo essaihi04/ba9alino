@@ -1,6 +1,6 @@
 {
   "name": "ba9alino-admin",
-  "version": "7.1.0",
+  "version": "7.2.0",
   "description": "Ba9alino - Modern Admin Dashboard",
   "type": "module",
   "main": "electron/main.cjs",
