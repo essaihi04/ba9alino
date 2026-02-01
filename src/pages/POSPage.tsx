@@ -265,10 +265,20 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
   const [closingNoteInput, setClosingNoteInput] = useState('')
 
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const invoicePanelRef = useRef<HTMLDivElement>(null)
 
   const focusSearchInput = () => {
     requestAnimationFrame(() => {
       searchInputRef.current?.focus()
+    })
+  }
+
+  const focusInvoicePanel = () => {
+    requestAnimationFrame(() => {
+      if (invoicePanelRef.current) {
+        invoicePanelRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        invoicePanelRef.current.focus()
+      }
     })
   }
 
@@ -799,7 +809,11 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       const productsById = new Map<string, any>()
       ;(products || []).forEach(p => productsById.set(p.id, p))
 
-      const enrichedProducts: Product[] = (primaryVariants || []).map((pv: any) => {
+      const dedupedPrimaryVariants = Array.from(
+        new Map((primaryVariants || []).map((pv: any) => [String(pv.id), pv])).values()
+      )
+
+      const enrichedProducts: Product[] = dedupedPrimaryVariants.map((pv: any) => {
         const base = productsById.get(pv.product_id)
         const suffix = pv.variant_name && pv.variant_name !== 'افتراضي' ? ` - ${pv.variant_name}` : ''
         const name = `${base?.name_ar || ''}${suffix}`
@@ -829,10 +843,32 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
 
   const loadCategories = async () => {
     try {
-      const { data, error } = await supabase
+      let data: any[] | null = null
+      let error: any = null
+
+      const attempt = await supabase
         .from('product_categories')
         .select('id, name_ar')
+        .eq('is_active', true)
         .order('name_ar')
+
+      data = attempt.data as any[]
+      error = attempt.error
+
+      if (error) {
+        const msg = String((error as any)?.message || '')
+        const code = String((error as any)?.code || '')
+        const missingIsActive = code === '42703' || msg.toLowerCase().includes('is_active')
+        if (!missingIsActive) throw error
+
+        const fallback = await supabase
+          .from('product_categories')
+          .select('id, name_ar')
+          .order('name_ar')
+
+        data = fallback.data as any[]
+        error = fallback.error
+      }
 
       if (error) throw error
       setCategories((data || []) as Category[])
@@ -1175,15 +1211,11 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     const vs = packagingVariantsByPrimaryId[primaryVariantId] || []
     const match = vs.find(v => v.unit_type === unitType)
     if (match) {
-      const hasAny = [match.price_a, match.price_b, match.price_c, match.price_d, match.price_e].some(x => Number(x || 0) > 0)
+      const hasAny = [match.price_a, match.price_b, match.price_c, match.price_d, match.price_e].some(
+        x => Number(x || 0) > 0
+      )
       if (hasAny) {
-        return {
-          price_a: match.price_a,
-          price_b: match.price_b,
-          price_c: match.price_c,
-          price_d: match.price_d,
-          price_e: match.price_e,
-        }
+        return match
       }
     }
 
@@ -1195,6 +1227,15 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       price_d: base?.price_d || 0,
       price_e: base?.price_e || 0,
     }
+  }
+
+  const getAvailableUnitTypes = (primaryVariantId: string) => {
+    const types = Array.from(
+      new Set((packagingVariantsByPrimaryId[primaryVariantId] || []).map(v => v.unit_type))
+    )
+    return (types.length ? types : ['unit']).includes('unit')
+      ? (types.length ? types : ['unit'])
+      : ['unit', ...types]
   }
 
   const getProductPriceForTier = (item: Product | CartItem, tier: 'A' | 'B' | 'C' | 'D' | 'E') => {
@@ -2523,6 +2564,11 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                   e.preventDefault()
                   handleBarcodeSearch()
                 }
+                if (e.key === 'Escape') {
+                  e.preventDefault()
+                  setSearchQuery('')
+                  focusInvoicePanel()
+                }
               }}
               ref={searchInputRef}
             />
@@ -2538,11 +2584,11 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         </div>
 
         {/* Catégories */}
-        <div className="mb-3">
+        <div className="mb-2 max-h-24 overflow-y-auto">
           <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setSelectedCategory(null)}
-              className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${
+              className={`px-2.5 py-1 rounded-lg text-xs whitespace-nowrap transition-colors ${
                 !selectedCategory
                   ? 'bg-green-600 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -2552,7 +2598,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
             </button>
             <button
               onClick={() => setSelectedCategory('no-category')}
-              className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${
+              className={`px-2.5 py-1 rounded-lg text-xs whitespace-nowrap transition-colors ${
                 selectedCategory === 'no-category'
                   ? 'bg-green-600 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -2564,7 +2610,8 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
               <button
                 key={category.id}
                 onClick={() => setSelectedCategory(category.id)}
-                className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${
+                title={category.name_ar}
+                className={`px-2.5 py-1 rounded-lg text-xs whitespace-nowrap transition-colors max-w-[120px] truncate ${
                   selectedCategory === category.id
                     ? 'bg-green-600 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -2582,43 +2629,65 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
             {filteredProducts.map((product) => {
               const stockColor = product.stock === 0 ? 'text-red-600' : product.stock < 10 ? 'text-orange-600' : 'text-green-600'
               const stockText = product.stock === 0 ? 'نفذ المخزون' : product.stock < 10 ? 'منخفض' : 'متوفر'
+              const unitTypes = getAvailableUnitTypes(product.primary_variant_id)
               return (
-                <button
+                <div
                   key={product.id}
-                  onClick={() => addToInvoice(product)}
                   className="p-3 rounded-xl border-2 bg-white border-gray-200 hover:border-green-500 hover:shadow-lg transition-all"
                 >
-                  {/* Image du produit */}
-                  <div className="w-full h-24 mb-2 flex items-center justify-center bg-gray-50 rounded-lg overflow-hidden">
-                    {product.image_url ? (
-                      <img
-                        src={product.image_url}
-                        alt={product.name_ar}
-                        className="w-full h-full object-cover rounded-lg"
-                        onError={(e) => {
-                          // Fallback si l'image ne charge pas
-                          e.currentTarget.style.display = 'none'
-                          e.currentTarget.parentElement?.classList.add('bg-gray-100')
-                        }}
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gray-100 rounded-lg">
-                        <ShoppingCart size={32} className="text-gray-400" />
-                      </div>
-                    )}
+                  <button
+                    type="button"
+                    onClick={() => addToInvoice(product)}
+                    className="w-full text-left"
+                  >
+                    {/* Image du produit */}
+                    <div className="w-full h-24 mb-2 flex items-center justify-center bg-gray-50 rounded-lg overflow-hidden">
+                      {product.image_url ? (
+                        <img
+                          src={product.image_url}
+                          alt={product.name_ar}
+                          className="w-full h-full object-cover rounded-lg"
+                          onError={(e) => {
+                            // Fallback si l'image ne charge pas
+                            e.currentTarget.style.display = 'none'
+                            e.currentTarget.parentElement?.classList.add('bg-gray-100')
+                          }}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gray-100 rounded-lg">
+                          <ShoppingCart size={32} className="text-gray-400" />
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Informations du produit */}
+                    <div className="text-sm font-bold text-gray-800 mb-1 line-clamp-2">
+                      {product.name_ar}
+                    </div>
+                    <div className="text-lg font-bold text-green-600">
+                      {getProductPrice(product).toFixed(2)} MAD
+                    </div>
+                    <div className={`text-xs font-bold mt-1 ${stockColor}`}>
+                      {stockText}
+                    </div>
+                  </button>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {unitTypes.map((t) => (
+                      <button
+                        key={`${product.id}-${product.primary_variant_id}-${t}`}
+                        type="button"
+                        onClick={() => addToInvoice(product, { unitType: t })}
+                        className={`px-2 py-1 rounded text-[10px] font-bold border ${
+                          t === 'unit'
+                            ? 'bg-green-50 text-green-700 border-green-200'
+                            : 'bg-gray-50 text-gray-700 border-gray-200'
+                        }`}
+                      >
+                        {t === 'unit' ? 'وحدة' : t === 'carton' ? 'كرتون' : t === 'kilo' ? 'كيلو' : t === 'litre' ? 'لتر' : t}
+                      </button>
+                    ))}
                   </div>
-                  
-                  {/* Informations du produit */}
-                  <div className="text-sm font-bold text-gray-800 mb-1 line-clamp-2">
-                    {product.name_ar}
-                  </div>
-                  <div className="text-lg font-bold text-green-600">
-                    {getProductPrice(product).toFixed(2)} MAD
-                  </div>
-                  <div className={`text-xs font-bold mt-1 ${stockColor}`}>
-                    {stockText}
-                  </div>
-                </button>
+                </div>
               )
             })}
           </div>
@@ -2626,7 +2695,11 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       </div>
 
       {/* 🧾 FACTURE EN COURS - Nouvelle Interface Professionnelle */}
-      <div className="w-96 bg-white rounded-xl shadow-lg p-4 flex flex-col overflow-auto">
+      <div
+        ref={invoicePanelRef}
+        tabIndex={-1}
+        className="w-96 bg-white rounded-xl shadow-lg p-4 flex flex-col overflow-auto"
+      >
         {/* EN-TÊTE FACTURE */}
         {currentInvoice ? (
           <>

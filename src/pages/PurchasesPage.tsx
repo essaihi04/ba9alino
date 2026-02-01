@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Search, Plus, Package, DollarSign, CheckCircle, Truck, AlertCircle, Trash2, X, ShoppingCart, CreditCard, Edit, PlusCircle, Eye } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useInputPad } from '../components/useInputPad'
@@ -40,11 +40,12 @@ interface ProductPrimaryVariant {
   id: string
   product_id: string
   variant_name: string
+  barcode?: string
   is_default?: boolean
   is_active?: boolean
 }
 
-type UnitType = 'kilo' | 'carton' | 'paquet' | 'sac'
+type UnitType = 'kilo' | 'litre' | 'carton' | 'paquet' | 'sac'
 
 interface PurchaseLineItem {
   product_id: string
@@ -100,8 +101,11 @@ export default function PurchasesPage() {
   const [showCreatePurchaseModal, setShowCreatePurchaseModal] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [purchaseItems, setPurchaseItems] = useState<PurchaseLineItem[]>([])
+  const [purchaseProductQuery, setPurchaseProductQuery] = useState('')
+  const [purchaseProductLookupLoading, setPurchaseProductLookupLoading] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingItem, setEditingItem] = useState<PurchaseLineItem | null>(null)
+  const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null)
   const [editPrimaryVariantId, setEditPrimaryVariantId] = useState<string>('')
   const [editForm, setEditForm] = useState({
     quantity: 1,
@@ -122,6 +126,7 @@ export default function PurchasesPage() {
   const [showEditPurchaseModal, setShowEditPurchaseModal] = useState(false)
   const [editingPurchase, setEditingPurchase] = useState<Purchase | null>(null)
   const [editPurchaseItems, setEditPurchaseItems] = useState<PurchaseLineItem[]>([])
+  const purchaseSearchInputRef = useRef<HTMLInputElement>(null)
   
   // Formulaire d'achat
   const [purchaseForm, setPurchaseForm] = useState({
@@ -147,6 +152,17 @@ export default function PurchasesPage() {
     loadWarehouses()
     loadSuppliers()
   }, [])
+
+  useEffect(() => {
+    if (!showCreatePurchaseModal) return
+    setTimeout(() => {
+      try {
+        purchaseSearchInputRef.current?.focus()
+      } catch {
+        // ignore
+      }
+    }, 50)
+  }, [showCreatePurchaseModal])
 
   const loadPurchases = async () => {
     setLoading(true)
@@ -218,7 +234,7 @@ export default function PurchasesPage() {
 
       const { data: primaryVariants, error: primaryError } = await supabase
         .from('product_primary_variants')
-        .select('id, product_id, variant_name, is_default, is_active')
+        .select('id, product_id, variant_name, barcode, is_default, is_active')
         .in('product_id', productIds)
 
       if (primaryError) {
@@ -242,10 +258,32 @@ export default function PurchasesPage() {
 
   const loadCategories = async () => {
     try {
-      const { data, error } = await supabase
+      let data: any[] | null = null
+      let error: any = null
+
+      const attempt = await supabase
         .from('product_categories')
         .select('*')
+        .eq('is_active', true)
         .order('name_ar')
+
+      data = attempt.data as any[]
+      error = attempt.error
+
+      if (error) {
+        const msg = String((error as any)?.message || '')
+        const code = String((error as any)?.code || '')
+        const missingIsActive = code === '42703' || msg.toLowerCase().includes('is_active')
+        if (!missingIsActive) throw error
+
+        const fallback = await supabase
+          .from('product_categories')
+          .select('*')
+          .order('name_ar')
+
+        data = fallback.data as any[]
+        error = fallback.error
+      }
 
       if (error) throw error
       setCategories((data || []) as Category[])
@@ -255,9 +293,25 @@ export default function PurchasesPage() {
   }
 
   // Filtrer les produits par catégorie sélectionnée
-  const filteredProducts = selectedCategory 
+  const filteredProducts = selectedCategory
     ? products.filter(p => p.category_id === selectedCategory)
     : products
+
+  const normalizedPurchaseQuery = purchaseProductQuery.trim().toLowerCase()
+  const filteredProductsForPurchase = normalizedPurchaseQuery
+    ? filteredProducts.filter(p => {
+        const hay = `${String(p.name_ar || '')} ${String(p.sku || '')}`.toLowerCase()
+        if (hay.includes(normalizedPurchaseQuery)) return true
+        const pvs = primaryVariantsByProductId[p.id] || []
+        return pvs.some(v => String(v.variant_name || '').toLowerCase().includes(normalizedPurchaseQuery))
+      })
+    : filteredProducts
+
+  const purchaseSelectableItems: Array<{ key: string; product: Product; primaryVariant?: ProductPrimaryVariant }> = filteredProductsForPurchase.flatMap((p) => {
+    const pvs = (primaryVariantsByProductId[p.id] || []).filter(v => v?.is_active !== false)
+    if (pvs.length === 0) return [{ key: p.id, product: p }]
+    return pvs.map((pv) => ({ key: `${p.id}:${pv.id}`, product: p, primaryVariant: pv }))
+  })
 
   // Ajouter un produit à la facture
   const calculateBaseQuantity = (form: { quantity: number; unit_type: UnitType; units_per_carton?: number | null; weight_per_unit?: number | null; packaging_mode?: 'none' | 'carton' | 'sachet' }) => {
@@ -274,38 +328,48 @@ export default function PurchasesPage() {
         return safeQuantity * weightPerUnit
       case 'sac':
         return safeQuantity * weightPerUnit
+      case 'litre':
       case 'kilo':
       default:
         return safeQuantity
     }
   }
 
-  const addProductToInvoice = (product: Product) => {
+  const buildPurchaseKey = (productId: string, primaryVariantId?: string | null) => `${productId}:${primaryVariantId || ''}`
+
+  const addProductToInvoice = (product: Product, primaryVariant?: ProductPrimaryVariant, preset?: Partial<PurchaseLineItem>) => {
     const pvs = primaryVariantsByProductId[product.id] || []
-    const defaultPv = pvs.find(v => v.is_default) || pvs[0]
-    const primaryVariantId = defaultPv?.id
+    const activePvs = pvs.filter(v => v?.is_active !== false)
+    const defaultPv = activePvs.find(v => v.is_default) || activePvs[0]
+    const pv = primaryVariant || defaultPv
+    const primaryVariantId = pv?.id
 
     const existingItem = purchaseItems.find(item =>
-      item.product_id === product.id && (item.primary_variant_id || '') === (primaryVariantId || '')
+      buildPurchaseKey(item.product_id, item.primary_variant_id) === buildPurchaseKey(product.id, primaryVariantId)
     )
     
     if (existingItem) {
       // Augmenter la quantité
+      const nextItem: PurchaseLineItem = {
+        ...existingItem,
+        quantity: existingItem.quantity + 1,
+        line_total: (existingItem.quantity + 1) * existingItem.unit_price,
+        base_quantity: calculateBaseQuantity({
+          quantity: existingItem.quantity + 1,
+          unit_type: existingItem.unit_type || 'kilo',
+          units_per_carton: existingItem.units_per_carton || 1,
+          weight_per_unit: existingItem.weight_per_unit || 1,
+          packaging_mode: existingItem.packaging_mode || 'none'
+        })
+      }
+
       setPurchaseItems(purchaseItems.map(item =>
-        item.product_id === product.id && (item.primary_variant_id || '') === (primaryVariantId || '')
-          ? {
-              ...item,
-              quantity: item.quantity + 1,
-              line_total: (item.quantity + 1) * item.unit_price,
-              base_quantity: calculateBaseQuantity({
-                quantity: item.quantity + 1,
-                unit_type: item.unit_type || 'kilo',
-                units_per_carton: item.units_per_carton || 1,
-                weight_per_unit: item.weight_per_unit || 1,
-              })
-            }
+        buildPurchaseKey(item.product_id, item.primary_variant_id) === buildPurchaseKey(product.id, primaryVariantId)
+          ? nextItem
           : item
       ))
+
+      openEditModal(nextItem)
     } else {
       // Ajouter un nouvel item
       const unitPrice = product.cost_price || product.price_a
@@ -316,36 +380,161 @@ export default function PurchasesPage() {
         weight_per_unit: null as number | null,
         packaging_mode: 'none' as 'none' | 'carton' | 'sachet'
       }
+      const nextItem: PurchaseLineItem = {
+        product_id: product.id,
+        primary_variant_id: primaryVariantId,
+        primary_variant_name: pv?.variant_name,
+        product_name_ar: product.name_ar,
+        product_sku: product.sku,
+        quantity: 1,
+        unit_price: unitPrice,
+        line_total: unitPrice,
+        unit_type: defaultForm.unit_type,
+        units_per_carton: defaultForm.units_per_carton,
+        weight_per_unit: defaultForm.weight_per_unit,
+        packaging_mode: defaultForm.packaging_mode,
+        base_quantity: calculateBaseQuantity(defaultForm),
+        ...(preset || {})
+      }
+
       setPurchaseItems([
         ...purchaseItems,
-        {
-          product_id: product.id,
-          primary_variant_id: primaryVariantId,
-          primary_variant_name: defaultPv?.variant_name,
-          product_name_ar: product.name_ar,
-          product_sku: product.sku,
-          quantity: 1,
-          unit_price: unitPrice,
-          line_total: unitPrice,
-          unit_type: defaultForm.unit_type,
-          units_per_carton: defaultForm.units_per_carton,
-          weight_per_unit: defaultForm.weight_per_unit,
-          packaging_mode: defaultForm.packaging_mode,
-          base_quantity: calculateBaseQuantity(defaultForm),
-        }
+        nextItem
       ])
+
+      openEditModal(nextItem)
     }
   }
 
   // Supprimer un produit de la facture
-  const removeProductFromInvoice = (productId: string) => {
-    setPurchaseItems(purchaseItems.filter(item => item.product_id !== productId))
+  const removeProductFromInvoice = (productId: string, primaryVariantId?: string) => {
+    const key = buildPurchaseKey(productId, primaryVariantId)
+    setPurchaseItems(purchaseItems.filter(item => buildPurchaseKey(item.product_id, item.primary_variant_id) !== key))
+  }
+
+  const isMissingColumnError = (err: any, column: string) => {
+    const msg = String(err?.message || '')
+    const hint = String(err?.hint || '')
+    const details = String(err?.details || '')
+    return msg.includes(column) || hint.includes(column) || details.includes(column)
+  }
+
+  const findProductById = async (productId: string): Promise<Product | null> => {
+    const local = products.find(p => p.id === productId)
+    if (local) return local
+    const { data, error } = await supabase
+      .from('products')
+      .select('id, name_ar, sku, stock, cost_price, price_a, category_id, image_url')
+      .eq('id', productId)
+      .maybeSingle()
+    if (error) return null
+    return (data as any) || null
+  }
+
+  const scanAddAndOpenEditor = async (raw: string) => {
+    const code = String(raw || '').trim()
+    if (!code) return
+    if (purchaseProductLookupLoading) return
+
+    setPurchaseProductLookupLoading(true)
+    try {
+      // 1) Primary variant barcode
+      {
+        const { data, error } = await supabase
+          .from('product_primary_variants')
+          .select('id, product_id, variant_name, barcode, is_default, is_active')
+          .eq('barcode', code)
+          .maybeSingle()
+        if (!error && data?.id && data?.product_id) {
+          const product = await findProductById(String(data.product_id))
+          if (product) {
+            addProductToInvoice(product, data as any)
+            setPurchaseProductQuery('')
+            return
+          }
+        }
+      }
+
+      // 2) Product sku/barcode
+      {
+        const baseSelect = 'id, name_ar, sku, stock, cost_price, price_a, category_id, image_url'
+        let prodRes = await supabase
+          .from('products')
+          .select(`${baseSelect}, barcode`)
+          .or(`sku.eq.${code},barcode.eq.${code}`)
+          .maybeSingle()
+        if (prodRes.error && isMissingColumnError(prodRes.error, 'barcode')) {
+          prodRes = await supabase
+            .from('products')
+            .select(baseSelect)
+            .eq('sku', code)
+            .maybeSingle()
+        }
+
+        if (!prodRes.error && prodRes.data?.id) {
+          addProductToInvoice(prodRes.data as any)
+          setPurchaseProductQuery('')
+          return
+        }
+      }
+
+      // 3) Packaging variant barcode (product_variants)
+      {
+        const vRes = await supabase
+          .from('product_variants')
+          .select('product_id, primary_variant_id, unit_type, quantity_contained')
+          .eq('barcode', code)
+          .maybeSingle()
+
+        if (vRes.error && isMissingColumnError(vRes.error, 'barcode')) {
+          // ignore if schema doesn't have barcode
+        } else if (!vRes.error && vRes.data?.product_id) {
+          const vData: any = vRes.data
+          const product = await findProductById(String(vData.product_id))
+          if (product) {
+            const primaryVariantId = vData.primary_variant_id ? String(vData.primary_variant_id) : undefined
+            const pv = primaryVariantId
+              ? (primaryVariantsByProductId[product.id] || []).find(p => p.id === primaryVariantId)
+              : undefined
+
+            const rawUnit = String(vData.unit_type || '')
+            const unitTypeHint: UnitType = rawUnit === 'carton'
+              ? 'carton'
+              : rawUnit === 'kilo'
+                ? 'kilo'
+                : rawUnit === 'litre'
+                  ? 'litre'
+                  : 'paquet'
+
+            const qtyContained = Number(vData.quantity_contained || 0)
+            const preset: Partial<PurchaseLineItem> = {
+              unit_type: unitTypeHint,
+              units_per_carton: unitTypeHint === 'carton' && qtyContained > 1 ? Math.round(qtyContained) : null,
+              weight_per_unit: unitTypeHint === 'paquet' && qtyContained > 0 ? qtyContained : null,
+              packaging_mode: unitTypeHint === 'kilo' || unitTypeHint === 'litre' ? 'none' : 'none'
+            }
+
+            addProductToInvoice(product, pv, preset)
+            setPurchaseProductQuery('')
+            return
+          }
+        }
+      }
+
+      alert('❌ لم يتم العثور على منتج بهذا الرمز')
+    } catch (e) {
+      console.error('Scan add failed:', e)
+      alert('❌ حدث خطأ أثناء البحث عن المنتج')
+    } finally {
+      setPurchaseProductLookupLoading(false)
+    }
   }
 
   
   // Ouvrir le popup d'édition
-  const openEditModal = (item: PurchaseLineItem) => {
+  const openEditModal = (item: PurchaseLineItem, index?: number) => {
     setEditingItem(item)
+    setEditingItemIndex(typeof index === 'number' ? index : null)
     const pvs = primaryVariantsByProductId[item.product_id] || []
     const defaultPv = pvs.find(v => v.is_default) || pvs[0]
     setEditPrimaryVariantId(String(item.primary_variant_id || defaultPv?.id || ''))
@@ -379,7 +568,7 @@ export default function PurchasesPage() {
       }
     }
 
-    if (editForm.unit_type === 'kilo' && editForm.packaging_mode === 'carton') {
+    if ((editForm.unit_type === 'kilo' || editForm.unit_type === 'litre') && editForm.packaging_mode === 'carton') {
       if (!editForm.units_per_carton || editForm.units_per_carton <= 0) {
         alert('يرجى إدخال عدد الوحدات في الكرتون')
         return
@@ -395,8 +584,13 @@ export default function PurchasesPage() {
       return
     }
 
-    const editingKey = `${editingItem.product_id}:${editingItem.primary_variant_id || ''}`
-    const nextKey = `${editingItem.product_id}:${editPrimaryVariantId || ''}`
+    const editingSourceItem = editingPurchase && editingItemIndex !== null
+      ? sourceItems[editingItemIndex]
+      : editingItem
+    const editingVariantToken = editingSourceItem.primary_variant_id || editingSourceItem.primary_variant_name || ''
+    const nextVariantToken = editPrimaryVariantId || editingSourceItem.primary_variant_name || ''
+    const editingKey = `${editingSourceItem.product_id}:${editingVariantToken}`
+    const nextKey = `${editingSourceItem.product_id}:${nextVariantToken}`
     const baseQuantity = calculateBaseQuantity(editForm)
 
     const nextItem: PurchaseLineItem = {
@@ -414,10 +608,41 @@ export default function PurchasesPage() {
     }
 
     if (editForm.quantity <= 0) {
-      targetUpdater(sourceItems.filter(item => `${item.product_id}:${item.primary_variant_id || ''}` !== editingKey))
+      if (editingPurchase && editingItemIndex !== null) {
+        targetUpdater(sourceItems.filter((_, idx) => idx !== editingItemIndex))
+      } else {
+        targetUpdater(sourceItems.filter(item => `${item.product_id}:${item.primary_variant_id || ''}` !== editingKey))
+      }
+    } else if (editingPurchase && editingItemIndex !== null) {
+      const collisionIndex = sourceItems.findIndex((item, idx) => {
+        const token = item.primary_variant_id || item.primary_variant_name || ''
+        return idx !== editingItemIndex && `${item.product_id}:${token}` === nextKey
+      })
+      if (collisionIndex >= 0) {
+        const merged = sourceItems
+          .filter((_, idx) => idx !== editingItemIndex)
+          .map((item, idx) => {
+            if (idx !== collisionIndex) return item
+            const mergedQty = (Number(item.quantity) || 0) + (Number(nextItem.quantity) || 0)
+            const mergedTotal = mergedQty * (Number(nextItem.unit_price) || 0)
+            return {
+              ...item,
+              ...nextItem,
+              quantity: mergedQty,
+              line_total: mergedTotal,
+              base_quantity: (Number(item.base_quantity) || 0) + (Number(nextItem.base_quantity) || 0),
+            }
+          })
+        targetUpdater(merged)
+      } else {
+        targetUpdater(sourceItems.map((item, idx) => idx === editingItemIndex ? nextItem : item))
+      }
     } else {
       // If primary variant changed and collides with another line, merge
-      const hasCollision = editingKey !== nextKey && sourceItems.some(item => `${item.product_id}:${item.primary_variant_id || ''}` === nextKey)
+      const hasCollision = editingKey !== nextKey && sourceItems.some(item => {
+        const token = item.primary_variant_id || item.primary_variant_name || ''
+        return `${item.product_id}:${token}` === nextKey
+      })
       if (hasCollision) {
         const merged = sourceItems
           .filter(item => `${item.product_id}:${item.primary_variant_id || ''}` !== editingKey)
@@ -443,6 +668,7 @@ export default function PurchasesPage() {
 
     setShowEditModal(false)
     setEditingItem(null)
+    setEditingItemIndex(null)
   }
 
   // Calculer les totaux
@@ -450,13 +676,6 @@ export default function PurchasesPage() {
   const taxRate = parseFloat(purchaseForm.tax_rate) || 0
   const taxAmount = subtotal * (taxRate / 100)
   const totalAmount = subtotal + taxAmount
-
-  const isMissingColumnError = (err: any, column: string) => {
-    const msg = String(err?.message || '')
-    const hint = String(err?.hint || '')
-    const details = String(err?.details || '')
-    return msg.includes(column) || hint.includes(column) || details.includes(column)
-  }
 
   const isGeneratedColumnError = (err: any, column: string) => {
     const msg = String(err?.message || '')
@@ -697,8 +916,8 @@ export default function PurchasesPage() {
 
       if (purchaseForm.payment_type === 'check') {
         purchasePayload.check_number = purchaseForm.check_number
-        purchasePayload.check_date = purchaseForm.check_date
-        purchasePayload.check_deposit_date = purchaseForm.check_deposit_date
+        purchasePayload.check_date = purchaseForm.check_date || null
+        purchasePayload.check_deposit_date = purchaseForm.check_deposit_date || null
       }
 
       if (purchaseForm.payment_type === 'transfer') {
@@ -706,7 +925,7 @@ export default function PurchasesPage() {
       }
 
       if (purchaseForm.payment_type === 'credit') {
-        purchasePayload.credit_due_date = purchaseForm.credit_due_date
+        purchasePayload.credit_due_date = purchaseForm.credit_due_date || null
       }
 
       const { error } = await supabase
@@ -759,7 +978,7 @@ export default function PurchasesPage() {
           }
 
           // 3) Mettre à jour/Créer la variante correspondant au unit_type
-          const baseQtyContained = unitType === 'kilo'
+          const baseQtyContained = (unitType === 'kilo' || unitType === 'litre')
             ? 1
             : (unitType === 'carton'
               ? (item.units_per_carton ?? 1)
@@ -794,11 +1013,11 @@ export default function PurchasesPage() {
             }
           }
 
-          const existingVariant = unitType === 'kilo'
-            ? (baseVariantsFinal || []).find((v: any) => !v.quantity_contained || Number(v.quantity_contained) <= 1 || v.variant_name === 'kilo')
+          const existingVariant = (unitType === 'kilo' || unitType === 'litre')
+            ? (baseVariantsFinal || []).find((v: any) => !v.quantity_contained || Number(v.quantity_contained) <= 1 || v.variant_name === unitType)
             : (baseVariantsFinal || [])[0]
 
-          const mainVariantStockDelta = (unitType === 'kilo')
+          const mainVariantStockDelta = (unitType === 'kilo' || unitType === 'litre')
             ? baseQuantity
             : (Number(item.quantity) || 0)
 
@@ -901,7 +1120,7 @@ export default function PurchasesPage() {
           }
 
           // 3ter) Achat بالكيلو لكن مع تغليف كرتون => إنشاء/تحديث متغير كرتون + وحدة مشتقة
-          if (unitType === 'kilo' && packagingMode === 'carton' && item.units_per_carton && item.weight_per_unit) {
+          if ((unitType === 'kilo' || unitType === 'litre') && packagingMode === 'carton' && item.units_per_carton && item.weight_per_unit) {
             const unitsPerCarton = Number(item.units_per_carton) || 1
             const weightPerUnit = Number(item.weight_per_unit) || 1
             const cartonWeight = unitsPerCarton * weightPerUnit
@@ -966,15 +1185,32 @@ export default function PurchasesPage() {
             }
 
             // derived kilo variant (named by weight) instead of unit
-            await deleteDerivedKiloVariants(item.product_id)
+            await deleteDerivedKiloVariants(item.product_id, primaryVariantId)
 
             const unitPieces = weightPerUnit > 0 ? (baseQuantity / weightPerUnit) : 0
-            const { data: unitVariant } = await supabase
-              .from('product_variants')
-              .select('*')
-              .eq('product_id', item.product_id)
-              .eq('unit_type', 'unit')
-              .maybeSingle()
+            let unitVariant: any = null
+            {
+              let q = supabase
+                .from('product_variants')
+                .select('*')
+                .eq('product_id', item.product_id)
+                .eq('unit_type', 'unit')
+              if (primaryVariantId) q = q.eq('primary_variant_id', primaryVariantId)
+              const res = await q.maybeSingle()
+              if (res.error && primaryVariantId && isMissingColumnError(res.error, 'primary_variant_id')) {
+                const res2 = await supabase
+                  .from('product_variants')
+                  .select('*')
+                  .eq('product_id', item.product_id)
+                  .eq('unit_type', 'unit')
+                  .maybeSingle()
+                if (res2.error) throw res2.error
+                unitVariant = res2.data
+              } else {
+                if (res.error) throw res.error
+                unitVariant = res.data
+              }
+            }
 
             if (unitVariant?.id) {
               await supabase
@@ -1106,7 +1342,7 @@ export default function PurchasesPage() {
 
       const fullPurchase = (data as Purchase) || purchase
       setEditingPurchase(fullPurchase)
-      setEditPurchaseItems(fullPurchase.items || [])
+      setEditPurchaseItems((fullPurchase.items || []).map(resolvePrimaryVariantForItem))
       setShowEditPurchaseModal(true)
     } catch (error) {
       console.error('Error loading purchase for edit:', error)
@@ -1126,6 +1362,7 @@ export default function PurchasesPage() {
       case 'paquet':
       case 'sac':
         return safeQuantity * weightPerUnit
+      case 'litre':
       case 'kilo':
       default:
         return safeQuantity
@@ -1143,25 +1380,44 @@ export default function PurchasesPage() {
     })
   }
 
+  const resolvePrimaryVariantForItem = (item: PurchaseLineItem) => {
+    const pvs = primaryVariantsByProductId[item.product_id] || []
+    const byId = pvs.find(v => String(v.id) === String(item.primary_variant_id || ''))
+    const byName = !byId && item.primary_variant_name
+      ? pvs.find(v => String(v.variant_name || '').trim() === String(item.primary_variant_name || '').trim())
+      : undefined
+    const defaultPv = pvs.find(v => v.is_default) || pvs[0]
+    const resolved = byId || byName || (!item.primary_variant_id && !item.primary_variant_name ? defaultPv : undefined)
+    return {
+      ...item,
+      primary_variant_id: resolved?.id ?? item.primary_variant_id,
+      primary_variant_name: item.primary_variant_name || resolved?.variant_name,
+    }
+  }
+
   const handleUpdatePurchase = async () => {
     if (!editingPurchase) return
 
     try {
+      const normalizedOldItems = (editingPurchase.items || []).map(resolvePrimaryVariantForItem)
+
       const updatedItems = editPurchaseItems.map(item => {
-        const pvs = primaryVariantsByProductId[item.product_id] || []
-        const defaultPv = pvs.find(v => v.is_default) || pvs[0]
-        const primaryVariantId = item.primary_variant_id || defaultPv?.id
-        return {
-          ...item,
-          primary_variant_id: primaryVariantId,
-          primary_variant_name: item.primary_variant_name || defaultPv?.variant_name,
-          quantity: Number(item.quantity) || 0,
-          unit_price: Number(item.unit_price) || 0,
+        const resolvedItem = resolvePrimaryVariantForItem(item)
+        const quantity = Number(item.quantity) || 0
+        const unitPrice = Number(item.unit_price) || 0
+        const normalizedItem: PurchaseLineItem = {
+          ...resolvedItem,
+          quantity,
+          unit_price: unitPrice,
           units_per_carton: item.units_per_carton ? Number(item.units_per_carton) : null,
           weight_per_unit: item.weight_per_unit ? Number(item.weight_per_unit) : null,
           packaging_mode: item.packaging_mode || 'none',
-          line_total: (Number(item.quantity) || 0) * (Number(item.unit_price) || 0),
-          base_quantity: calculateBaseQuantityFromLine(item),
+          line_total: quantity * unitPrice,
+        }
+
+        return {
+          ...normalizedItem,
+          base_quantity: calculateBaseQuantityFromLine(normalizedItem),
         }
       })
 
@@ -1176,7 +1432,7 @@ export default function PurchasesPage() {
       // Ajuster stocks pour chaque produit selon delta
       for (const newItem of updatedItems) {
         if (!newItem.product_id) continue
-        const oldItem = editingPurchase.items?.find(i =>
+        const oldItem = normalizedOldItems.find(i =>
           i.product_id === newItem.product_id && (i.primary_variant_id || '') === (newItem.primary_variant_id || '')
         )
         const oldBaseQty = oldItem ? Number(oldItem.base_quantity ?? calculateBaseQuantityFromLine(oldItem)) || 0 : 0
@@ -1186,7 +1442,7 @@ export default function PurchasesPage() {
         const unitType = newItem.unit_type || 'kilo'
         const packagingMode = newItem.packaging_mode || 'none'
         const primaryVariantId = newItem.primary_variant_id
-        const baseQtyContained = unitType === 'kilo'
+        const baseQtyContained = (unitType === 'kilo' || unitType === 'litre')
           ? 1
           : (unitType === 'carton'
             ? (newItem.units_per_carton ?? 1)
@@ -1255,13 +1511,13 @@ export default function PurchasesPage() {
           }
         }
 
-        const existingVariant = unitType === 'kilo'
-          ? (existingVariants || []).find(v => !v.quantity_contained || Number(v.quantity_contained) <= 1 || v.variant_name === 'kilo')
+        const existingVariant = (unitType === 'kilo' || unitType === 'litre')
+          ? (existingVariants || []).find(v => !v.quantity_contained || Number(v.quantity_contained) <= 1 || v.variant_name === unitType)
           : (existingVariants || [])[0]
 
-        const newMainQty = (unitType === 'kilo') ? newBaseQty : (Number(newItem.quantity) || 0)
+        const newMainQty = (unitType === 'kilo' || unitType === 'litre') ? newBaseQty : (Number(newItem.quantity) || 0)
         const oldMainQtySameType = oldItem && (oldItem.unit_type || 'kilo') === unitType
-          ? ((unitType === 'kilo') ? oldBaseQty : (Number(oldItem.quantity) || 0))
+          ? (((unitType === 'kilo' || unitType === 'litre') ? oldBaseQty : (Number(oldItem.quantity) || 0)))
           : 0
 
         if (existingVariant?.id) {
@@ -1320,15 +1576,15 @@ export default function PurchasesPage() {
             }
           }
 
-          const oldVariant = oldUnitType === 'kilo'
-            ? (oldVariants || []).find(v => !v.quantity_contained || Number(v.quantity_contained) <= 1 || v.variant_name === 'kilo')
+          const oldVariant = (oldUnitType === 'kilo' || oldUnitType === 'litre')
+            ? (oldVariants || []).find(v => !v.quantity_contained || Number(v.quantity_contained) <= 1 || v.variant_name === oldUnitType)
             : (oldVariants || [])[0]
 
-          const oldMainQty = (oldUnitType === 'kilo') ? oldBaseQty : (Number(oldItem.quantity) || 0)
+          const oldMainQty = (oldUnitType === 'kilo' || oldUnitType === 'litre') ? oldBaseQty : (Number(oldItem.quantity) || 0)
           if (oldVariant?.id && oldMainQty > 0) {
             const nextOldStock = Math.max(0, (oldVariant.stock || 0) - oldMainQty)
             const oldQtyContained = oldVariant.quantity_contained ? Number(oldVariant.quantity_contained) : 1
-            const isBaseKilo = oldUnitType === 'kilo' && (!oldVariant.quantity_contained || oldQtyContained <= 1)
+            const isBaseKilo = (oldUnitType === 'kilo' || oldUnitType === 'litre') && (!oldVariant.quantity_contained || oldQtyContained <= 1)
 
             if (nextOldStock === 0 && isBaseKilo) {
               await supabase
@@ -1390,10 +1646,10 @@ export default function PurchasesPage() {
           await deleteDerivedKiloVariants(newItem.product_id, primaryVariantId)
         }
 
-        // Variante كرتون/وحدة مشتقة عند شراء كيلو مع تغليف كرتون
+        // Variante كرتون/وحدة مشتقة عند شراء كيلو/لتر مع تغليف كرتون
         if (
-          (unitType === 'kilo' && packagingMode === 'carton' && newItem.units_per_carton && newItem.weight_per_unit) ||
-          (oldItem?.unit_type === 'kilo' && (oldItem.packaging_mode || 'none') === 'carton' && oldItem.units_per_carton && oldItem.weight_per_unit)
+          ((unitType === 'kilo' || unitType === 'litre') && packagingMode === 'carton' && newItem.units_per_carton && newItem.weight_per_unit) ||
+          ((oldItem?.unit_type === 'kilo' || oldItem?.unit_type === 'litre') && (oldItem.packaging_mode || 'none') === 'carton' && oldItem.units_per_carton && oldItem.weight_per_unit)
         ) {
           const unitsPerCarton = Number(newItem.units_per_carton) || 1
           const weightPerUnit = Number(newItem.weight_per_unit) || 1
@@ -1402,10 +1658,10 @@ export default function PurchasesPage() {
           const oldUnitsPerCarton = oldItem?.units_per_carton ? Number(oldItem.units_per_carton) : unitsPerCarton
           const oldWeightPerUnit = oldItem?.weight_per_unit ? Number(oldItem.weight_per_unit) : weightPerUnit
           const oldCartonWeight = oldUnitsPerCarton * oldWeightPerUnit
-          const newCartonCount = (unitType === 'kilo' && packagingMode === 'carton' && cartonWeight > 0)
+          const newCartonCount = ((unitType === 'kilo' || unitType === 'litre') && packagingMode === 'carton' && cartonWeight > 0)
             ? (newBaseQty / cartonWeight)
             : 0
-          const oldCartonCount = (oldItem?.unit_type === 'kilo' && oldPackagingMode === 'carton' && oldCartonWeight > 0)
+          const oldCartonCount = ((oldItem?.unit_type === 'kilo' || oldItem?.unit_type === 'litre') && oldPackagingMode === 'carton' && oldCartonWeight > 0)
             ? (oldBaseQty / oldCartonWeight)
             : 0
           const cartonDelta = newCartonCount - oldCartonCount
@@ -1959,6 +2215,7 @@ export default function PurchasesPage() {
                         <tr>
                           <th className="px-4 py-3 text-right text-sm font-bold text-gray-700">المنتج</th>
                           <th className="px-4 py-3 text-center text-sm font-bold text-gray-700">الكمية</th>
+                          <th className="px-4 py-3 text-center text-sm font-bold text-gray-700">كمية الوحدة</th>
                           <th className="px-4 py-3 text-right text-sm font-bold text-gray-700">سعر الوحدة</th>
                           <th className="px-4 py-3 text-right text-sm font-bold text-gray-700">المجموع</th>
                           <th className="px-4 py-3 text-center text-sm font-bold text-gray-700">إجراء</th>
@@ -1967,13 +2224,13 @@ export default function PurchasesPage() {
                       <tbody>
                         {purchaseItems.length === 0 ? (
                           <tr>
-                            <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                            <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
                               لم يتم إضافة منتجات بعد
                             </td>
                           </tr>
                         ) : (
                           purchaseItems.map((item) => (
-                            <tr key={item.product_id} className="border-t hover:bg-gray-100">
+                            <tr key={`${item.product_id}:${item.primary_variant_id || ''}`} className="border-t hover:bg-gray-100">
                               <td className="px-4 py-3">
                                 <button
                                   onClick={() => openEditModal(item)}
@@ -1981,16 +2238,24 @@ export default function PurchasesPage() {
                                 >
                                   <p className="font-bold text-gray-800">{item.product_name_ar}</p>
                                   <p className="text-xs text-gray-600">SKU: {item.product_sku}</p>
+                                  {item.primary_variant_name ? (
+                                    <p className="text-[11px] text-gray-500">{item.primary_variant_name}</p>
+                                  ) : null}
                                 </button>
                               </td>
                               <td className="px-4 py-3 text-center">
                                 <span className="font-bold text-gray-800">{item.quantity}</span>
                               </td>
+                              <td className="px-4 py-3 text-center">
+                                <span className="font-bold text-gray-800">
+                                  {(Number(item.base_quantity ?? calculateBaseQuantityFromLine(item)) || 0).toFixed(2)}
+                                </span>
+                              </td>
                               <td className="px-4 py-3 text-right font-medium">{item.unit_price.toFixed(2)} MAD</td>
                               <td className="px-4 py-3 text-right font-bold text-green-600">{item.line_total.toFixed(2)} MAD</td>
                               <td className="px-4 py-3 text-center">
                                 <button
-                                  onClick={() => removeProductFromInvoice(item.product_id)}
+                                  onClick={() => removeProductFromInvoice(item.product_id, item.primary_variant_id)}
                                   className="text-red-600 hover:text-red-800"
                                 >
                                   <Trash2 size={16} />
@@ -2042,13 +2307,35 @@ export default function PurchasesPage() {
 
               {/* Colonne droite: Familles et produits */}
               <div className="col-span-5 bg-white rounded-xl shadow-lg p-6 flex flex-col">
+                <div className="mb-4">
+                  <div className="relative">
+                    <Search className="absolute right-3 top-3 text-gray-400" size={18} />
+                    <input
+                      ref={purchaseSearchInputRef}
+                      type="text"
+                      placeholder="بحث بالاسم أو SKU أو باركود..."
+                      className="w-full pr-9 pl-3 py-2 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none text-sm"
+                      value={purchaseProductQuery}
+                      onChange={(e) => setPurchaseProductQuery(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          scanAddAndOpenEditor(purchaseProductQuery)
+                        }
+                      }}
+                      disabled={purchaseProductLookupLoading}
+                    />
+                  </div>
+                </div>
+
                 {/* Sélection des familles */}
                 <div className="mb-4">
                   <h3 className="text-lg font-bold text-gray-800 mb-3">اختر العائلة</h3>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="max-h-24 overflow-y-auto">
+                    <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() => setSelectedCategory(null)}
-                      className={`px-3 py-1 rounded-lg transition-colors text-sm ${
+                      className={`px-2.5 py-1 rounded-lg transition-colors text-xs whitespace-nowrap ${
                         !selectedCategory
                           ? 'bg-green-600 text-white'
                           : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -2060,7 +2347,8 @@ export default function PurchasesPage() {
                       <button
                         key={category.id}
                         onClick={() => setSelectedCategory(category.id)}
-                        className={`px-3 py-1 rounded-lg transition-colors text-sm ${
+                        title={category.name_ar}
+                        className={`px-2.5 py-1 rounded-lg transition-colors text-xs whitespace-nowrap max-w-[120px] truncate ${
                           selectedCategory === category.id
                             ? 'bg-green-600 text-white'
                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -2069,6 +2357,7 @@ export default function PurchasesPage() {
                         {category.name_ar}
                       </button>
                     ))}
+                    </div>
                   </div>
                 </div>
 
@@ -2078,23 +2367,23 @@ export default function PurchasesPage() {
                     <h3 className="text-lg font-bold text-gray-800 mb-3">
                       {selectedCategory ? 'المنتجات' : 'جميع المنتجات'}
                     </h3>
-                    {filteredProducts.length === 0 ? (
+                    {purchaseSelectableItems.length === 0 ? (
                       <div className="text-center py-8 text-gray-500">
                         <Package size={48} className="mx-auto mb-4 opacity-50" />
                         <p>لا توجد منتجات في هذه الفئة</p>
                       </div>
                     ) : (
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                        {filteredProducts.map((product) => (
+                        {purchaseSelectableItems.map((item) => (
                           <button
-                            key={product.id}
-                            onClick={() => addProductToInvoice(product)}
+                            key={item.key}
+                            onClick={() => addProductToInvoice(item.product, item.primaryVariant)}
                             className="border-2 border-gray-200 rounded-lg p-3 hover:border-green-500 hover:bg-green-50 transition-all"
                           >
-                            {product.image_url ? (
+                            {item.product.image_url ? (
                               <img
-                                src={product.image_url}
-                                alt={product.name_ar}
+                                src={item.product.image_url}
+                                alt={item.product.name_ar}
                                 className="w-full h-16 object-cover rounded-lg mb-2"
                               />
                             ) : (
@@ -2102,10 +2391,14 @@ export default function PurchasesPage() {
                                 <Package size={20} className="text-gray-400" />
                               </div>
                             )}
-                            <p className="font-bold text-xs text-gray-800 mb-1 truncate">{product.name_ar}</p>
-                            <p className="text-xs text-gray-600 mb-1">SKU: {product.sku}</p>
-                            <p className="text-xs font-bold text-green-600">{(product.cost_price || product.price_a).toFixed(2)} MAD</p>
-                            <p className="text-xs text-gray-500 mt-1">المخزون: {product.stock}</p>
+                            <p className="font-bold text-xs text-gray-800 mb-1 truncate">{item.product.name_ar}</p>
+                            {item.primaryVariant ? (
+                              <p className="text-[11px] text-gray-600 mb-1 truncate">{item.primaryVariant.variant_name}</p>
+                            ) : (
+                              <p className="text-xs text-gray-600 mb-1">SKU: {item.product.sku}</p>
+                            )}
+                            <p className="text-xs font-bold text-green-600">{(item.product.cost_price || item.product.price_a).toFixed(2)} MAD</p>
+                            <p className="text-xs text-gray-500 mt-1">المخزون: {item.product.stock}</p>
                           </button>
                         ))}
                       </div>
@@ -2135,7 +2428,7 @@ export default function PurchasesPage() {
                         onChange={(e) => setEditPrimaryVariantId(e.target.value)}
                         className="w-full p-2 border rounded-lg bg-white"
                       >
-                        {(primaryVariantsByProductId[editingItem.product_id] || []).map((v) => (
+                        {(primaryVariantsByProductId[editingItem.product_id] || []).filter(v => v?.is_active !== false).map((v) => (
                           <option key={v.id} value={v.id}>
                             {v.variant_name}
                           </option>
@@ -2195,21 +2488,22 @@ export default function PurchasesPage() {
                           setEditForm(prev => ({
                             ...prev,
                             unit_type: newUnit,
-                            packaging_mode: newUnit === 'kilo' ? prev.packaging_mode : 'none'
+                            packaging_mode: (newUnit === 'kilo' || newUnit === 'litre') ? prev.packaging_mode : 'none'
                           }))
                         }}
                         className="w-full p-2 border rounded-lg bg-white"
                       >
                         <option value="kilo">كيلو</option>
+                        <option value="litre">لتر</option>
                         <option value="carton">كرتون</option>
                         <option value="paquet">باكيت</option>
                         <option value="sac">كيس</option>
                       </select>
                     </div>
 
-                    {editForm.unit_type === 'kilo' && (
+                    {(editForm.unit_type === 'kilo' || editForm.unit_type === 'litre') && (
                       <div>
-                        <label className="block text-xs font-bold text-gray-700 mb-1">خيارات التعبئة للكِيلو</label>
+                        <label className="block text-xs font-bold text-gray-700 mb-1">خيارات التعبئة</label>
                         <div className="grid grid-cols-2 gap-2 text-xs">
                           {[
                             { key: 'none', label: 'بدون' },
@@ -2229,7 +2523,7 @@ export default function PurchasesPage() {
                       </div>
                     )}
 
-                    {(editForm.unit_type === 'carton' || editForm.unit_type === 'kilo' && editForm.packaging_mode === 'carton') && (
+                    {(editForm.unit_type === 'carton' || ((editForm.unit_type === 'kilo' || editForm.unit_type === 'litre') && editForm.packaging_mode === 'carton')) && (
                       <div>
                         <div className="flex items-center justify-between mb-1">
                           <label className="block text-xs font-bold text-gray-700">عدد الوحدات في الكرتون (اختياري)</label>
@@ -2265,11 +2559,11 @@ export default function PurchasesPage() {
                       </div>
                     )}
 
-                    {(editForm.unit_type !== 'kilo' || editForm.packaging_mode !== 'none') && (
+                    {(editForm.unit_type !== 'kilo' && editForm.unit_type !== 'litre' || editForm.packaging_mode !== 'none') && (
                       <div>
                         <div className="flex items-center justify-between mb-1">
                           <label className="block text-xs font-bold text-gray-700">
-                            وزن الوحدة ({(editForm.unit_type === 'carton' || (editForm.unit_type === 'kilo' && editForm.packaging_mode === 'carton')) ? 'داخل الكرتون' : (editForm.unit_type === 'sac' || (editForm.unit_type === 'kilo' && editForm.packaging_mode === 'sachet')) ? 'الكيس' : 'الوحدة'}) - اختياري
+                            {(editForm.unit_type === 'litre' ? 'سعة/لتر لكل وحدة' : 'وزن الوحدة')} ({(editForm.unit_type === 'carton' || ((editForm.unit_type === 'kilo' || editForm.unit_type === 'litre') && editForm.packaging_mode === 'carton')) ? 'داخل الكرتون' : (editForm.unit_type === 'sac' || ((editForm.unit_type === 'kilo' || editForm.unit_type === 'litre') && editForm.packaging_mode === 'sachet')) ? 'الكيس' : 'الوحدة'}) - اختياري
                           </label>
                           {editForm.weight_per_unit !== null && (
                             <button
@@ -2285,7 +2579,7 @@ export default function PurchasesPage() {
                           type="button"
                           onClick={() =>
                             inputPad.open({
-                              title: 'وزن الوحدة (كغ)',
+                              title: editForm.unit_type === 'litre' ? 'سعة/لتر لكل وحدة' : 'وزن الوحدة (كغ)',
                               mode: 'decimal',
                               dir: 'ltr',
                               initialValue: editForm.weight_per_unit?.toString() || '',
@@ -2317,7 +2611,7 @@ export default function PurchasesPage() {
                       } | null = null
 
                       const hasPackagingQuantities = (editForm.units_per_carton ?? 0) > 0 && (editForm.weight_per_unit ?? 0) > 0
-                      if (editForm.unit_type === 'kilo' && editForm.packaging_mode !== 'none' && hasPackagingQuantities) {
+                      if ((editForm.unit_type === 'kilo' || editForm.unit_type === 'litre') && editForm.packaging_mode !== 'none' && hasPackagingQuantities) {
                         const kilosPerPackage = (editForm.units_per_carton || 0) * (editForm.weight_per_unit || 0)
                         if (kilosPerPackage > 0) {
                           const packagesCount = editForm.quantity / kilosPerPackage
@@ -2533,6 +2827,7 @@ export default function PurchasesPage() {
                           <tr>
                             <th className="px-4 py-2 text-right">المنتج</th>
                             <th className="px-4 py-2 text-center">الكمية</th>
+                            <th className="px-4 py-2 text-center">كمية الوحدة</th>
                             <th className="px-4 py-2 text-right">سعر الوحدة</th>
                             <th className="px-4 py-2 text-right">الإجمالي</th>
                           </tr>
@@ -2543,6 +2838,9 @@ export default function PurchasesPage() {
                               <td className="px-4 py-2">
                                 <p className="font-bold">{item.product_name_ar}</p>
                                 <p className="text-xs text-gray-500">SKU: {item.product_sku}</p>
+                                {item.primary_variant_name ? (
+                                  <p className="text-[11px] text-gray-500">{item.primary_variant_name}</p>
+                                ) : null}
                               </td>
                               <td className="px-4 py-2 text-center">
                                 <input
@@ -2553,6 +2851,11 @@ export default function PurchasesPage() {
                                   value={item.quantity}
                                   onChange={(e) => updateEditItem(index, 'quantity', parseFloat(e.target.value) || 0)}
                                 />
+                              </td>
+                              <td className="px-4 py-2 text-center">
+                                <span className="font-bold text-gray-800">
+                                  {(Number(item.base_quantity ?? calculateBaseQuantityFromLine(item)) || 0).toFixed(2)}
+                                </span>
                               </td>
                               <td className="px-4 py-2 text-right">
                                 <input
@@ -2720,6 +3023,7 @@ export default function PurchasesPage() {
                     <tr>
                       <th className="px-4 py-2 text-right">المنتج</th>
                       <th className="px-4 py-2 text-center">الكمية</th>
+                      <th className="px-4 py-2 text-center">كمية الوحدة</th>
                       <th className="px-4 py-2 text-right">سعر الوحدة</th>
                       <th className="px-4 py-2 text-right">الإجمالي</th>
                     </tr>
@@ -2731,24 +3035,19 @@ export default function PurchasesPage() {
                           <button
                             type="button"
                             className="text-left hover:text-blue-600"
-                            onClick={() => {
-                              setEditingItem(item)
-                              setEditForm({
-                                quantity: item.quantity,
-                                unit_price: item.unit_price,
-                                unit_type: item.unit_type || 'kilo',
-                                units_per_carton: item.units_per_carton ?? 1,
-                                weight_per_unit: item.weight_per_unit ?? 1,
-                                packaging_mode: item.packaging_mode || 'none',
-                              })
-                              setShowEditModal(true)
-                            }}
+                            onClick={() => openEditModal(item, index)}
                           >
                             <p className="font-bold">{item.product_name_ar}</p>
                             <p className="text-xs text-gray-500">SKU: {item.product_sku}</p>
+                            {item.primary_variant_name ? (
+                              <p className="text-[11px] text-gray-500">{item.primary_variant_name}</p>
+                            ) : null}
                           </button>
                         </td>
                         <td className="px-4 py-2 text-center">{item.quantity}</td>
+                        <td className="px-4 py-2 text-center">
+                          {(Number(item.base_quantity ?? calculateBaseQuantityFromLine(item)) || 0).toFixed(2)}
+                        </td>
                         <td className="px-4 py-2 text-right">{item.unit_price.toFixed(2)} MAD</td>
                         <td className="px-4 py-2 text-right font-bold">{item.line_total.toFixed(2)} MAD</td>
                       </tr>
@@ -2854,19 +3153,20 @@ export default function PurchasesPage() {
                     setEditForm(prev => ({
                       ...prev,
                       unit_type: newUnit,
-                      packaging_mode: newUnit === 'kilo' ? prev.packaging_mode : 'none'
+                      packaging_mode: (newUnit === 'kilo' || newUnit === 'litre') ? prev.packaging_mode : 'none'
                     }))
                   }}
                   className="w-full p-2 border rounded-lg bg-white"
                 >
                   <option value="kilo">كيلو</option>
+                  <option value="litre">لتر</option>
                   <option value="carton">كرتون</option>
                   <option value="paquet">باكيت</option>
                   <option value="sac">كيس</option>
                 </select>
               </div>
 
-              {editForm.unit_type === 'kilo' && (
+              {(editForm.unit_type === 'kilo' || editForm.unit_type === 'litre') && (
                 <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1">خيارات التعبئة للكِيلو</label>
                   <div className="grid grid-cols-2 gap-2 text-xs">
@@ -3017,7 +3317,7 @@ export default function PurchasesPage() {
                 const rawUnitsPerCarton = editForm.units_per_carton || 1
                 const rawPieceWeight = editForm.weight_per_unit || 1
                 const isCartonUnit = editForm.unit_type === 'carton'
-                const isKiloCarton = editForm.unit_type === 'kilo' && editForm.packaging_mode === 'carton'
+                const isKiloCarton = (editForm.unit_type === 'kilo' || editForm.unit_type === 'litre') && editForm.packaging_mode === 'carton'
                 const sachetUnits = (editForm.unit_type === 'paquet' || editForm.unit_type === 'sac') ? rawPieceWeight : null
 
                 // فقط عند الكرتون نستخدم قيم الكرتون، غير ذلك نعتبرها 1
@@ -3060,8 +3360,8 @@ export default function PurchasesPage() {
                       {totalPieces !== null && (
                         <div className="flex justify-between"><span className="text-gray-600">إجمالي القطع/الوحدات:</span><span className="font-bold">{totalPieces}</span></div>
                       )}
-                      {editForm.unit_type === 'kilo' && (
-                        <div className="flex justify-between"><span className="text-gray-600">سعر الكيلو:</span><span className="font-bold">{editForm.unit_price.toFixed(2)} MAD</span></div>
+                      {(editForm.unit_type === 'kilo' || editForm.unit_type === 'litre') && (
+                        <div className="flex justify-between"><span className="text-gray-600">{editForm.unit_type === 'litre' ? 'سعر اللتر:' : 'سعر الكيلو:'}</span><span className="font-bold">{editForm.unit_price.toFixed(2)} MAD</span></div>
                       )}
                       {cartonUnitsDisplay && cartonPrice !== null && (
                         <div className="flex justify-between"><span className="text-gray-600">سعر الكرتون:</span><span className="font-bold">{cartonPrice.toFixed(2)} MAD</span></div>
