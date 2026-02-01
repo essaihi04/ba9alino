@@ -73,6 +73,9 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set())
+  const [bulkTargetCategoryId, setBulkTargetCategoryId] = useState<string>('')
+  const [bulkLoading, setBulkLoading] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showStockModal, setShowStockModal] = useState(false)
   const [showAddModal, setShowAddModal] = useState(false)
@@ -170,7 +173,7 @@ export default function ProductsPage() {
       if (data && data.length > 0) {
         const { data: variants, error: variantsError } = await supabase
           .from('product_variants')
-          .select('product_id, unit_type, quantity_contained, stock')
+          .select('product_id, primary_variant_id, unit_type, quantity_contained, stock')
           .eq('is_active', true)
           .in('product_id', data.map(p => p.id))
 
@@ -188,18 +191,22 @@ export default function ProductsPage() {
 
         const enriched = (data || []).map(p => {
           const vs = byProduct.get(p.id) || []
-          const unitV = vs.find(v => v.unit_type === 'unit')
-          const cartonV = vs.find(v => v.unit_type === 'carton')
-          const unitsPerCarton = cartonV?.quantity_contained ? Number(cartonV.quantity_contained) : 0
+          const unitPieces = vs
+            .filter(v => v.unit_type === 'unit')
+            .reduce((sum: number, v: any) => sum + (Number(v.stock) || 0), 0)
 
-          const piecesFromUnit = unitV?.stock !== null && unitV?.stock !== undefined ? Number(unitV.stock) : null
-          const piecesFromCarton = cartonV?.stock !== null && cartonV?.stock !== undefined && unitsPerCarton > 0
-            ? Number(cartonV.stock) * unitsPerCarton
-            : null
+          const cartonPieces = vs
+            .filter(v => v.unit_type === 'carton')
+            .reduce((sum: number, v: any) => {
+              const unitsPerCarton = Number(v.quantity_contained) || 0
+              const cartons = Number(v.stock) || 0
+              if (unitsPerCarton <= 0 || cartons <= 0) return sum
+              return sum + (cartons * unitsPerCarton)
+            }, 0)
 
-          const displayPieces = (typeof piecesFromUnit === 'number' && Number.isFinite(piecesFromUnit))
-            ? piecesFromUnit
-            : (typeof piecesFromCarton === 'number' && Number.isFinite(piecesFromCarton) ? piecesFromCarton : (p.stock || 0))
+          const displayPieces = unitPieces > 0
+            ? unitPieces
+            : (cartonPieces > 0 ? cartonPieces : (p.stock || 0))
 
           return {
             ...p,
@@ -247,16 +254,35 @@ export default function ProductsPage() {
 
   const loadCategories = async () => {
     try {
-      const { data, error } = await supabase
+      let data: any[] | null = null
+      let error: any = null
+
+      const attempt = await supabase
         .from('product_categories')
         .select('*')
+        .eq('is_active', true)
         .order('name_ar')
 
+      data = attempt.data as any[]
+      error = attempt.error
+
+      if (error) {
+        const msg = String((error as any)?.message || '')
+        const code = String((error as any)?.code || '')
+        const missingIsActive = code === '42703' || msg.toLowerCase().includes('is_active')
+        if (!missingIsActive) throw error
+
+        const fallback = await supabase
+          .from('product_categories')
+          .select('*')
+          .order('name_ar')
+
+        data = fallback.data as any[]
+        error = fallback.error
+      }
+
       if (error) throw error
-      
-      console.log('العائلات récupérées:', data?.length, 'عائلات')
-      
-      setCategories(data || [])
+      setCategories((data || []) as Category[])
     } catch (error) {
       console.error('Error loading categories:', error)
     }
@@ -591,6 +617,109 @@ export default function ProductsPage() {
     return product.category_id === selectedCategory
   })
 
+  const allFilteredSelected = filteredProducts.length > 0 && filteredProducts.every((p) => selectedProductIds.has(p.id))
+
+  const toggleProductSelection = (id: string, nextChecked?: boolean) => {
+    setSelectedProductIds((prev) => {
+      const next = new Set(prev)
+      const shouldSelect = typeof nextChecked === 'boolean' ? nextChecked : !next.has(id)
+      if (shouldSelect) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }
+
+  const clearSelection = () => setSelectedProductIds(new Set())
+
+  const selectAllFiltered = () => {
+    setSelectedProductIds(new Set(filteredProducts.map((p) => p.id)))
+  }
+
+  const handleBulkMoveToFamily = async () => {
+    const ids = Array.from(selectedProductIds)
+    if (ids.length === 0) return
+
+    const target = bulkTargetCategoryId
+    if (!target) {
+      alert('⚠️ اختر عائلة أولاً')
+      return
+    }
+
+    const categoryId = target === 'no-family' ? null : target
+
+    setBulkLoading(true)
+    try {
+      const { error } = await supabase
+        .from('products')
+        .update({ category_id: categoryId })
+        .in('id', ids)
+
+      if (error) throw error
+      await loadProducts()
+      await loadCategories()
+      clearSelection()
+      setBulkTargetCategoryId('')
+      alert('✅ تم نقل المنتجات بنجاح')
+    } catch (e) {
+      console.error('Error bulk moving products:', e)
+      alert('❌ حدث خطأ أثناء نقل المنتجات')
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
+  const archiveProducts = async (ids: string[]) => {
+    if (ids.length === 0) return
+    const ok = confirm(`حذف/أرشفة ${ids.length} منتج؟`)
+    if (!ok) return
+
+    setBulkLoading(true)
+    try {
+      {
+        const { error } = await supabase
+          .from('products')
+          .update({ is_active: false } as any)
+          .in('id', ids)
+
+        if (error) throw error
+      }
+
+      {
+        const { error } = await supabase
+          .from('product_variants')
+          .update({ is_active: false, is_default: false } as any)
+          .in('product_id', ids)
+        if (error) throw error
+      }
+
+      {
+        const { error } = await supabase
+          .from('product_primary_variants')
+          .update({ is_active: false, is_default: false } as any)
+          .in('product_id', ids)
+        if (error) throw error
+      }
+
+      await loadProducts()
+      clearSelection()
+      alert('✅ تم حذف/أرشفة المنتجات')
+    } catch (e) {
+      console.error('Error archiving products:', e)
+      alert('❌ حدث خطأ أثناء حذف/أرشفة المنتجات')
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
+  const handleBulkArchive = async () => {
+    const ids = Array.from(selectedProductIds)
+    await archiveProducts(ids)
+  }
+
+  const handleArchiveOne = async (product: Product) => {
+    await archiveProducts([product.id])
+  }
+
   const getStockStatus = (stock: number) => {
     if (stock === 0) {
       return { text: 'نفذ المخزون', color: 'text-red-700 bg-red-100' }
@@ -763,16 +892,16 @@ export default function ProductsPage() {
       }
 
       // Handle variants: delete removed, update existing, insert new
-      // First, get current variants from DB to compare
-      if (!packagingManagedByPurchases) {
+      // Note: stock/purchase_price are managed by purchases, so in that mode we avoid overwriting them.
+      {
         const { data: existingVariants } = await supabase
           .from('product_variants')
           .select('id')
           .eq('product_id', selectedProduct.id)
-        
+
         const existingIds = (existingVariants || []).map(v => v.id)
         const currentIds = variants.filter(v => v.id).map(v => v.id)
-        
+
         // Delete variants that were removed
         const toDelete = existingIds.filter(id => !currentIds.includes(id))
         if (toDelete.length > 0) {
@@ -781,55 +910,67 @@ export default function ProductsPage() {
             .delete()
             .in('id', toDelete)
         }
-        
+
         // Update existing variants
         for (const variant of variants.filter(v => v.id)) {
+          const payload: any = {
+            variant_name: variant.variant_name,
+            unit_type: variant.unit_type,
+            quantity_contained: variant.quantity_contained,
+            barcode: variant.barcode,
+            primary_variant_id: variant.primary_variant_id || null,
+            price_a: variant.price_a,
+            price_b: variant.price_b,
+            price_c: variant.price_c,
+            price_d: variant.price_d,
+            price_e: variant.price_e,
+            alert_threshold: variant.alert_threshold,
+            is_active: variant.is_active,
+            is_default: variant.is_default,
+          }
+
+          if (!packagingManagedByPurchases) {
+            payload.purchase_price = variant.purchase_price
+            payload.stock = variant.stock
+          }
+
           await supabase
             .from('product_variants')
-            .update({
-              variant_name: variant.variant_name,
-              unit_type: variant.unit_type,
-              quantity_contained: variant.quantity_contained,
-              barcode: variant.barcode,
-              purchase_price: variant.purchase_price,
-              price_a: variant.price_a,
-              price_b: variant.price_b,
-              price_c: variant.price_c,
-              price_d: variant.price_d,
-              price_e: variant.price_e,
-              stock: variant.stock,
-              alert_threshold: variant.alert_threshold,
-              is_active: variant.is_active,
-              is_default: variant.is_default,
-            })
+            .update(payload)
             .eq('id', variant.id)
         }
-        
+
         // Insert new variants
         const newVariants = variants.filter(v => !v.id)
         if (newVariants.length > 0) {
-          const variantsToInsert = newVariants.map(v => ({
-            product_id: selectedProduct.id,
-            variant_name: v.variant_name,
-            unit_type: v.unit_type,
-            quantity_contained: v.quantity_contained,
-            barcode: v.barcode,
-            purchase_price: v.purchase_price || parsePrice(formData.cost_price), // Utiliser le prix d'achat du produit si non défini
-            price_a: v.price_a,
-            price_b: v.price_b,
-            price_c: v.price_c,
-            price_d: v.price_d,
-            price_e: v.price_e,
-            stock: v.stock,
-            alert_threshold: v.alert_threshold,
-            is_active: v.is_active,
-            is_default: v.is_default,
-          }))
-          
+          const variantsToInsert = newVariants.map(v => {
+            const payload: any = {
+              product_id: selectedProduct.id,
+              variant_name: v.variant_name,
+              unit_type: v.unit_type,
+              quantity_contained: v.quantity_contained,
+              barcode: v.barcode,
+              primary_variant_id: v.primary_variant_id || null,
+              price_a: v.price_a,
+              price_b: v.price_b,
+              price_c: v.price_c,
+              price_d: v.price_d,
+              price_e: v.price_e,
+              alert_threshold: v.alert_threshold,
+              is_active: v.is_active,
+              is_default: v.is_default,
+            }
+            if (!packagingManagedByPurchases) {
+              payload.purchase_price = v.purchase_price || parsePrice(formData.cost_price)
+              payload.stock = v.stock
+            }
+            return payload
+          })
+
           const { error: insertError } = await supabase
             .from('product_variants')
             .insert(variantsToInsert)
-          
+
           if (insertError) throw insertError
         }
       }
@@ -887,6 +1028,7 @@ export default function ProductsPage() {
     })
     setImagePreview(product.image_url || '')
     setShowEditProductModal(true)
+    let normalizedPrimary: ProductPrimaryVariant[] = []
 
     try {
       const { data: primaryData, error: primaryError } = await supabase
@@ -897,27 +1039,18 @@ export default function ProductsPage() {
         .order('is_default', { ascending: false })
 
       if (!primaryError && primaryData) {
-        const normalized = (primaryData as any[]).map(v => ({
+        normalizedPrimary = (primaryData as any[]).map(v => ({
           ...v,
           is_active: v.is_active !== false,
           is_default: Boolean(v.is_default),
         })) as ProductPrimaryVariant[]
-        if (normalized.length > 0 && !normalized.some(v => v.is_default)) {
-          const withDefault = [...normalized]
-          withDefault[0] = { ...withDefault[0], is_default: true }
-          setPrimaryVariants(withDefault)
-        } else {
-          setPrimaryVariants(normalized)
-        }
-      } else {
-        setPrimaryVariants([])
       }
     } catch (err) {
       console.error('Error loading primary variants:', err)
-      setPrimaryVariants([])
     }
     
     // Load variants for this product
+    let normalizedVariants: ProductVariant[] = []
     try {
       const { data: variantsData, error } = await supabase
         .from('product_variants')
@@ -933,7 +1066,7 @@ export default function ProductsPage() {
           return !(qc > 0 && qc < 1)
         })
 
-        const normalized = filtered.map(v => {
+        normalizedVariants = filtered.map(v => {
           if (v.unit_type === 'kilo' && v.quantity_contained && (!v.variant_name || v.variant_name === 'kilo')) {
             return {
               ...v,
@@ -942,21 +1075,68 @@ export default function ProductsPage() {
           }
           return v
         })
-
-        if (normalized.length > 0 && !normalized.some(v => v.is_default)) {
-          const withDefault = [...normalized]
-          withDefault[0] = { ...withDefault[0], is_default: true }
-          setVariants(withDefault)
-        } else {
-          setVariants(normalized)
-        }
-      } else {
-        setVariants([])
       }
     } catch (err) {
       console.error('Error loading variants:', err)
-      setVariants([])
     }
+
+    if (normalizedPrimary.length === 0 && normalizedVariants.length > 0) {
+      const defaultPrimary: ProductPrimaryVariant = {
+        variant_name: 'افتراضي',
+        barcode: String(product.sku || '').trim() || generateBarcode(),
+        price_a: product.price_a ?? 0,
+        price_b: product.price_b ?? 0,
+        price_c: product.price_c ?? 0,
+        price_d: product.price_d ?? 0,
+        price_e: product.price_e ?? 0,
+        is_active: true,
+        is_default: true,
+      }
+
+      const { data: createdPrimary, error: createError } = await supabase
+        .from('product_primary_variants')
+        .insert([{ ...defaultPrimary, product_id: product.id }])
+        .select()
+        .single()
+
+      if (!createError && createdPrimary) {
+        normalizedPrimary = [{
+          ...createdPrimary,
+          is_active: createdPrimary.is_active !== false,
+          is_default: Boolean(createdPrimary.is_default),
+        } as ProductPrimaryVariant]
+
+        const variantIdsToUpdate = normalizedVariants
+          .filter(v => !v.primary_variant_id && v.id)
+          .map(v => v.id as string)
+
+        if (variantIdsToUpdate.length > 0) {
+          await supabase
+            .from('product_variants')
+            .update({ primary_variant_id: createdPrimary.id })
+            .in('id', variantIdsToUpdate)
+
+          normalizedVariants = normalizedVariants.map(v =>
+            v.primary_variant_id ? v : { ...v, primary_variant_id: createdPrimary.id }
+          )
+        }
+      }
+    }
+
+    if (normalizedPrimary.length > 0 && !normalizedPrimary.some(v => v.is_default)) {
+      const withDefault = [...normalizedPrimary]
+      withDefault[0] = { ...withDefault[0], is_default: true }
+      normalizedPrimary = withDefault
+    }
+
+    if (normalizedVariants.length > 0 && !normalizedVariants.some(v => v.is_default)) {
+      const withDefault = [...normalizedVariants]
+      withDefault[0] = { ...withDefault[0], is_default: true }
+      normalizedVariants = withDefault
+    }
+
+    setPrimaryVariants(normalizedPrimary)
+    setVariants(normalizedVariants)
   }
 
   const generateBarcode = () => {
@@ -1314,13 +1494,13 @@ export default function ProductsPage() {
   return (
     <div className="space-y-6" dir="rtl">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-          <Package size={32} />
+        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+          <Package size={24} />
           إدارة المنتجات
         </h1>
         <div className="flex gap-2">
-          <label className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 flex items-center gap-2 cursor-pointer">
-            <Upload size={20} />
+          <label className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 flex items-center gap-2 cursor-pointer">
+            <Upload size={16} />
             استيراد Excel
             <input
               type="file"
@@ -1331,9 +1511,9 @@ export default function ProductsPage() {
           </label>
           <button
             onClick={openAddModal}
-            className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 flex items-center gap-2"
+            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 flex items-center gap-2"
           >
-            <Plus size={20} />
+            <Plus size={16} />
             منتج جديد
           </button>
         </div>
@@ -1341,51 +1521,51 @@ export default function ProductsPage() {
 
       {/* Statistiques rapides */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-xl p-6 shadow-lg">
+        <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-xl p-4 shadow-lg">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-purple-100 text-sm mb-1">إجمالي المنتجات</p>
-              <p className="text-2xl font-bold">{products.length}</p>
+              <p className="text-xl font-bold">{products.length}</p>
             </div>
-            <Package size={32} className="text-purple-200" />
+            <Package size={24} className="text-purple-200" />
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-red-500 to-red-600 text-white rounded-xl p-6 shadow-lg">
+        <div className="bg-gradient-to-br from-red-500 to-red-600 text-white rounded-xl p-4 shadow-lg">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-red-100 text-sm mb-1">نفذ المخزون</p>
-              <p className="text-2xl font-bold">{outOfStockCount}</p>
+              <p className="text-xl font-bold">{outOfStockCount}</p>
             </div>
-            <AlertCircle size={32} className="text-red-200" />
+            <AlertCircle size={24} className="text-red-200" />
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-xl p-6 shadow-lg">
+        <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-xl p-4 shadow-lg">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-orange-100 text-sm mb-1">منخفض المخزون</p>
-              <p className="text-2xl font-bold">{lowStockCount}</p>
+              <p className="text-xl font-bold">{lowStockCount}</p>
             </div>
-            <TrendingUp size={32} className="text-orange-200" />
+            <TrendingUp size={24} className="text-orange-200" />
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl p-6 shadow-lg">
+        <div className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl p-4 shadow-lg">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-green-100 text-sm mb-1">متوفر</p>
-              <p className="text-2xl font-bold">{products.length - lowStockCount}</p>
+              <p className="text-xl font-bold">{products.length - lowStockCount}</p>
             </div>
-            <Package size={32} className="text-green-200" />
+            <Package size={24} className="text-green-200" />
           </div>
         </div>
       </div>
 
       {/* العائلات (Catégories) */}
-      <div className="bg-white rounded-xl shadow-lg p-6">
+      <div className="bg-white rounded-xl shadow-lg p-4">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-gray-800">العائلات</h3>
+          <h3 className="text-base font-bold text-gray-800">العائلات</h3>
           {selectedCategory && selectedCategory !== 'no-family' && (
             <button
               onClick={() => setSelectedCategory(null)}
@@ -1395,43 +1575,46 @@ export default function ProductsPage() {
             </button>
           )}
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setSelectedCategory(null)}
-            className={`px-4 py-2 rounded-lg transition-colors ${
-              !selectedCategory
-                ? 'bg-purple-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            جميع المنتجات ({products.length})
-          </button>
-          <button
-            onClick={() => setSelectedCategory('no-family')}
-            className={`px-4 py-2 rounded-lg transition-colors ${
-              selectedCategory === 'no-family'
-                ? 'bg-purple-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            بدون عائلة ({products.filter(p => !p.category_id).length})
-          </button>
-          {categories.map((category) => {
-            const productCount = products.filter(p => p.category_id === category.id).length
-            return (
-              <button
-                key={category.id}
-                onClick={() => setSelectedCategory(category.id)}
-                className={`px-4 py-2 rounded-lg transition-colors ${
-                  selectedCategory === category.id
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {category.name_ar} ({productCount})
-              </button>
-            )
-          })}
+        <div className="max-h-24 overflow-y-auto">
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setSelectedCategory(null)}
+              className={`px-2.5 py-1 rounded-lg transition-colors text-xs whitespace-nowrap ${
+                !selectedCategory
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              جميع المنتجات ({products.length})
+            </button>
+            <button
+              onClick={() => setSelectedCategory('no-family')}
+              className={`px-2.5 py-1 rounded-lg transition-colors text-xs whitespace-nowrap ${
+                selectedCategory === 'no-family'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              بدون عائلة ({products.filter(p => !p.category_id).length})
+            </button>
+            {categories.map((category) => {
+              const productCount = products.filter(p => p.category_id === category.id).length
+              return (
+                <button
+                  key={category.id}
+                  onClick={() => setSelectedCategory(category.id)}
+                  title={category.name_ar}
+                  className={`px-2.5 py-1 rounded-lg transition-colors text-xs whitespace-nowrap max-w-[160px] truncate ${
+                    selectedCategory === category.id
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {category.name_ar} ({productCount})
+                </button>
+              )
+            })}
+          </div>
         </div>
       </div>
 
@@ -1474,9 +1657,62 @@ export default function ProductsPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
+            {selectedProductIds.size > 0 && (
+              <div className="p-4 border-b bg-purple-50">
+                <div className="flex flex-col md:flex-row md:items-center gap-3">
+                  <div className="font-bold text-gray-800">{selectedProductIds.size} منتجات محددة</div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={allFilteredSelected ? clearSelection : selectAllFiltered}
+                      className="bg-white border border-gray-200 px-3 py-2 rounded-lg text-sm font-bold hover:bg-gray-50"
+                      disabled={bulkLoading}
+                    >
+                      {allFilteredSelected ? 'إلغاء التحديد' : 'تحديد الكل (حسب الفلتر)'}
+                    </button>
+
+                    <select
+                      value={bulkTargetCategoryId}
+                      onChange={(e) => setBulkTargetCategoryId(e.target.value)}
+                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      disabled={bulkLoading}
+                    >
+                      <option value="">اختر عائلة...</option>
+                      <option value="no-family">بدون عائلة</option>
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name_ar}</option>
+                      ))}
+                    </select>
+
+                    <button
+                      onClick={handleBulkMoveToFamily}
+                      disabled={bulkLoading}
+                      className="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      نقل إلى العائلة
+                    </button>
+
+                    <button
+                      onClick={handleBulkArchive}
+                      disabled={bulkLoading}
+                      className="bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-red-700 disabled:opacity-50"
+                    >
+                      حذف
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
             <table className="w-full">
               <thead className="bg-gradient-to-r from-purple-600 to-purple-700 text-white">
                 <tr>
+                  <th className="px-6 py-4 text-right font-bold">
+                    <input
+                      type="checkbox"
+                      checked={allFilteredSelected}
+                      onChange={(e) => (e.target.checked ? selectAllFiltered() : clearSelection())}
+                      className="h-4 w-4"
+                    />
+                  </th>
                   <th className="px-6 py-4 text-right font-bold">اسم المنتج</th>
                   <th className="px-6 py-4 text-right font-bold">سعر البيع</th>
                   <th className="px-6 py-4 text-right font-bold">المخزون</th>
@@ -1495,6 +1731,14 @@ export default function ProductsPage() {
                       key={product.id}
                       className="border-b hover:bg-purple-50 transition-colors"
                     >
+                      <td className="px-6 py-4">
+                        <input
+                          type="checkbox"
+                          checked={selectedProductIds.has(product.id)}
+                          onChange={(e) => toggleProductSelection(product.id, e.target.checked)}
+                          className="h-4 w-4"
+                        />
+                      </td>
                       <td className="px-6 py-4">
                         <button
                           onClick={() => openEditModal(product)}
@@ -1549,7 +1793,18 @@ export default function ProductsPage() {
                               }}
                               className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-2 rounded-lg text-sm font-bold transition-colors"
                             >
-                              تعديل السعر
+                              <span className="inline-flex items-center gap-1">
+                                تعديل السعر
+                              </span>
+                            </button>
+                            <button
+                              onClick={() => handleArchiveOne(product)}
+                              className="bg-red-100 hover:bg-red-200 text-red-700 px-3 py-2 rounded-lg text-sm font-bold transition-colors"
+                              disabled={bulkLoading}
+                              title="حذف/أرشفة المنتج"
+                            >
+                              <Trash2 size={14} />
+                              حذف
                             </button>
                           </div>
                           <div className="bg-gray-100 text-gray-500 px-3 py-2 rounded-lg text-sm font-bold" title="المخزون يُحدَّث تلقائياً من فواتير الشراء">
@@ -1803,6 +2058,41 @@ export default function ProductsPage() {
             <form onSubmit={handleEditProduct} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">اسم المنتج</label>
+                  <input
+                    type="text"
+                    value={formData.name_ar}
+                    onChange={(e) => setFormData({ ...formData, name_ar: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">العائلة</label>
+                  <select
+                    value={formData.category_id}
+                    onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                  >
+                    <option value="">بدون عائلة</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name_ar}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">صورة المنتج</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="flex-1"
+                    />
+                    {imagePreview && <img src={imagePreview} alt="preview" className="w-12 h-12 object-cover rounded border" />}
+                  </div>
+                </div>
+                <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">سعر الشراء (محسوب من المشتريات)</label>
                   <input
                     type="text"
@@ -1844,7 +2134,10 @@ export default function ProductsPage() {
                   ) : (
                     <div className="space-y-4">
                       {primaryVariants.filter(pv => pv.is_active !== false).map((pv, index) => {
+                        const showPrimarySelector = primaryVariants.filter(v => v.is_active !== false).length > 1
+                        const hasScopedPackaging = variants.some(v => Boolean(v.primary_variant_id))
                         const packaging = variants.filter(v => {
+                          if (!hasScopedPackaging) return true
                           if (pv.id && v.primary_variant_id) return v.primary_variant_id === pv.id
                           if (!v.primary_variant_id && pv.is_default) return true
                           return false
@@ -1927,23 +2220,72 @@ export default function ProductsPage() {
 
                             <div className="mt-4 border border-gray-200 rounded-lg bg-white p-3">
                               <div className="font-bold text-gray-700 mb-2">وحدات البيع</div>
+                              {!variants.some(v => Boolean(v.primary_variant_id)) && variants.length > 0 && (
+                                <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2 mb-2">
+                                  ملاحظة: وحدات البيع غير مربوطة بمتغير أساسي (primary variant) لذلك يتم عرضها كـ وحدات عامة.
+                                </div>
+                              )}
                               {packaging.length === 0 ? (
                                 <div className="text-sm text-gray-500">لا توجد وحدات بيع لهذا المتغير</div>
                               ) : (
                                 <div className="space-y-2">
                                   {packaging.map((v, vi) => (
-                                    <div key={v.id || vi} className="grid grid-cols-2 md:grid-cols-7 gap-2 text-sm bg-gray-50 border border-gray-200 rounded p-2">
+                                    <div
+                                      key={v.id || vi}
+                                      className={`grid grid-cols-2 ${showPrimarySelector ? 'md:grid-cols-8' : 'md:grid-cols-7'} gap-2 text-sm bg-gray-50 border border-gray-200 rounded p-2`}
+                                    >
                                       <div className="col-span-2 md:col-span-2">
                                         <div className="text-xs text-gray-500">الاسم</div>
                                         <div className="font-semibold text-gray-800">{v.variant_name}</div>
                                       </div>
+                                      {showPrimarySelector && (
+                                        <div>
+                                          <div className="text-xs text-gray-500">المتغير الأساسي</div>
+                                          <select
+                                            value={v.primary_variant_id || ''}
+                                            onChange={(e) => {
+                                              const next = e.target.value || null
+                                              const idx = variants.findIndex(x => (x.id && v.id ? x.id === v.id : x === v))
+                                              if (idx >= 0) updateVariant(idx, 'primary_variant_id', next)
+                                            }}
+                                            className="w-full p-1 border border-gray-300 rounded bg-white text-gray-800"
+                                          >
+                                            {primaryVariants.filter(p => p.is_active !== false).map(p => (
+                                              <option key={p.id || p.variant_name} value={p.id || ''}>{p.variant_name}</option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                      )}
                                       <div>
                                         <div className="text-xs text-gray-500">الوحدة</div>
-                                        <div className="text-gray-800">{v.unit_type}</div>
+                                        <select
+                                          value={v.unit_type}
+                                          onChange={(e) => {
+                                            const nextUnit = e.target.value
+                                            const idx = variants.findIndex(x => (x.id && v.id ? x.id === v.id : x === v))
+                                            if (idx >= 0) updateVariant(idx, 'unit_type', nextUnit)
+                                          }}
+                                          className="w-full p-1 border border-gray-300 rounded bg-white text-gray-800"
+                                        >
+                                          {unitTypes.map(u => (
+                                            <option key={u.value} value={u.value}>{u.label}</option>
+                                          ))}
+                                        </select>
                                       </div>
                                       <div>
                                         <div className="text-xs text-gray-500">المحتوى</div>
-                                        <div className="text-gray-800">{v.quantity_contained}</div>
+                                        <input
+                                          type="number"
+                                          step="0.001"
+                                          min="0"
+                                          value={Number(v.quantity_contained ?? 0)}
+                                          onChange={(e) => {
+                                            const next = Number(e.target.value)
+                                            const idx = variants.findIndex(x => (x.id && v.id ? x.id === v.id : x === v))
+                                            if (idx >= 0) updateVariant(idx, 'quantity_contained', Number.isFinite(next) ? next : 0)
+                                          }}
+                                          className="w-full p-1 border border-gray-300 rounded bg-white text-gray-800"
+                                        />
                                       </div>
                                       <div>
                                         <div className="text-xs text-gray-500">سعر الشراء</div>

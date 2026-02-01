@@ -268,10 +268,32 @@ export default function OrdersPage() {
 
   const fetchCategories = async () => {
     try {
-      const { data, error } = await supabase
+      let data: any[] | null = null
+      let error: any = null
+
+      const attempt = await supabase
         .from('product_categories')
         .select('id, name_ar, name_en')
+        .eq('is_active', true)
         .order('name_ar')
+
+      data = attempt.data as any[]
+      error = attempt.error
+
+      if (error) {
+        const msg = String((error as any)?.message || '')
+        const code = String((error as any)?.code || '')
+        const missingIsActive = code === '42703' || msg.toLowerCase().includes('is_active')
+        if (!missingIsActive) throw error
+
+        const fallback = await supabase
+          .from('product_categories')
+          .select('id, name_ar, name_en')
+          .order('name_ar')
+
+        data = fallback.data as any[]
+        error = fallback.error
+      }
 
       if (error) throw error
       setCategories((data || []) as Category[])
@@ -2284,32 +2306,35 @@ export default function OrdersPage() {
               <div className="lg:col-span-12">
                 <div className="bg-white border border-gray-200 rounded-lg p-3">
                   <h3 className="font-bold text-gray-800 mb-2 text-sm">العائلات</h3>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedCategoryId('')}
-                      className={`px-3 py-1 rounded border text-xs transition ${
-                        !selectedCategoryId
-                          ? 'bg-blue-600 text-white border-blue-600'
-                          : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
-                      }`}
-                    >
-                      كل العائلات
-                    </button>
-                    {categories.map((cat) => (
+                  <div className="max-h-24 overflow-y-auto">
+                    <div className="flex flex-wrap gap-2">
                       <button
-                        key={cat.id}
                         type="button"
-                        onClick={() => setSelectedCategoryId(cat.id)}
-                        className={`px-3 py-1 rounded border text-xs transition ${
-                          selectedCategoryId === cat.id
+                        onClick={() => setSelectedCategoryId('')}
+                        className={`px-2.5 py-1 rounded border text-xs whitespace-nowrap transition ${
+                          !selectedCategoryId
                             ? 'bg-blue-600 text-white border-blue-600'
                             : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
                         }`}
                       >
-                        {cat.name_ar}
+                        كل العائلات
                       </button>
-                    ))}
+                      {categories.map((cat) => (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => setSelectedCategoryId(cat.id)}
+                          title={cat.name_ar}
+                          className={`px-2.5 py-1 rounded border text-xs whitespace-nowrap transition max-w-[140px] truncate ${
+                            selectedCategoryId === cat.id
+                              ? 'bg-blue-600 text-white border-blue-600'
+                              : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                          }`}
+                        >
+                          {cat.name_ar}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>

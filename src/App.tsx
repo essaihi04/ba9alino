@@ -18,6 +18,7 @@ import EmployeesPage from './pages/EmployeesPage'
 import CreditNotesPage from './pages/CreditNotesPage'
 import CouponsPage from './pages/CouponsPage'
 import ProductsPage from './pages/ProductsPage'
+import FamiliesPage from './pages/FamiliesPage'
 import EmployeeAddProductPage from './pages/employee/EmployeeAddProductPage'
 import StockPage from './pages/StockPage'
 import PaymentsPage from './pages/PaymentsPage'
@@ -183,6 +184,16 @@ function App() {
             <ProtectedRoute>
               <Layout>
                 <ProductsPage />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/families"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <FamiliesPage />
               </Layout>
             </ProtectedRoute>
           }
