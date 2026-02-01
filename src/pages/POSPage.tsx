@@ -794,7 +794,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       ;(products || []).forEach(p => productsById.set(p.id, p))
 
       const dedupedPrimaryVariants = Array.from(
-        new Map((primaryVariants || []).map((pv: any) => [String(pv.product_id), pv])).values()
+        new Map((primaryVariants || []).map((pv: any) => [String(pv.id), pv])).values()
       )
 
       const enrichedProducts: Product[] = dedupedPrimaryVariants.map((pv: any) => {
