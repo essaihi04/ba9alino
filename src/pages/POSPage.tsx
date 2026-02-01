@@ -764,25 +764,9 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
 
       if (primaryError) throw primaryError
 
-      const { data: packagingVariants, error: packagingError } = await supabase
-        .from('product_variants')
-        .select('id, product_id, primary_variant_id, unit_type, quantity_contained, barcode, price_a, price_b, price_c, price_d, price_e')
-        .eq('is_active', true)
-        .in('product_id', productIds)
-
-      if (packagingError) {
-        console.error('Error loading packaging variants:', packagingError)
-      }
-
-      const packagingByPrimary: Record<string, PackagingVariant[]> = {}
-      ;(packagingVariants || []).forEach((v: any) => {
-        const pid = String(v.primary_variant_id || '')
-        if (!pid) return
-        if (!packagingByPrimary[pid]) packagingByPrimary[pid] = []
-        packagingByPrimary[pid].push(v as PackagingVariant)
-      })
-      setPackagingVariantsByPrimaryId(packagingByPrimary)
-      setPackagingVariantsFlat((packagingVariants || []) as PackagingVariant[])
+      // No secondary variants loaded - POS will only show primary variants
+      setPackagingVariantsByPrimaryId({})
+      setPackagingVariantsFlat([])
 
       const warehouseId = cashSession?.warehouse_id
       let stockQuery = supabase
@@ -810,7 +794,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       ;(products || []).forEach(p => productsById.set(p.id, p))
 
       const dedupedPrimaryVariants = Array.from(
-        new Map((primaryVariants || []).map((pv: any) => [String(pv.id), pv])).values()
+        new Map((primaryVariants || []).map((pv: any) => [String(pv.product_id), pv])).values()
       )
 
       const enrichedProducts: Product[] = dedupedPrimaryVariants.map((pv: any) => {
