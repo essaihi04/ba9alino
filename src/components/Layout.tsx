@@ -55,6 +55,7 @@ export default function Layout({ children }: LayoutProps) {
     { label: 'لشرا', path: '/purchases', icon: Boxes, color: 'text-orange-600' },
     { label: 'لمزود', path: '/suppliers', icon: Building, color: 'text-gray-600' },
     { label: 'الزبناء', path: '/clients', icon: Users, color: 'text-cyan-600' },
+    { label: 'العروض', path: '/promotions', icon: BarChart3, color: 'text-emerald-600' },
   ]
 
   const isDashboard = location.pathname === '/'

@@ -12,7 +12,8 @@ import {
   Clock,
   MapPin,
   Camera,
-  BarChart3
+  BarChart3,
+  Gift
 } from 'lucide-react'
 
 interface DashboardStats {
@@ -20,6 +21,17 @@ interface DashboardStats {
   pendingOrders: number
   todayRevenue: number
   myClients: number
+}
+
+interface RecentOrder {
+  id: string
+  order_number: string
+  status: 'pending' | 'confirmed' | 'rejected' | 'completed'
+  total_amount: number
+  created_at: string
+  clients?: {
+    company_name_ar: string
+  }[]
 }
 
 export default function CommercialDashboardPage() {
@@ -32,6 +44,7 @@ export default function CommercialDashboardPage() {
   })
   const [loading, setLoading] = useState(true)
   const [commercialName, setCommercialName] = useState('')
+  const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([])
 
   useEffect(() => {
     // Vérifier l'authentification
@@ -72,12 +85,31 @@ export default function CommercialDashboardPage() {
         .select('id')
         .eq('created_by', commercialId)
 
+      const { data: orders, error: ordersError } = await supabase
+        .from('orders')
+        .select(`
+          id,
+          order_number,
+          status,
+          total_amount,
+          created_at,
+          clients (
+            company_name_ar
+          )
+        `)
+        .eq('created_by', commercialId)
+        .order('created_at', { ascending: false })
+        .limit(5)
+
+      if (ordersError) throw ordersError
+
       setStats({
         todayOrders: todayOrders?.length || 0,
         pendingOrders: pendingOrders?.length || 0,
         todayRevenue: todayOrders?.reduce((sum, o) => sum + (o.total_amount || 0), 0) || 0,
         myClients: myClients?.length || 0
       })
+      setRecentOrders((orders || []) as RecentOrder[])
     } catch (error) {
       console.error('Error loading dashboard data:', error)
     } finally {
@@ -199,6 +231,14 @@ export default function CommercialDashboardPage() {
             </button>
 
             <button
+              onClick={() => navigate('/commercial/promotions')}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white p-4 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 flex flex-col items-center gap-2"
+            >
+              <Gift size={24} />
+              <span className="text-sm">العروض</span>
+            </button>
+
+            <button
               onClick={() => navigate('/commercial/orders')}
               className="bg-orange-600 hover:bg-orange-700 text-white p-4 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 flex flex-col items-center gap-2"
             >
@@ -227,9 +267,50 @@ export default function CommercialDashboardPage() {
         {/* Recent Orders */}
         <div className="bg-white rounded-xl shadow-lg p-4">
           <h2 className="text-lg font-bold text-gray-800 mb-4">آخر الطلبات</h2>
-          <div className="text-center text-gray-500 py-8">
-            قريبا...
-          </div>
+          {recentOrders.length === 0 ? (
+            <div className="text-center text-gray-500 py-8">لا توجد طلبات بعد</div>
+          ) : (
+            <div className="space-y-3">
+              {recentOrders.map((order) => (
+                <button
+                  key={order.id}
+                  onClick={() => navigate('/commercial/orders')}
+                  className="w-full text-right p-3 border border-gray-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-bold text-gray-800">{order.order_number}</p>
+                      <p className="text-xs text-gray-500">
+                        {order.clients?.[0]?.company_name_ar || 'عميل'}
+                      </p>
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm font-bold text-green-600">
+                        {Number(order.total_amount || 0).toFixed(2)} MAD
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {new Date(order.created_at).toLocaleString('ar-DZ')}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-2 text-xs font-semibold">
+                    {order.status === 'pending' && (
+                      <span className="text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded">قيد الانتظار</span>
+                    )}
+                    {order.status === 'confirmed' && (
+                      <span className="text-green-700 bg-green-100 px-2 py-0.5 rounded">مؤكد</span>
+                    )}
+                    {order.status === 'rejected' && (
+                      <span className="text-red-700 bg-red-100 px-2 py-0.5 rounded">مرفوض</span>
+                    )}
+                    {order.status === 'completed' && (
+                      <span className="text-blue-700 bg-blue-100 px-2 py-0.5 rounded">مكتمل</span>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -17,6 +17,7 @@ import ExpensesPage from './pages/ExpensesPage'
 import EmployeesPage from './pages/EmployeesPage'
 import CreditNotesPage from './pages/CreditNotesPage'
 import CouponsPage from './pages/CouponsPage'
+import PromotionsPage from './pages/PromotionsPage'
 import ProductsPage from './pages/ProductsPage'
 import FamiliesPage from './pages/FamiliesPage'
 import EmployeeAddProductPage from './pages/employee/EmployeeAddProductPage'
@@ -39,6 +40,7 @@ import CommercialMapPage from './pages/commercial/CommercialMapPage'
 import CommercialVisitPage from './pages/commercial/CommercialVisitPage'
 import CommercialPaymentsPage from './pages/commercial/CommercialPaymentsPage'
 import CommercialPerformancePage from './pages/commercial/CommercialPerformancePage'
+import CommercialPromotionsPage from './pages/commercial/CommercialPromotionsPage'
 import CommercialOrdersManagementPage from './pages/CommercialOrdersManagementPage'
 import EmployeeLoginPage from './pages/employee/EmployeeLoginPage'
 import EmployeeDashboardPage from './pages/employee/EmployeeDashboardPage'
@@ -74,6 +76,7 @@ function App() {
         <Route path="/commercial/visits/new" element={<CommercialVisitPage />} />
         <Route path="/commercial/payments" element={<CommercialPaymentsPage />} />
         <Route path="/commercial/performance" element={<CommercialPerformancePage />} />
+        <Route path="/commercial/promotions" element={<CommercialPromotionsPage />} />
 
         {/* Employee Routes - No Layout */}
         <Route path="/employee/login" element={<EmployeeLoginPage />} />
@@ -404,6 +407,16 @@ function App() {
             <ProtectedRoute>
               <Layout>
                 <CouponsPage />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/promotions"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <PromotionsPage />
               </Layout>
             </ProtectedRoute>
           }

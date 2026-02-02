@@ -69,6 +69,9 @@ interface CartItem {
   quantity_contained?: number
   deleted?: boolean
   customPrice?: number
+  is_gift?: boolean
+  discount_percent?: number
+  original_unit_price?: number
 }
 
 interface InvoiceLine {
@@ -84,6 +87,9 @@ interface InvoiceLine {
   customPrice?: number
   deleted?: boolean
   image_url?: string
+  is_gift?: boolean
+  discount_percent?: number
+  original_unit_price?: number
 }
 
 interface PackagingVariant {
@@ -109,6 +115,8 @@ interface Invoice {
   lines: InvoiceLine[]
   subtotal: number
   total_amount: number
+  discount_percent?: number
+  discount_amount?: number
   paid_amount: number
   remaining_amount: number
   created_at: string
@@ -794,7 +802,13 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       ;(products || []).forEach(p => productsById.set(p.id, p))
 
       const dedupedPrimaryVariants = Array.from(
-        new Map((primaryVariants || []).map((pv: any) => [String(pv.id), pv])).values()
+        new Map(
+          (primaryVariants || []).map((pv: any) => {
+            const normalizedVariant = String(pv.variant_name || '').trim().toLowerCase()
+            const normalizedBarcode = String(pv.barcode || '').trim()
+            return [`${String(pv.product_id)}:${normalizedVariant}:${normalizedBarcode}`, pv]
+          })
+        ).values()
       )
 
       const enrichedProducts: Product[] = dedupedPrimaryVariants.map((pv: any) => {
@@ -1251,6 +1265,32 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     return getProductPriceForTier(item, tier)
   }
 
+  const clampPercent = (value: number) => Math.min(100, Math.max(0, value || 0))
+
+  const calculateLineTotal = (line: InvoiceLine) => {
+    if (line.deleted) return 0
+    if (line.is_gift) return 0
+    const discountPercent = clampPercent(Number(line.discount_percent || 0))
+    const base = Number(line.unit_price || 0) * Number(line.quantity || 0)
+    return base * (1 - discountPercent / 100)
+  }
+
+  const recalcInvoiceTotals = (invoice: Invoice) => {
+    const subtotal = (invoice.lines || []).reduce((sum, line) => sum + calculateLineTotal(line), 0)
+    const discountPercent = clampPercent(Number(invoice.discount_percent || 0))
+    const discountAmount = subtotal * (discountPercent / 100)
+    const total = Math.max(0, subtotal - discountAmount)
+
+    invoice.subtotal = subtotal
+    invoice.discount_amount = discountAmount
+    invoice.total_amount = total
+
+    if (invoice.status === 'paid') {
+      invoice.paid_amount = total
+    }
+    invoice.remaining_amount = total - invoice.paid_amount
+  }
+
   // Générer numéro de facture unique
   const generateInvoiceNumber = () => {
     const date = new Date()
@@ -1274,6 +1314,8 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       lines: [],
       subtotal: 0,
       total_amount: 0,
+      discount_percent: 0,
+      discount_amount: 0,
       paid_amount: 0,
       remaining_amount: 0,
       created_at: new Date().toISOString()
@@ -1313,7 +1355,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         // Augmenter la quantité
         existingLine.quantity += 1
       }
-      existingLine.total = existingLine.quantity * existingLine.unit_price
+      existingLine.total = calculateLineTotal(existingLine)
     } else {
       // Ajouter une nouvelle ligne
       const newLine: InvoiceLine = {
@@ -1326,14 +1368,16 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         total: unitPrice,
         unit_type: chosenUnitType,
         deleted: false,
-        image_url: product.image_url
+        image_url: product.image_url,
+        is_gift: false,
+        discount_percent: 0,
+        original_unit_price: unitPrice
       }
       invoice.lines.push(newLine)
     }
 
     // Recalculer les totaux
-    invoice.subtotal = invoice.lines.reduce((sum, line) => (line.deleted ? sum : sum + line.total), 0)
-    invoice.total_amount = invoice.subtotal
+    recalcInvoiceTotals(invoice)
     
     // Auto-sync paid amount with total for resumed invoices
     invoice.paid_amount = invoice.total_amount
@@ -1351,11 +1395,10 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     const line = currentInvoice.lines?.find(l => l.id === lineId)
     if (line && !line.deleted && quantity > 0) {
       line.quantity = quantity
-      line.total = line.quantity * line.unit_price
+      line.total = calculateLineTotal(line)
 
       // Recalculer les totaux
-      currentInvoice.subtotal = currentInvoice.lines?.reduce((sum, l) => (l.deleted ? sum : sum + l.total), 0) || 0
-      currentInvoice.total_amount = currentInvoice.subtotal
+      recalcInvoiceTotals(currentInvoice)
       
       // Auto-sync paid amount with total for resumed invoices
       currentInvoice.paid_amount = currentInvoice.total_amount
@@ -1380,8 +1423,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     line.total = 0
 
     // Recalculer les totaux
-    currentInvoice.subtotal = currentInvoice.lines?.reduce((sum, l) => (l.deleted ? sum : sum + l.total), 0) || 0
-    currentInvoice.total_amount = currentInvoice.subtotal
+    recalcInvoiceTotals(currentInvoice)
     
     // Auto-sync paid amount with total for resumed invoices
     currentInvoice.paid_amount = currentInvoice.total_amount
@@ -1400,10 +1442,8 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
 
     line.deleted = false
     line.quantity = 1
-    line.total = line.quantity * line.unit_price
-
-    currentInvoice.subtotal = currentInvoice.lines?.reduce((sum, l) => (l.deleted ? sum : sum + l.total), 0) || 0
-    currentInvoice.total_amount = currentInvoice.subtotal
+    line.total = calculateLineTotal(line)
+    recalcInvoiceTotals(currentInvoice)
     
     // Auto-sync paid amount with total for resumed invoices
     currentInvoice.paid_amount = currentInvoice.total_amount
@@ -1609,7 +1649,10 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       stock: 0, // Will be updated when product is loaded
       quantity: line.quantity,
       customPrice: line.customPrice,
-      image_url: line.image_url
+      image_url: line.image_url,
+      is_gift: line.is_gift,
+      discount_percent: line.discount_percent,
+      original_unit_price: line.original_unit_price
     }))
     
     setCart(cartItems)
@@ -1676,15 +1719,18 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       if (!line) return
 
       line.quantity = newQty
-      line.unit_price = newPrice
+      if (!line.is_gift) {
+        line.unit_price = newPrice
+        line.original_unit_price = newPrice
+      } else {
+        line.unit_price = 0
+      }
       line.unit_type = editLineUnitType || line.unit_type || 'unit'
       line.pricing_tier = editLinePricingTier !== 'auto' ? editLinePricingTier : undefined
-      line.total = newQty * newPrice
+      line.total = calculateLineTotal(line)
 
       // Recalculer les totaux
-      currentInvoice.subtotal = currentInvoice.lines.reduce((sum, l) => sum + l.total, 0)
-      currentInvoice.total_amount = currentInvoice.subtotal
-      currentInvoice.remaining_amount = currentInvoice.total_amount - currentInvoice.paid_amount
+      recalcInvoiceTotals(currentInvoice)
 
       setCurrentInvoice({ ...currentInvoice })
       setShowEditInvoiceLineModal(false)
@@ -1719,6 +1765,47 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     setEditQuantity(item.quantity.toString())
     setEditPrice((item.customPrice || getProductPrice(item)).toFixed(2))
     setShowEditItemModal(true)
+  }
+
+  const toggleGiftLine = (lineId: string) => {
+    if (!currentInvoice) return
+    const line = currentInvoice.lines?.find(l => l.id === lineId)
+    if (!line || line.deleted) return
+
+    if (!line.is_gift) {
+      line.original_unit_price = line.original_unit_price ?? line.unit_price
+      line.unit_price = 0
+      line.is_gift = true
+      line.discount_percent = 0
+    } else {
+      line.is_gift = false
+      line.unit_price = line.original_unit_price ?? line.unit_price
+    }
+
+    line.total = calculateLineTotal(line)
+    recalcInvoiceTotals(currentInvoice)
+    setCurrentInvoice({ ...currentInvoice })
+    setPaidAmount(currentInvoice.paid_amount)
+  }
+
+  const applyLineDiscount = (lineId: string, percent: number) => {
+    if (!currentInvoice) return
+    const line = currentInvoice.lines?.find(l => l.id === lineId)
+    if (!line || line.deleted) return
+
+    line.discount_percent = clampPercent(percent)
+    line.total = calculateLineTotal(line)
+    recalcInvoiceTotals(currentInvoice)
+    setCurrentInvoice({ ...currentInvoice })
+    setPaidAmount(currentInvoice.paid_amount)
+  }
+
+  const applyInvoiceDiscount = (percent: number) => {
+    if (!currentInvoice) return
+    currentInvoice.discount_percent = clampPercent(percent)
+    recalcInvoiceTotals(currentInvoice)
+    setCurrentInvoice({ ...currentInvoice })
+    setPaidAmount(currentInvoice.paid_amount)
   }
 
   // Ouvrir le modal de confirmation
@@ -1781,7 +1868,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       // Créer la facture directement (sans créer de commande pour les ventes en caisse)
       let invoiceNumber = currentInvoice.invoice_number
 
-      const buildInvoiceInsert = (num: string) => ({
+      const buildInvoiceInsert = (num: string, includeDiscounts = true) => ({
         invoice_number: num,
         order_id: null, // Pas de commande pour les ventes directes en caisse
         client_id: clientId,
@@ -1789,6 +1876,12 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         due_date: new Date().toISOString(),
         subtotal: currentInvoice.subtotal,
         total_amount: currentInvoice.total_amount,
+        ...(includeDiscounts
+          ? {
+              discount_percent: currentInvoice.discount_percent || 0,
+              discount_amount: currentInvoice.discount_amount || 0,
+            }
+          : {}),
         paid_amount: currentInvoice.paid_amount,
         cash_session_id: cashSession.id,
         employee_id: cashSession.employee_id,
@@ -1804,22 +1897,35 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
           product_name: line.product_name_ar,
           quantity: line.quantity,
           unit_price: line.unit_price,
-          total: line.total
+          total: line.total,
+          discount_percent: line.discount_percent || 0,
+          is_gift: !!line.is_gift,
+          original_unit_price: line.original_unit_price || line.unit_price
         }))
       })
 
       let { data: invoice, error: invoiceError } = await supabase
         .from('invoices')
-        .insert(buildInvoiceInsert(invoiceNumber))
+        .insert(buildInvoiceInsert(invoiceNumber, true))
         .select()
         .single()
+
+      if (invoiceError && String(invoiceError?.message || '').toLowerCase().includes('discount')) {
+        const retryNoDiscounts = await supabase
+          .from('invoices')
+          .insert(buildInvoiceInsert(invoiceNumber, false))
+          .select()
+          .single()
+        invoice = retryNoDiscounts.data
+        invoiceError = retryNoDiscounts.error
+      }
 
       if (invoiceError && (invoiceError as any).code === '23505') {
         invoiceNumber = `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`
 
         const retry = await supabase
           .from('invoices')
-          .insert(buildInvoiceInsert(invoiceNumber))
+          .insert(buildInvoiceInsert(invoiceNumber, !String(invoiceError?.message || '').toLowerCase().includes('discount')))
           .select()
           .single()
 
@@ -2611,12 +2717,16 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         <div className="flex-1 overflow-y-auto">
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {filteredProducts.map((product) => {
-              const stockColor = product.stock === 0 ? 'text-red-600' : product.stock < 10 ? 'text-orange-600' : 'text-green-600'
+              const stockColor = product.stock > 10
+                ? 'text-green-600'
+                : product.stock > 0
+                  ? 'text-orange-600'
+                  : 'text-red-600'
               const stockText = product.stock === 0 ? 'نفذ المخزون' : product.stock < 10 ? 'منخفض' : 'متوفر'
               const unitTypes = getAvailableUnitTypes(product.primary_variant_id)
               return (
                 <div
-                  key={product.id}
+                  key={`${product.id}-${product.primary_variant_id}`}
                   className="p-3 rounded-xl border-2 bg-white border-gray-200 hover:border-green-500 hover:shadow-lg transition-all"
                 >
                   <button
@@ -2764,15 +2874,65 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                             </div>
                           )}
                           
-                          <button
-                            onClick={() => {
-                              if (!line.deleted) openEditInvoiceLineModal(line)
-                            }}
-                            className={`flex-1 font-semibold truncate text-left ${line.deleted ? 'text-gray-500 line-through cursor-not-allowed' : 'text-gray-800 hover:text-green-700 hover:underline'}`}
-                            type="button"
-                          >
-                            {line.product_name_ar}
-                          </button>
+                          <div className="flex-1 min-w-0">
+                            <button
+                              onClick={() => {
+                                if (!line.deleted) openEditInvoiceLineModal(line)
+                              }}
+                              className={`w-full font-semibold truncate text-left ${line.deleted ? 'text-gray-500 line-through cursor-not-allowed' : 'text-gray-800 hover:text-green-700 hover:underline'}`}
+                              type="button"
+                            >
+                              {line.product_name_ar}
+                            </button>
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              <button
+                                type="button"
+                                onClick={() => !line.deleted && toggleGiftLine(line.id)}
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                  line.deleted
+                                    ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                                    : line.is_gift
+                                      ? 'bg-amber-500 text-white border-amber-600'
+                                      : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                                }`}
+                                disabled={!!line.deleted}
+                              >
+                                هدية
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (line.deleted) return
+                                  inputPad.open({
+                                    title: 'خصم المنتج (%)',
+                                    mode: 'number',
+                                    min: 0,
+                                    max: 100,
+                                    initialValue: String(line.discount_percent || 0),
+                                    onConfirm: (v) => applyLineDiscount(line.id, parseFloat(v) || 0),
+                                  })
+                                }}
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                  line.deleted
+                                    ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                                    : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+                                }`}
+                                disabled={!!line.deleted}
+                              >
+                                خصم
+                              </button>
+                              {(line.discount_percent || 0) > 0 && !line.is_gift && (
+                                <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded px-2 py-0.5">
+                                  -{line.discount_percent}%
+                                </span>
+                              )}
+                              {line.is_gift && (
+                                <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5">
+                                  هدية مجانية
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </div>
                         
                         {/* Prix unitaire */}
@@ -2862,6 +3022,31 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                   <span className="text-gray-600">الإجمالي:</span>
                   <span className="font-bold text-gray-800">{currentInvoice.subtotal.toFixed(2)} MAD</span>
                 </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-600">خصم الفاتورة:</span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      inputPad.open({
+                        title: 'خصم الفاتورة (%)',
+                        mode: 'number',
+                        min: 0,
+                        max: 100,
+                        initialValue: String(currentInvoice.discount_percent || 0),
+                        onConfirm: (v) => applyInvoiceDiscount(parseFloat(v) || 0),
+                      })
+                    }
+                    className="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 rounded px-2 py-1 hover:bg-blue-100"
+                  >
+                    {currentInvoice.discount_percent || 0}%
+                  </button>
+                </div>
+                {(currentInvoice.discount_amount || 0) > 0 && (
+                  <div className="flex justify-between text-sm text-blue-700">
+                    <span>قيمة الخصم:</span>
+                    <span>-{(currentInvoice.discount_amount || 0).toFixed(2)} MAD</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-lg font-bold text-green-600">
                   <span>المجموع:</span>
                   <span>{currentInvoice.total_amount.toFixed(2)} MAD</span>

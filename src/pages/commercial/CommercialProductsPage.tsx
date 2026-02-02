@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { Search, Package, ArrowLeft, Filter } from 'lucide-react'
+import { Search, Package, ArrowLeft } from 'lucide-react'
+import { getCategoryLabelArabic } from '../../utils/categoryLabels'
 
 interface Product {
   id: string
@@ -23,10 +24,27 @@ interface Category {
   name_ar: string
 }
 
+interface Promotion {
+  id: string
+  title: string
+  type: 'gift' | 'discount'
+  scope: 'global' | 'product'
+  product_id: string | null
+  min_quantity: number
+  unit_type: string | null
+  discount_percent: number | null
+  gift_product_id: string | null
+  gift_quantity: number | null
+  is_active: boolean
+  starts_at: string | null
+  ends_at: string | null
+}
+
 export default function CommercialProductsPage() {
   const navigate = useNavigate()
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
+  const [promotions, setPromotions] = useState<Promotion[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
@@ -41,7 +59,47 @@ export default function CommercialProductsPage() {
 
     loadProducts()
     loadCategories()
+    loadPromotions()
   }, [navigate])
+
+  const loadPromotions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('promotions')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      setPromotions((data || []) as Promotion[])
+    } catch (error) {
+      console.error('Error loading promotions:', error)
+    }
+  }
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        loadProducts()
+        loadCategories()
+        loadPromotions()
+      }
+    }
+
+    const handleFocus = () => {
+      loadProducts()
+      loadCategories()
+      loadPromotions()
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('focus', handleFocus)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('focus', handleFocus)
+    }
+  }, [])
 
   const loadProducts = async () => {
     setLoading(true)
@@ -64,13 +122,35 @@ export default function CommercialProductsPage() {
 
   const loadCategories = async () => {
     try {
-      const { data, error } = await supabase
+      let data: any[] | null = null
+      let error: any = null
+
+      const attempt = await supabase
         .from('product_categories')
         .select('*')
+        .eq('is_active', true)
         .order('name_ar')
 
+      data = attempt.data as any[]
+      error = attempt.error
+
+      if (error) {
+        const msg = String((error as any)?.message || '')
+        const code = String((error as any)?.code || '')
+        const missingIsActive = code === '42703' || msg.toLowerCase().includes('is_active')
+        if (!missingIsActive) throw error
+
+        const fallback = await supabase
+          .from('product_categories')
+          .select('*')
+          .order('name_ar')
+
+        data = fallback.data as any[]
+        error = fallback.error
+      }
+
       if (error) throw error
-      setCategories(data || [])
+      setCategories((data || []) as Category[])
     } catch (error) {
       console.error('Error loading categories:', error)
     }
@@ -82,6 +162,22 @@ export default function CommercialProductsPage() {
     const matchesCategory = !selectedCategory || product.category_id === selectedCategory
     return matchesSearch && matchesCategory
   })
+
+  const shortCategoryLabel = (tier: string) =>
+    getCategoryLabelArabic(tier).split('/')[0].trim() || tier
+
+  const activePromotions = promotions.filter((promo) => {
+    if (!promo.is_active) return false
+    const now = new Date()
+    if (promo.starts_at && new Date(promo.starts_at) > now) return false
+    if (promo.ends_at && new Date(promo.ends_at) < now) return false
+    return true
+  })
+
+  const getProductPromotions = (productId: string) =>
+    activePromotions.filter(
+      (promo) => promo.scope === 'global' || promo.product_id === productId
+    )
 
   return (
     <div className="min-h-screen bg-gray-50" dir="rtl">
@@ -170,7 +266,9 @@ export default function CommercialProductsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {filteredProducts.map((product) => (
+            {filteredProducts.map((product) => {
+              const productPromotions = getProductPromotions(product.id)
+              return (
               <div
                 key={product.id}
                 className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow"
@@ -211,25 +309,41 @@ export default function CommercialProductsPage() {
                   {/* Prices Grid - Compact */}
                   <div className="grid grid-cols-2 gap-1 bg-gray-50 rounded p-2 text-xs">
                     <div className="text-center">
-                      <p className="text-gray-500 text-xs">A</p>
+                      <p className="text-gray-500 text-xs">{shortCategoryLabel('A')}</p>
                       <p className="font-bold text-blue-600">{product.price_a.toFixed(0)}</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-gray-500 text-xs">B</p>
+                      <p className="text-gray-500 text-xs">{shortCategoryLabel('B')}</p>
                       <p className="font-bold text-green-600">{product.price_b.toFixed(0)}</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-gray-500 text-xs">C</p>
+                      <p className="text-gray-500 text-xs">{shortCategoryLabel('C')}</p>
                       <p className="font-bold text-orange-600">{product.price_c.toFixed(0)}</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-gray-500 text-xs">D</p>
+                      <p className="text-gray-500 text-xs">{shortCategoryLabel('D')}</p>
                       <p className="font-bold text-purple-600">{product.price_d.toFixed(0)}</p>
                     </div>
                   </div>
+                  {productPromotions.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {productPromotions.map((promo) => (
+                        <div
+                          key={promo.id}
+                          className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-1"
+                        >
+                          <span className="font-semibold">{promo.title}</span>
+                          <span className="mx-1">•</span>
+                          {promo.type === 'discount'
+                            ? `خصم ${promo.discount_percent || 0}% عند ${promo.min_quantity} ${promo.unit_type || ''}`
+                            : `هدية عند ${promo.min_quantity} ${promo.unit_type || ''}`}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
-            ))}
+            )})}
           </div>
         )}
       </div>

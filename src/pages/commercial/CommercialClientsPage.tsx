@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import { getCategoryLabelArabic } from '../../utils/categoryLabels'
 import { Search, Users, ArrowLeft, Plus, Phone, MapPin, Image as ImageIcon, MapPinOff } from 'lucide-react'
 
 const SHOP_PHOTO_BUCKET = import.meta.env.VITE_SHOP_PHOTO_BUCKET || 'magasin'
@@ -271,7 +272,7 @@ export default function CommercialClientsPage() {
                   </p>
                 </div>
                 <div className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">
-                  {client.subscription_tier}
+                  {getCategoryLabelArabic(client.subscription_tier) || client.subscription_tier}
                 </div>
               </div>
 
@@ -479,11 +480,11 @@ export default function CommercialClientsPage() {
                   onChange={(e) => setFormData({ ...formData, subscription_tier: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="A">A - سعر أ</option>
-                  <option value="B">B - سعر ب</option>
-                  <option value="C">C - سعر ج</option>
-                  <option value="D">D - سعر د</option>
-                  <option value="E">E - سعر هـ</option>
+                  <option value="A">{getCategoryLabelArabic('A') || 'A'}</option>
+                  <option value="B">{getCategoryLabelArabic('B') || 'B'}</option>
+                  <option value="C">{getCategoryLabelArabic('C') || 'C'}</option>
+                  <option value="D">{getCategoryLabelArabic('D') || 'D'}</option>
+                  <option value="E">{getCategoryLabelArabic('E') || 'E'}</option>
                 </select>
               </div>
 

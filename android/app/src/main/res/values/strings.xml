@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Ba9alino</string>
+    <string name="title_activity_main">Ba9alino</string>
+    <string name="package_name">com.ba9alino.app</string>
+    <string name="custom_url_scheme">com.ba9alino.app</string>
+</resources>

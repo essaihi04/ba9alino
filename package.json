@@ -15,6 +15,9 @@
     "publish:release": "electron-builder --publish always"
   },
   "dependencies": {
+    "@capacitor/android": "^8.0.2",
+    "@capacitor/cli": "^8.0.2",
+    "@capacitor/core": "^8.0.2",
     "@supabase/supabase-js": "^2.38.0",
     "axios": "^1.6.0",
     "clsx": "^2.0.0",

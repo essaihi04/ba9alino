@@ -1880,6 +1880,7 @@ export default function ProductsPage() {
                     <input
                       type="file"
                       accept="image/*"
+                      capture="environment"
                       onChange={handleImageUpload}
                       className="flex-1"
                     />
@@ -2086,6 +2087,7 @@ export default function ProductsPage() {
                     <input
                       type="file"
                       accept="image/*"
+                      capture="environment"
                       onChange={handleImageUpload}
                       className="flex-1"
                     />

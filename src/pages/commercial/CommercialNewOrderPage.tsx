@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { ArrowLeft, Plus, Minus, ShoppingCart, User, Check, Package, Phone, MapPin } from 'lucide-react'
+import { getCategoryLabelArabic } from '../../utils/categoryLabels'
+import { ArrowLeft, Plus, Minus, ShoppingCart, User, Check, Package } from 'lucide-react'
 import { useInputPad } from '../../components/useInputPad'
 
 interface ProductVariant {
@@ -44,9 +45,27 @@ interface Client {
   subscription_tier: string
 }
 
+interface Promotion {
+  id: string
+  title: string
+  type: 'gift' | 'discount'
+  scope: 'global' | 'product'
+  product_id: string | null
+  min_quantity: number
+  unit_type: string | null
+  discount_percent: number | null
+  gift_product_id: string | null
+  gift_quantity: number | null
+  is_active: boolean
+  starts_at: string | null
+  ends_at: string | null
+}
+
 interface CartItem extends Product {
   quantity: number
   selectedPrice: number
+  is_gift?: boolean
+  promotion_id?: string | null
 }
 
 interface NewClientForm {
@@ -72,6 +91,7 @@ export default function CommercialNewOrderPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [cart, setCart] = useState<CartItem[]>([])
+  const [promotions, setPromotions] = useState<Promotion[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
@@ -106,6 +126,28 @@ export default function CommercialNewOrderPage() {
     }
   }, [preselectedClientId, clients])
 
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        const commercialId = localStorage.getItem('commercial_id')
+        if (commercialId) loadData(commercialId)
+      }
+    }
+
+    const handleFocus = () => {
+      const commercialId = localStorage.getItem('commercial_id')
+      if (commercialId) loadData(commercialId)
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('focus', handleFocus)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('focus', handleFocus)
+    }
+  }, [])
+
   const loadData = async (commercialId: string) => {
     setLoading(true)
     try {
@@ -128,14 +170,42 @@ export default function CommercialNewOrderPage() {
         `)
         .order('name_ar')
 
-      const [categoriesRes, clientsRes] = await Promise.all([
-        supabase.from('product_categories').select('*').order('name_ar'),
-        supabase.from('clients').select('*').eq('created_by', commercialId).order('company_name_ar')
+      let categoriesData: any[] | null = null
+      let categoriesError: any = null
+
+      const categoriesAttempt = await supabase
+        .from('product_categories')
+        .select('*')
+        .eq('is_active', true)
+        .order('name_ar')
+
+      categoriesData = categoriesAttempt.data as any[]
+      categoriesError = categoriesAttempt.error
+
+      if (categoriesError) {
+        const msg = String((categoriesError as any)?.message || '')
+        const code = String((categoriesError as any)?.code || '')
+        const missingIsActive = code === '42703' || msg.toLowerCase().includes('is_active')
+        if (!missingIsActive) throw categoriesError
+
+        const fallback = await supabase
+          .from('product_categories')
+          .select('*')
+          .order('name_ar')
+
+        categoriesData = fallback.data as any[]
+        categoriesError = fallback.error
+      }
+
+      const [clientsRes, promotionsRes] = await Promise.all([
+        supabase.from('clients').select('*').eq('created_by', commercialId).order('company_name_ar'),
+        supabase.from('promotions').select('*').eq('is_active', true).order('created_at', { ascending: false })
       ])
 
       if (productsError) throw productsError
-      if (categoriesRes.error) throw categoriesRes.error
+      if (categoriesError) throw categoriesError
       if (clientsRes.error) throw clientsRes.error
+      if (promotionsRes.error) throw promotionsRes.error
 
       console.log('Products with variants from DB:', productsWithPrices?.slice(0, 1)) // Debug
       
@@ -146,8 +216,9 @@ export default function CommercialNewOrderPage() {
       console.log('Visible products:', visibleProducts.slice(0, 3)) // Debug filtered products
 
       setProducts(visibleProducts)
-      setCategories((categoriesRes.data || []) as Category[])
+      setCategories((categoriesData || []) as Category[])
       setClients(clientsRes.data || [])
+      setPromotions((promotionsRes.data || []) as Promotion[])
     } catch (error) {
       console.error('Error loading data:', error)
     } finally {
@@ -224,9 +295,62 @@ export default function CommercialNewOrderPage() {
     }).filter(item => item.quantity > 0))
   }
 
-  const calculateTotal = () => {
+  const calculateSubtotal = () => {
     return cart.reduce((sum, item) => sum + (item.selectedPrice * item.quantity), 0)
   }
+
+  const activePromotions = promotions.filter((promo) => {
+    if (!promo.is_active) return false
+    const now = new Date()
+    if (promo.starts_at && new Date(promo.starts_at) > now) return false
+    if (promo.ends_at && new Date(promo.ends_at) < now) return false
+    return true
+  })
+
+  const promotionSummary = (() => {
+    const subtotal = calculateSubtotal()
+    let discountTotal = 0
+    const giftItems: CartItem[] = []
+
+    const totalQuantity = cart.reduce((sum, item) => sum + item.quantity, 0)
+
+    activePromotions.forEach((promo) => {
+      const eligibleQuantity = promo.scope === 'global'
+        ? totalQuantity
+        : cart.find((item) => item.id === promo.product_id)?.quantity || 0
+
+      if (eligibleQuantity < (promo.min_quantity || 1)) return
+
+      if (promo.type === 'discount') {
+        const baseAmount = promo.scope === 'global'
+          ? subtotal
+          : cart
+              .filter((item) => item.id === promo.product_id)
+              .reduce((sum, item) => sum + item.selectedPrice * item.quantity, 0)
+        const percent = Number(promo.discount_percent || 0)
+        if (percent > 0) discountTotal += baseAmount * (percent / 100)
+      }
+
+      if (promo.type === 'gift' && promo.gift_product_id) {
+        const giftProduct = products.find((p) => p.id === promo.gift_product_id)
+        if (!giftProduct) return
+        giftItems.push({
+          ...giftProduct,
+          quantity: Number(promo.gift_quantity || 1),
+          selectedPrice: 0,
+          is_gift: true,
+          promotion_id: promo.id,
+        })
+      }
+    })
+
+    return {
+      subtotal,
+      discountTotal,
+      finalTotal: Math.max(0, subtotal - discountTotal),
+      giftItems,
+    }
+  })()
 
   const handleCreateClient = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -264,7 +388,7 @@ export default function CommercialNewOrderPage() {
         console.log('Employee created:', newEmployee)
       }
 
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('clients')
         .insert({
           company_name_ar: clientForm.company_name_ar,
@@ -335,7 +459,7 @@ export default function CommercialNewOrderPage() {
       }
 
       // Créer la commande
-      const totalAmount = calculateTotal()
+      const totalAmount = promotionSummary.finalTotal
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
@@ -343,7 +467,7 @@ export default function CommercialNewOrderPage() {
           client_id: selectedClient.id,
           order_date: new Date().toISOString(),
           status: 'pending',
-          subtotal: totalAmount,
+          subtotal: promotionSummary.subtotal,
           tax_amount: 0,
           total_amount: totalAmount,
           created_by: commercialId,
@@ -355,7 +479,7 @@ export default function CommercialNewOrderPage() {
       if (orderError) throw orderError
 
       // Créer les lignes de commande
-      const orderItems = cart.map(item => ({
+      const orderItems = [...cart, ...promotionSummary.giftItems].map(item => ({
         order_id: order.id,
         product_id: item.id,
         quantity: item.quantity,
@@ -540,25 +664,25 @@ export default function CommercialNewOrderPage() {
                       {(() => {
                         const variant = product.product_variants && product.product_variants.length > 0 ? product.product_variants[0] : null
                         return (
-                          <div className="grid grid-cols-5 gap-1 text-xs">
+                          <div className="grid grid-cols-5 gap-1 text-[10px]">
                             <div className="text-center">
-                              <p className="text-gray-500 text-xs font-medium">A</p>
+                              <p className="text-gray-500 font-medium">{getCategoryLabelArabic('A')}</p>
                               <p className="font-bold text-blue-600">{(variant?.price_a || product.price_a || product.price || 0).toFixed(0)}</p>
                             </div>
                             <div className="text-center">
-                              <p className="text-gray-500 text-xs font-medium">B</p>
+                              <p className="text-gray-500 font-medium">{getCategoryLabelArabic('B')}</p>
                               <p className="font-bold text-green-600">{(variant?.price_b || product.price_b || product.price || 0).toFixed(0)}</p>
                             </div>
                             <div className="text-center">
-                              <p className="text-gray-500 text-xs font-medium">C</p>
+                              <p className="text-gray-500 font-medium">{getCategoryLabelArabic('C')}</p>
                               <p className="font-bold text-orange-600">{(variant?.price_c || product.price_c || product.price || 0).toFixed(0)}</p>
                             </div>
                             <div className="text-center">
-                              <p className="text-gray-500 text-xs font-medium">D</p>
+                              <p className="text-gray-500 font-medium">{getCategoryLabelArabic('D')}</p>
                               <p className="font-bold text-purple-600">{(variant?.price_d || product.price_d || product.price || 0).toFixed(0)}</p>
                             </div>
                             <div className="text-center">
-                              <p className="text-gray-500 text-xs font-medium">E</p>
+                              <p className="text-gray-500 font-medium">{getCategoryLabelArabic('E')}</p>
                               <p className="font-bold text-red-600">{(variant?.price_e || product.price_e || product.price || 0).toFixed(0)}</p>
                             </div>
                           </div>
@@ -566,7 +690,9 @@ export default function CommercialNewOrderPage() {
                       })()}
                       {selectedClient && (
                         <div className="text-center mt-2 pt-2 border-t border-gray-200">
-                          <p className="text-xs text-gray-500">سعر العميل ({selectedClient.subscription_tier})</p>
+                          <p className="text-xs text-gray-500">
+                            سعر العميل ({getCategoryLabelArabic(selectedClient.subscription_tier) || selectedClient.subscription_tier})
+                          </p>
                           <p className="text-lg font-bold text-green-700">{(price || 0).toFixed(2)} MAD</p>
                         </div>
                       )}
@@ -625,9 +751,29 @@ export default function CommercialNewOrderPage() {
             </div>
             <div className="text-left">
               <p className="text-sm text-gray-600">المجموع</p>
-              <p className="text-2xl font-bold text-green-600">{calculateTotal().toFixed(2)} MAD</p>
+              <p className="text-2xl font-bold text-green-600">{promotionSummary.finalTotal.toFixed(2)} MAD</p>
             </div>
           </div>
+          {(promotionSummary.discountTotal > 0 || promotionSummary.giftItems.length > 0) && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 mb-3 text-sm text-emerald-800 space-y-1">
+              {promotionSummary.discountTotal > 0 && (
+                <div className="flex items-center justify-between">
+                  <span>خصم العروض</span>
+                  <span className="font-semibold">- {promotionSummary.discountTotal.toFixed(2)} MAD</span>
+                </div>
+              )}
+              {promotionSummary.giftItems.length > 0 && (
+                <div>
+                  <span className="font-semibold">هدايا:</span>
+                  <div className="text-emerald-700">
+                    {promotionSummary.giftItems.map((gift, idx) => (
+                      <div key={`${gift.id}-${idx}`}>• {gift.name_ar} × {gift.quantity}</div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           <button
             onClick={handleSubmitOrder}
             className="w-full bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
