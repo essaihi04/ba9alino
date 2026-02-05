@@ -72,10 +72,10 @@ export default function Layout({ children }: LayoutProps) {
               {!isDashboard && (
                 <button
                   onClick={() => navigate('/')}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2"
+                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2 font-bold"
                 >
-                  <ArrowRight size={20} className="text-gray-600" />
-                  <span className="text-gray-600">العودة</span>
+                  <ArrowRight size={20} className="text-white" />
+                  <span>العودة</span>
                 </button>
               )}
               <img 

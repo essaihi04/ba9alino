@@ -548,7 +548,7 @@ export default function ProductsPage() {
           .from('product-images')
           .upload(fileName, file, {
             cacheControl: '3600',
-            upsert: false
+            upsert: true
           })
         
         if (uploadError) {
@@ -580,6 +580,16 @@ export default function ProductsPage() {
     const barcode = String(barcodeRaw ?? barcodeInput).trim()
     if (!barcode) return
 
+    const existingProduct = products.find((p) => String(p.sku || '').trim() === barcode)
+    if (existingProduct) {
+      setBarcodeLookupError('هذا المنتج مُسجّل مسبقاً في لائحة المنتجات')
+      setBarcodeLookupResult(null)
+      setBarcodeInput('')
+      setFormData((prev) => ({ ...prev, sku: '' }))
+      setTimeout(() => barcodeInputRef.current?.focus(), 50)
+      return
+    }
+
     setBarcodeLookupLoading(true)
     setBarcodeLookupError(null)
     setBarcodeLookupResult(null)
@@ -602,7 +612,7 @@ export default function ProductsPage() {
       }
     } catch (err: any) {
       console.error('Barcode lookup error:', err)
-      setBarcodeLookupError(err?.message || 'Barcode lookup failed')
+      setBarcodeLookupError('لم يتم العثور على المنتج لهذا الباركود')
     } finally {
       setBarcodeLookupLoading(false)
     }
@@ -1494,13 +1504,13 @@ export default function ProductsPage() {
   return (
     <div className="space-y-6" dir="rtl">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-          <Package size={24} />
+        <h1 className="text-xl font-bold text-white flex items-center gap-2">
+          <Package size={20} />
           إدارة المنتجات
         </h1>
         <div className="flex gap-2">
-          <label className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 flex items-center gap-2 cursor-pointer">
-            <Upload size={16} />
+          <label className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg font-bold text-sm transition-all duration-200 transform hover:scale-105 flex items-center gap-2 cursor-pointer">
+            <Upload size={14} />
             استيراد Excel
             <input
               type="file"
@@ -1520,44 +1530,44 @@ export default function ProductsPage() {
       </div>
 
       {/* Statistiques rapides */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-xl p-4 shadow-lg">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-xl p-3 shadow-lg">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-purple-100 text-sm mb-1">إجمالي المنتجات</p>
-              <p className="text-xl font-bold">{products.length}</p>
+              <p className="text-purple-100 text-xs mb-1">إجمالي المنتجات</p>
+              <p className="text-lg font-bold">{products.length}</p>
             </div>
-            <Package size={24} className="text-purple-200" />
+            <Package size={20} className="text-purple-200" />
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-red-500 to-red-600 text-white rounded-xl p-4 shadow-lg">
+        <div className="bg-gradient-to-br from-red-500 to-red-600 text-white rounded-xl p-3 shadow-lg">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-red-100 text-sm mb-1">نفذ المخزون</p>
-              <p className="text-xl font-bold">{outOfStockCount}</p>
+              <p className="text-red-100 text-xs mb-1">نفذ المخزون</p>
+              <p className="text-lg font-bold">{outOfStockCount}</p>
             </div>
-            <AlertCircle size={24} className="text-red-200" />
+            <AlertCircle size={20} className="text-red-200" />
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-xl p-4 shadow-lg">
+        <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-xl p-3 shadow-lg">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-orange-100 text-sm mb-1">منخفض المخزون</p>
-              <p className="text-xl font-bold">{lowStockCount}</p>
+              <p className="text-orange-100 text-xs mb-1">منخفض المخزون</p>
+              <p className="text-lg font-bold">{lowStockCount}</p>
             </div>
-            <TrendingUp size={24} className="text-orange-200" />
+            <TrendingUp size={20} className="text-orange-200" />
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl p-4 shadow-lg">
+        <div className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl p-3 shadow-lg">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-green-100 text-sm mb-1">متوفر</p>
-              <p className="text-xl font-bold">{products.length - lowStockCount}</p>
+              <p className="text-green-100 text-xs mb-1">متوفر</p>
+              <p className="text-lg font-bold">{products.length - lowStockCount}</p>
             </div>
-            <Package size={24} className="text-green-200" />
+            <Package size={20} className="text-green-200" />
           </div>
         </div>
       </div>
@@ -1619,7 +1629,7 @@ export default function ProductsPage() {
       </div>
 
       {/* Recherche */}
-      <div className="bg-white rounded-xl shadow-lg p-6">
+      <div className="bg-white rounded-xl shadow-lg p-6 sticky top-0 z-20">
         <div className="flex gap-4">
           <div className="relative flex-1">
             <Search className="absolute right-3 top-3 text-gray-400" size={20} />
@@ -1670,6 +1680,19 @@ export default function ProductsPage() {
                       {allFilteredSelected ? 'إلغاء التحديد' : 'تحديد الكل (حسب الفلتر)'}
                     </button>
 
+                    {selectedProductIds.size === 1 && (
+                      <button
+                        onClick={() => {
+                          const selectedId = Array.from(selectedProductIds)[0]
+                          const product = products.find((p) => p.id === selectedId)
+                          if (product) openEditModal(product)
+                        }}
+                        className="bg-purple-600 text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-purple-700"
+                      >
+                        تعديل المنتج
+                      </button>
+                    )}
+
                     <select
                       value={bulkTargetCategoryId}
                       onChange={(e) => setBulkTargetCategoryId(e.target.value)}
@@ -1702,10 +1725,10 @@ export default function ProductsPage() {
                 </div>
               </div>
             )}
-            <table className="w-full">
-              <thead className="bg-gradient-to-r from-purple-600 to-purple-700 text-white">
+            <table className="w-full border border-gray-200 border-collapse">
+              <thead className="bg-gray-100 text-black">
                 <tr>
-                  <th className="px-6 py-4 text-right font-bold">
+                  <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">
                     <input
                       type="checkbox"
                       checked={allFilteredSelected}
@@ -1713,12 +1736,12 @@ export default function ProductsPage() {
                       className="h-4 w-4"
                     />
                   </th>
-                  <th className="px-6 py-4 text-right font-bold">اسم المنتج</th>
-                  <th className="px-6 py-4 text-right font-bold">سعر البيع</th>
-                  <th className="px-6 py-4 text-right font-bold">المخزون</th>
-                  <th className="px-6 py-4 text-right font-bold">حالة المخزون</th>
-                  <th className="px-6 py-4 text-right font-bold">القيمة الإجمالية</th>
-                  <th className="px-6 py-4 text-right font-bold">إجراءات سريعة</th>
+                  <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">اسم المنتج</th>
+                  <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">سعر البيع</th>
+                  <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">المخزون</th>
+                  <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">حالة المخزون</th>
+                  <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">القيمة الإجمالية</th>
+                  <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">إجراءات سريعة</th>
                 </tr>
               </thead>
               <tbody>
@@ -1731,7 +1754,7 @@ export default function ProductsPage() {
                       key={product.id}
                       className="border-b hover:bg-purple-50 transition-colors"
                     >
-                      <td className="px-6 py-4">
+                      <td className="px-3 py-2 border border-gray-200">
                         <input
                           type="checkbox"
                           checked={selectedProductIds.has(product.id)}
@@ -1739,48 +1762,48 @@ export default function ProductsPage() {
                           className="h-4 w-4"
                         />
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-3 py-2 border border-gray-200">
                         <button
                           onClick={() => openEditModal(product)}
                           className="text-right w-full"
                         >
-                          <p className="font-bold text-gray-800 hover:text-purple-700 underline-offset-4 hover:underline">
+                          <p className="font-bold text-sm text-gray-800 hover:text-purple-700 underline-offset-4 hover:underline">
                             {product.name_ar}
                           </p>
                           {product.sku && (
-                            <p className="text-sm text-gray-500">SKU: {product.sku}</p>
+                            <p className="text-xs text-gray-500">SKU: {product.sku}</p>
                           )}
                         </button>
                       </td>
-                      <td className="px-6 py-4">
-                        <span className="font-bold text-gray-800">
+                      <td className="px-3 py-2 border border-gray-200">
+                        <span className="font-bold text-sm text-gray-800">
                           {product.price_a.toFixed(2)} MAD
                         </span>
                       </td>
-                      <td className="px-6 py-4">
-                        <span className={`font-bold text-lg ${
+                      <td className="px-3 py-2 border border-gray-200">
+                        <span className={`font-bold text-sm ${
                           product.stock === 0 ? 'text-red-600' : 
                           product.stock < 10 ? 'text-orange-600' : 'text-green-600'
                         }`}>
                           {product.stock}
                         </span>
                       </td>
-                      <td className="px-6 py-4">
-                        <span className={`px-3 py-1 rounded-full font-bold text-sm ${stockStatus.color}`}>
+                      <td className="px-3 py-2 border border-gray-200">
+                        <span className={`px-2 py-0.5 rounded-full font-bold text-xs ${stockStatus.color}`}>
                           {stockStatus.text}
                         </span>
                       </td>
-                      <td className="px-6 py-4">
-                        <span className="font-bold text-gray-800">
+                      <td className="px-3 py-2 border border-gray-200">
+                        <span className="font-bold text-sm text-gray-800">
                           {totalValue.toFixed(2)} MAD
                         </span>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-3 py-2 border border-gray-200">
                         <div className="flex items-center gap-2">
                           <div className="flex gap-2">
                             <button
                               onClick={() => openEditModal(product)}
-                              className="bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-2 rounded-lg text-sm font-bold transition-colors"
+                              className="bg-purple-100 hover:bg-purple-200 text-purple-700 px-2 py-1 rounded-lg text-xs font-bold transition-colors"
                             >
                               <Edit2 size={14} />
                               تعديل المنتج
@@ -1791,7 +1814,7 @@ export default function ProductsPage() {
                                 setEditPrice(product.price_a.toString())
                                 setShowEditModal(true)
                               }}
-                              className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-2 rounded-lg text-sm font-bold transition-colors"
+                              className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded-lg text-xs font-bold transition-colors"
                             >
                               <span className="inline-flex items-center gap-1">
                                 تعديل السعر
@@ -1799,7 +1822,7 @@ export default function ProductsPage() {
                             </button>
                             <button
                               onClick={() => handleArchiveOne(product)}
-                              className="bg-red-100 hover:bg-red-200 text-red-700 px-3 py-2 rounded-lg text-sm font-bold transition-colors"
+                              className="bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded-lg text-xs font-bold transition-colors"
                               disabled={bulkLoading}
                               title="حذف/أرشفة المنتج"
                             >
@@ -1807,7 +1830,7 @@ export default function ProductsPage() {
                               حذف
                             </button>
                           </div>
-                          <div className="bg-gray-100 text-gray-500 px-3 py-2 rounded-lg text-sm font-bold" title="المخزون يُحدَّث تلقائياً من فواتير الشراء">
+                          <div className="bg-gray-100 text-gray-500 px-2 py-1 rounded-lg text-xs font-bold" title="المخزون يُحدَّث تلقائياً من فواتير الشراء">
                             <Package size={14} className="inline mr-1" />
                             المخزون من المشتريات فقط
                           </div>
@@ -1831,6 +1854,21 @@ export default function ProductsPage() {
             <h3 className="text-xl font-bold mb-6">إضافة منتج جديد</h3>
 
             <form onSubmit={handleAddProduct} className="space-y-4">
+              <div className="sticky top-0 z-20 bg-white py-3 border-b border-gray-200 flex gap-3">
+                <button
+                  type="submit"
+                  className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg font-bold"
+                >
+                  حفظ المنتج
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowAddModal(false); setVariants([]); setPrimaryVariants([]); }}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 rounded-lg font-bold"
+                >
+                  إلغاء
+                </button>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">اسم المنتج</label>
@@ -1851,6 +1889,7 @@ export default function ProductsPage() {
                     onChange={(e) => {
                       setFormData({ ...formData, sku: e.target.value })
                       setBarcodeInput(e.target.value)
+                      if (barcodeLookupError) setBarcodeLookupError(null)
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
@@ -1860,6 +1899,9 @@ export default function ProductsPage() {
                     }}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg"
                   />
+                  {barcodeLookupError && (
+                    <p className="mt-1 text-xs font-semibold text-red-600">{barcodeLookupError}</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">العائلة</label>
@@ -2031,21 +2073,6 @@ export default function ProductsPage() {
                 وحدات البيع (وحدة/كرتون/كيلو) تُنشأ وتُحدَّث من صفحة المشتريات.
               </div>
 
-              <div className="flex gap-3 mt-6">
-                <button
-                  type="submit"
-                  className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg font-bold"
-                >
-                  حفظ المنتج
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setShowAddModal(false); setVariants([]); setPrimaryVariants([]); }}
-                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 rounded-lg font-bold"
-                >
-                  إلغاء
-                </button>
-              </div>
             </form>
           </div>
         </div>
@@ -2057,6 +2084,21 @@ export default function ProductsPage() {
             <h3 className="text-xl font-bold mb-6">تعديل المنتج</h3>
             
             <form onSubmit={handleEditProduct} className="space-y-4">
+              <div className="sticky top-0 z-20 bg-white py-3 border-b border-gray-200 flex gap-3">
+                <button
+                  type="submit"
+                  className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg font-bold"
+                >
+                  حفظ التعديلات
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowEditProductModal(false); setVariants([]); setPrimaryVariants([]); }}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 rounded-lg font-bold"
+                >
+                  إلغاء
+                </button>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">اسم المنتج</label>
@@ -2204,7 +2246,7 @@ export default function ProductsPage() {
                               </div>
                             </div>
 
-                            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-3">
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-3" data-price-grid="true">
                               {(['price_a','price_b','price_c','price_d','price_e'] as const).map((field, idx) => (
                                 <div key={field}>
                                   <label className="block text-xs font-bold text-gray-600 mb-1">سعر {getCategoryLabelArabic(String.fromCharCode(65 + idx) as any)}</label>
@@ -2212,8 +2254,24 @@ export default function ProductsPage() {
                                     type="number"
                                     min="0"
                                     step="0.01"
-                                    value={(pv as any)[field] ?? 0}
-                                    onChange={(e) => updatePrimaryVariant(index, field as any, parseFloat(e.target.value) || 0)}
+                                    inputMode="decimal"
+                                    data-price-input="true"
+                                    value={(pv as any)[field] === 0 ? '' : ((pv as any)[field] ?? '')}
+                                    onChange={(e) => {
+                                      const nextValue = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0
+                                      updatePrimaryVariant(index, field as any, nextValue)
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        e.preventDefault()
+                                        const container = e.currentTarget.closest('[data-price-grid="true"]')
+                                        const inputs = container?.querySelectorAll<HTMLInputElement>('input[data-price-input="true"]')
+                                        if (!inputs || inputs.length === 0) return
+                                        const currentIndex = Array.from(inputs).indexOf(e.currentTarget)
+                                        const next = inputs[currentIndex + 1]
+                                        if (next) next.focus()
+                                      }
+                                    }}
                                     className="w-full p-2 border border-gray-300 rounded-lg text-sm"
                                   />
                                 </div>
@@ -2314,21 +2372,6 @@ export default function ProductsPage() {
                 </div>
               </div>
 
-              <div className="flex gap-3 mt-6">
-                <button
-                  type="submit"
-                  className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg font-bold"
-                >
-                  حفظ التعديلات
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setShowEditProductModal(false); setVariants([]); setPrimaryVariants([]); }}
-                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 rounded-lg font-bold"
-                >
-                  إلغاء
-                </button>
-              </div>
             </form>
           </div>
         </div>

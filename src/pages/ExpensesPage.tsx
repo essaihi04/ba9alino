@@ -3,6 +3,13 @@ import { Search, Plus, Trash2, Edit2, DollarSign, TrendingDown } from 'lucide-re
 import { supabase } from '../lib/supabase'
 import { useInputPad } from '../components/useInputPad'
 
+interface Employee {
+  id: string
+  name: string
+}
+
+type ExpenseSource = 'expense' | 'salary_payment'
+
 interface Expense {
   id: string
   date: string
@@ -13,6 +20,8 @@ interface Expense {
   employee_id?: string
   created_at: string
   updated_at: string
+  source: ExpenseSource
+  transaction_id?: string
 }
 
 const CATEGORIES = {
@@ -36,6 +45,7 @@ const PAYMENT_METHODS = {
 export default function ExpensesPage() {
   const inputPad = useInputPad()
   const [expenses, setExpenses] = useState<Expense[]>([])
+  const [employees, setEmployees] = useState<Employee[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterCategory, setFilterCategory] = useState<string>('all')
@@ -57,13 +67,51 @@ export default function ExpensesPage() {
   const loadExpenses = async () => {
     try {
       setLoading(true)
-      const { data, error } = await supabase
-        .from('expenses')
-        .select('*')
-        .order('date', { ascending: false })
+      const [expensesRes, txRes, employeesRes] = await Promise.all([
+        supabase.from('expenses').select('*'),
+        supabase
+          .from('employee_transactions')
+          .select('*')
+          .eq('transaction_type', 'salary_payment'),
+        supabase.from('employees').select('id, name').order('name')
+      ])
 
-      if (error) throw error
-      setExpenses(data || [])
+      if (expensesRes.error) throw expensesRes.error
+      if (txRes.error) throw txRes.error
+      if (employeesRes.error) throw employeesRes.error
+
+      const employeeMap = new Map(
+        (employeesRes.data || []).map((employee) => [employee.id, employee])
+      )
+
+      const salaryExpenses: Expense[] = (txRes.data || []).map((txn: any) => {
+        const employee = employeeMap.get(txn.employee_id)
+        return {
+          id: `salary-${txn.id}`,
+          date: txn.transaction_date,
+          category: 'salary',
+          description: txn.notes || (employee ? `راتب: ${employee.name}` : 'راتب الموظف'),
+          amount: Number(txn.amount || 0),
+          payment_method: txn.payment_method,
+          employee_id: txn.employee_id,
+          created_at: txn.created_at,
+          updated_at: txn.created_at,
+          source: 'salary_payment',
+          transaction_id: txn.id
+        }
+      })
+
+      const normalExpenses: Expense[] = (expensesRes.data || []).map((expense: any) => ({
+        ...expense,
+        source: 'expense'
+      }))
+
+      const merged = [...salaryExpenses, ...normalExpenses].sort((a, b) =>
+        String(b.date).localeCompare(String(a.date))
+      )
+
+      setEmployees(employeesRes.data || [])
+      setExpenses(merged)
     } catch (error) {
       console.error('Error loading expenses:', error)
     } finally {
@@ -123,12 +171,27 @@ export default function ExpensesPage() {
       }
 
       if (editingExpense) {
-        const { error } = await supabase
-          .from('expenses')
-          .update(expenseData)
-          .eq('id', editingExpense.id)
+        if (editingExpense.source === 'salary_payment' && editingExpense.transaction_id) {
+          const { error } = await supabase
+            .from('employee_transactions')
+            .update({
+              employee_id: expenseData.employee_id,
+              transaction_date: expenseData.date,
+              amount: expenseData.amount,
+              payment_method: expenseData.payment_method,
+              notes: expenseData.description || null
+            })
+            .eq('id', editingExpense.transaction_id)
 
-        if (error) throw error
+          if (error) throw error
+        } else {
+          const { error } = await supabase
+            .from('expenses')
+            .update(expenseData)
+            .eq('id', editingExpense.id)
+
+          if (error) throw error
+        }
       } else {
         const { error } = await supabase
           .from('expenses')
@@ -157,12 +220,21 @@ export default function ExpensesPage() {
     }
 
     try {
-      const { error } = await supabase
-        .from('expenses')
-        .delete()
-        .eq('id', expense.id)
+      if (expense.source === 'salary_payment' && expense.transaction_id) {
+        const { error } = await supabase
+          .from('employee_transactions')
+          .delete()
+          .eq('id', expense.transaction_id)
 
-      if (error) throw error
+        if (error) throw error
+      } else {
+        const { error } = await supabase
+          .from('expenses')
+          .delete()
+          .eq('id', expense.id)
+
+        if (error) throw error
+      }
       await loadExpenses()
       alert('✅ تم حذف المصروف بنجاح')
     } catch (error) {

@@ -2217,9 +2217,10 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       const debtAmount = remaining > 0 ? remaining : 0
 
       printContent = `
-        <div style="direction: rtl; font-family: monospace; color: #000; width: 80mm; margin: 0 auto; padding: 6px; font-size: 12px; line-height: 1.25;">
+        <div style="direction: rtl; font-family: monospace; color: #000; width: 80mm; margin: 0 auto; padding: 6px; font-size: 12px; line-height: 1.25; font-weight: bold;">
           <div style="text-align: center; margin-bottom: 6px;">
-            <div style="font-size: 14px; font-weight: bold;">${companyInfo.company_name_ar || companyInfo.company_name || ''}</div>
+            <div style="font-size: 16px; font-weight: bold;">${companyInfo.company_name_ar || companyInfo.company_name || 'BA9ALINO'}</div>
+            <div style="font-size: 13px; font-weight: bold;">${companyInfo.company_name_ar || companyInfo.company_name || 'BA9ALINO'}</div>
             ${companyInfo.address_ar ? `<div style=\"font-size: 10px;\">${companyInfo.address_ar}</div>` : ''}
             ${companyInfo.phone ? `<div style=\"font-size: 10px;\">${companyInfo.phone}</div>` : ''}
           </div>
@@ -2792,7 +2793,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       <div
         ref={invoicePanelRef}
         tabIndex={-1}
-        className="w-96 bg-white rounded-xl shadow-lg p-4 flex flex-col overflow-auto"
+        className="w-[440px] bg-white rounded-xl shadow-lg p-3 flex flex-col overflow-auto"
       >
         {/* EN-TÊTE FACTURE */}
         {currentInvoice ? (
@@ -2831,15 +2832,15 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
             </button>
 
             {/* LIGNES FACTURE - TABLEAU PROFESSIONNEL */}
-            <div className="flex-1 overflow-y-auto mb-3 border-b-2 border-gray-200 pb-3 min-h-[150px] max-h-[250px]">
+            <div className="mb-2 border-b-2 border-gray-200 pb-2">
               {!currentInvoice.lines || currentInvoice.lines.length === 0 ? (
                 <div className="text-center text-gray-400 py-8 text-sm">
                   لا توجد منتجات
                 </div>
               ) : (
-                <div className="text-xs">
+                <div className="text-[11px]">
                   {/* En-tête du tableau */}
-                  <div className="grid grid-cols-12 gap-1 mb-2 pb-2 border-b border-gray-300 font-bold text-gray-700">
+                  <div className="grid grid-cols-12 gap-0.5 mb-1 pb-1 border-b border-gray-300 font-bold text-gray-700 text-[11px]">
                     <div className="col-span-5">المنتج</div>
                     <div className="col-span-2 text-center">الثمن</div>
                     <div className="col-span-2 text-center">الكمية</div>
@@ -2848,29 +2849,29 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                   </div>
                   
                   {/* Lignes du tableau */}
-                  <div className="space-y-1">
+                  <div className="space-y-0.5">
                     {currentInvoice.lines?.map((line) => (
                       <div
                         key={line.id}
-                        className={`grid grid-cols-12 gap-1 p-1 bg-gray-50 rounded border border-gray-200 transition-colors items-center ${
+                        className={`grid grid-cols-12 gap-0.5 p-0.5 bg-gray-50 rounded border border-gray-200 transition-colors items-center ${
                           line.deleted ? 'opacity-60' : 'hover:border-green-500 hover:bg-green-50'
                         }`}
                       >
                         {/* Produit */}
-                        <div className="col-span-5 flex items-center gap-2">
+                        <div className="col-span-5 flex items-center gap-1">
                           {/* Vignette image */}
                           {line.image_url ? (
                             <img
                               src={line.image_url}
                               alt={line.product_name_ar}
-                              className="w-8 h-8 object-cover rounded border border-gray-300"
+                              className="w-6 h-6 object-cover rounded border border-gray-300"
                               onError={(e) => {
                                 e.currentTarget.style.display = 'none'
                               }}
                             />
                           ) : (
-                            <div className="w-8 h-8 bg-gray-100 rounded border border-gray-300 flex items-center justify-center">
-                              <ShoppingCart size={14} className="text-gray-400" />
+                            <div className="w-6 h-6 bg-gray-100 rounded border border-gray-300 flex items-center justify-center">
+                              <ShoppingCart size={12} className="text-gray-400" />
                             </div>
                           )}
                           
@@ -2879,16 +2880,16 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                               onClick={() => {
                                 if (!line.deleted) openEditInvoiceLineModal(line)
                               }}
-                              className={`w-full font-semibold truncate text-left ${line.deleted ? 'text-gray-500 line-through cursor-not-allowed' : 'text-gray-800 hover:text-green-700 hover:underline'}`}
+                              className={`w-full font-semibold truncate text-left text-[11px] ${line.deleted ? 'text-gray-500 line-through cursor-not-allowed' : 'text-gray-800 hover:text-green-700 hover:underline'}`}
                               type="button"
                             >
                               {line.product_name_ar}
                             </button>
-                            <div className="mt-1 flex flex-wrap gap-1">
+                            <div className="mt-0.5 flex flex-wrap gap-1">
                               <button
                                 type="button"
                                 onClick={() => !line.deleted && toggleGiftLine(line.id)}
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${
                                   line.deleted
                                     ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
                                     : line.is_gift
@@ -2912,7 +2913,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                                     onConfirm: (v) => applyLineDiscount(line.id, parseFloat(v) || 0),
                                   })
                                 }}
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${
                                   line.deleted
                                     ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
                                     : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
@@ -2922,12 +2923,12 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                                 خصم
                               </button>
                               {(line.discount_percent || 0) > 0 && !line.is_gift && (
-                                <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded px-2 py-0.5">
+                                <span className="text-[9px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded px-1.5 py-0.5">
                                   -{line.discount_percent}%
                                 </span>
                               )}
                               {line.is_gift && (
-                                <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5">
+                                <span className="text-[9px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
                                   هدية مجانية
                                 </span>
                               )}
@@ -3015,47 +3016,54 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
               )}
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-2">
               {/* RÉSUMÉ FINANCIER */}
-              <div className="p-3 rounded-xl border border-gray-200 bg-gray-50 space-y-2">
-                <div className="flex justify-between text-sm">
+              <div className="p-1.5 rounded-lg border border-gray-200 bg-gray-50 space-y-0.5">
+                <div className="flex justify-between text-[11px]">
                   <span className="text-gray-600">الإجمالي:</span>
                   <span className="font-bold text-gray-800">{currentInvoice.subtotal.toFixed(2)} MAD</span>
                 </div>
-                <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center justify-between text-[11px]">
                   <span className="text-gray-600">خصم الفاتورة:</span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      inputPad.open({
-                        title: 'خصم الفاتورة (%)',
-                        mode: 'number',
-                        min: 0,
-                        max: 100,
-                        initialValue: String(currentInvoice.discount_percent || 0),
-                        onConfirm: (v) => applyInvoiceDiscount(parseFloat(v) || 0),
-                      })
-                    }
-                    className="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 rounded px-2 py-1 hover:bg-blue-100"
-                  >
-                    {currentInvoice.discount_percent || 0}%
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {currentInvoice.discount_percent ? (
+                      <span className="text-[10px] font-semibold text-blue-700">
+                        -{((currentInvoice.subtotal || 0) * (currentInvoice.discount_percent / 100)).toFixed(2)} MAD
+                      </span>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        inputPad.open({
+                          title: 'خصم الفاتورة (%)',
+                          mode: 'number',
+                          min: 0,
+                          max: 100,
+                          initialValue: String(currentInvoice.discount_percent || 0),
+                          onConfirm: (v) => applyInvoiceDiscount(parseFloat(v) || 0),
+                        })
+                      }
+                      className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 rounded px-1.5 py-0.5 hover:bg-blue-100"
+                    >
+                      {currentInvoice.discount_percent || 0}%
+                    </button>
+                  </div>
                 </div>
                 {(currentInvoice.discount_amount || 0) > 0 && (
-                  <div className="flex justify-between text-sm text-blue-700">
+                  <div className="flex justify-between text-[11px] text-blue-700">
                     <span>قيمة الخصم:</span>
                     <span>-{(currentInvoice.discount_amount || 0).toFixed(2)} MAD</span>
                   </div>
                 )}
-                <div className="flex justify-between text-lg font-bold text-green-600">
+                <div className="flex justify-between text-sm font-bold text-green-600">
                   <span>المجموع:</span>
                   <span>{currentInvoice.total_amount.toFixed(2)} MAD</span>
                 </div>
-                <div className="flex justify-between text-sm font-semibold text-gray-700">
+                <div className="flex justify-between text-[11px] font-semibold text-gray-700">
                   <span>المبلغ المدفوع:</span>
                   <span>{(paidAmount ?? 0).toFixed(2)} MAD</span>
                 </div>
-                <div className="flex justify-between text-sm font-semibold text-gray-700">
+                <div className="flex justify-between text-[11px] font-semibold text-gray-700">
                   <span>الباقي:</span>
                   <span className={currentInvoice.remaining_amount > 0 ? 'text-red-600' : 'text-green-600'}>
                     {currentInvoice.remaining_amount.toFixed(2)} MAD
@@ -3064,9 +3072,9 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
               </div>
 
               {/* ZONE PAIEMENT */}
-              <div className="p-3 rounded-xl border border-gray-200 bg-white space-y-2">
+              <div className="p-1.5 rounded-lg border border-gray-200 bg-white space-y-1.5">
                 <div>
-                  <label className="text-xs font-bold text-gray-600 block mb-1">المبلغ المدفوع:</label>
+                  <label className="text-[11px] font-bold text-gray-600 block mb-1">المبلغ المدفوع:</label>
                   <button
                     type="button"
                     onClick={() =>
@@ -3079,14 +3087,14 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                         onConfirm: (v) => updatePaidAmount(parseFloat(v) || 0),
                       })
                     }
-                    className="w-full p-2 border-2 border-gray-200 rounded-lg font-bold text-base focus:border-green-500 focus:outline-none bg-gray-50 text-left"
+                    className="w-full p-1 border-2 border-gray-200 rounded-lg font-bold text-[11px] focus:border-green-500 focus:outline-none bg-gray-50 text-left"
                   >
                     {(paidAmount ?? 0).toFixed(2)}
                   </button>
                 </div>
-                <div className="flex items-center justify-between rounded-lg px-3 py-2 bg-gray-100">
-                  <span className="text-sm font-bold text-gray-600">الباقي:</span>
-                  <span className={`text-lg font-extrabold ${currentInvoice.remaining_amount > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                <div className="flex items-center justify-between rounded-lg px-2 py-1 bg-gray-100">
+                  <span className="text-[11px] font-bold text-gray-600">الباقي:</span>
+                  <span className={`text-sm font-extrabold ${currentInvoice.remaining_amount > 0 ? 'text-red-600' : 'text-green-600'}`}>
                     {currentInvoice.remaining_amount.toFixed(2)} MAD
                   </span>
                 </div>

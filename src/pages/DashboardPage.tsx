@@ -125,17 +125,30 @@ export default function DashboardPage() {
       const totalPayments = payments?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0
       const supplierDebts = Math.max(0, totalPurchases - totalPayments)
 
-      // 6. Dépenses du mois
-      const { data: monthExpenses, error: err6 } = await supabase
-        .from('expenses')
-        .select('amount')
-        .gte('date', monthStart)
-        .lte('date', todayStr)
+      // 6. Dépenses du mois (expenses + salaires)
+      const [monthExpensesRes, salaryPaymentsRes] = await Promise.all([
+        supabase
+          .from('expenses')
+          .select('amount')
+          .gte('date', monthStart)
+          .lte('date', todayStr),
+        supabase
+          .from('employee_transactions')
+          .select('amount')
+          .eq('transaction_type', 'salary_payment')
+          .gte('transaction_date', monthStart)
+          .lte('transaction_date', todayStr)
+      ])
 
-      if (err6) console.error('❌ Expenses error:', err6)
-      else console.log('✅ Expenses fetched:', monthExpenses?.length)
+      if (monthExpensesRes.error) console.error('❌ Expenses error:', monthExpensesRes.error)
+      else console.log('✅ Expenses fetched:', monthExpensesRes.data?.length)
 
-      const monthlyExpenses = monthExpenses?.reduce((sum, e) => sum + (e.amount || 0), 0) || 0
+      if (salaryPaymentsRes.error) console.error('❌ Salary payments error:', salaryPaymentsRes.error)
+      else console.log('✅ Salary payments fetched:', salaryPaymentsRes.data?.length)
+
+      const baseExpenses = monthExpensesRes.data?.reduce((sum, e) => sum + (e.amount || 0), 0) || 0
+      const salaryExpenses = salaryPaymentsRes.data?.reduce((sum, s) => sum + (s.amount || 0), 0) || 0
+      const monthlyExpenses = baseExpenses + salaryExpenses
 
       // 7. Employés actifs
       const { data: employees, error: err7 } = await supabase
@@ -213,8 +226,10 @@ export default function DashboardPage() {
           check_number,
           check_date,
           check_deposit_date,
+          client_name,
+          company_name_ar,
           client:clients(company_name_ar),
-          payments(payment_method)
+          payments(payment_method, check_number, check_deposit_date)
         `)
         .order('created_at', { ascending: false })
         .limit(200)
@@ -274,16 +289,27 @@ export default function DashboardPage() {
 
       // Préparer la liste détaillée des chèques (récent)
       const chequesList = chequeInvoices.slice(0, 8).map((inv: any) => {
-        const clientName = inv?.client?.company_name_ar || 'عميل غير معروف'
+        const payment = Array.isArray(inv?.payments) ? inv.payments[0] : null
+        const clientName =
+          inv?.client?.company_name_ar ||
+          inv?.company_name_ar ||
+          inv?.client_name ||
+          'عميل غير معروف'
         const totalAmount = Number(inv?.total_amount ?? 0)
         const paidAmount = Number(inv?.paid_amount ?? 0)
         const remainingAmount = Math.max(0, totalAmount - paidAmount)
+        const checkNumber = inv?.check_number || payment?.check_number || 'غير محدد'
+        const checkBank =
+          inv?.bank_name_ar ||
+          inv?.bank_name ||
+          'غير محدد'
+        const checkDepositDate = inv?.check_deposit_date || payment?.check_deposit_date || null
         return {
           invoiceNumber: inv?.invoice_number || 'غير محدد',
           clientName,
-          checkNumber: inv?.check_number || 'غير محدد',
-          checkBank: inv?.bank_name_ar || inv?.bank_name || 'غير محدد',
-          checkDepositDate: inv?.check_deposit_date || null,
+          checkNumber,
+          checkBank,
+          checkDepositDate,
           totalAmount,
           paidAmount,
           remainingAmount

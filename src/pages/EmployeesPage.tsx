@@ -325,6 +325,28 @@ export default function EmployeesPage() {
     }
 
     try {
+      const { count: paymentsCount, error: paymentsError } = await supabase
+        .from('payments')
+        .select('id', { count: 'exact', head: true })
+        .eq('collected_by', employee.id)
+
+      if (paymentsError) throw paymentsError
+
+      if ((paymentsCount || 0) > 0) {
+        const deactivate = confirm('لا يمكن حذف هذا الموظف لأنه مرتبط بمدفوعات سابقة. هل تريد تعطيل حسابه بدل الحذف؟')
+        if (deactivate) {
+          const { error: deactivateError } = await supabase
+            .from('employees')
+            .update({ status: 'inactive', updated_at: new Date().toISOString() })
+            .eq('id', employee.id)
+
+          if (deactivateError) throw deactivateError
+          await loadEmployees()
+          alert('✅ تم تعطيل الموظف بسبب وجود مدفوعات مرتبطة به')
+        }
+        return
+      }
+
       const { error } = await supabase
         .from('employees')
         .delete()
