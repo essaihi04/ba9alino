@@ -1668,7 +1668,7 @@ export default function ProductsPage() {
         ) : (
           <div className="overflow-x-auto">
             {selectedProductIds.size > 0 && (
-              <div className="p-4 border-b bg-purple-50">
+              <div className="p-4 border-b bg-purple-50 sticky top-32 z-10">
                 <div className="flex flex-col md:flex-row md:items-center gap-3">
                   <div className="font-bold text-gray-800">{selectedProductIds.size} منتجات محددة</div>
                   <div className="flex flex-wrap items-center gap-2">
