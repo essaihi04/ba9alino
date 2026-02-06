@@ -1573,7 +1573,7 @@ export default function ProductsPage() {
       </div>
 
       {/* العائلات (Catégories) */}
-      <div className="bg-white rounded-xl shadow-lg p-4">
+      <div className="bg-white rounded-xl shadow-lg p-4 sticky top-16 z-10">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-bold text-gray-800">العائلات</h3>
           {selectedCategory && selectedCategory !== 'no-family' && (
