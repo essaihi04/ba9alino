@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { Search, Plus, Trash2, Edit2, Users, CheckCircle, AlertCircle, DollarSign } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useInputPad } from '../components/useInputPad'
+import { getCategoryLabelArabic } from '../utils/categoryLabels'
 
 interface Employee {
   id: string
@@ -16,6 +17,7 @@ interface Employee {
   hire_date?: string
   role: 'admin' | 'commercial' | 'stock' | 'truck_driver' | 'delivery_driver' | 'custom'
   custom_role?: string
+  allowed_price_tiers?: string[]
   status: 'active' | 'inactive'
   created_at: string
   updated_at: string
@@ -74,6 +76,7 @@ export default function EmployeesPage() {
     hire_date: new Date().toISOString().split('T')[0],
     role: 'delivery_driver' as 'admin' | 'commercial' | 'stock' | 'truck_driver' | 'delivery_driver' | 'custom',
     customRole: '',
+    allowed_price_tiers: [] as string[],
     status: 'active' as 'active' | 'inactive'
   })
 
@@ -234,6 +237,12 @@ export default function EmployeesPage() {
         employeeData.custom_role = formData.customRole
       }
 
+      if (formData.allowed_price_tiers.length > 0) {
+        employeeData.allowed_price_tiers = formData.allowed_price_tiers
+      } else {
+        employeeData.allowed_price_tiers = null
+      }
+
       if (editingEmployee) {
         const { error } = await supabase
           .from('employees')
@@ -373,6 +382,7 @@ export default function EmployeesPage() {
       hire_date: employee.hire_date || new Date().toISOString().split('T')[0],
       role: employee.role,
       customRole: employee.role === 'custom' ? employee.custom_role || '' : '',
+      allowed_price_tiers: employee.allowed_price_tiers || [],
       status: employee.status
     })
     setShowAddModal(true)
@@ -389,6 +399,7 @@ export default function EmployeesPage() {
       hire_date: new Date().toISOString().split('T')[0],
       role: 'delivery_driver' as 'admin' | 'commercial' | 'stock' | 'truck_driver' | 'delivery_driver' | 'custom',
       customRole: '',
+      allowed_price_tiers: [] as string[],
       status: 'active' as 'active' | 'inactive'
     })
   }
@@ -577,6 +588,7 @@ export default function EmployeesPage() {
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">الاسم</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">الهاتف</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">الدور</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">أسعار البيع</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">سقف السلفة</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">رصيد السلفة</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">الحالة</th>
@@ -587,7 +599,7 @@ export default function EmployeesPage() {
             <tbody className="divide-y">
               {filteredEmployees.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={9} className="px-4 py-8 text-center text-gray-500">
                     لا يوجد موظفين
                   </td>
                 </tr>
@@ -604,6 +616,19 @@ export default function EmployeesPage() {
                       <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${ROLE_COLORS[employee.role]}`}>
                         {employee.role === 'custom' ? employee.custom_role || 'دور مخصص' : ROLES[employee.role]}
                       </span>
+                    </td>
+                    <td className="px-4 py-4">
+                      {employee.allowed_price_tiers && employee.allowed_price_tiers.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {employee.allowed_price_tiers.map(tier => (
+                            <span key={tier} className="inline-block px-2 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-800">
+                              {tier}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-400">الكل</span>
+                      )}
                     </td>
                     <td className="px-4 py-4">
                       <span className="text-sm text-gray-700">
@@ -921,6 +946,41 @@ export default function EmployeesPage() {
                   />
                 </div>
               )}
+
+              {/* Price tiers assignment */}
+              <div>
+                <label className="block text-sm font-medium mb-2">أنواع أسعار البيع المسموحة</label>
+                <p className="text-xs text-gray-500 mb-2">اختر أنواع الأسعار التي سيراها هذا الموظف في حسابه (اتركها فارغة = جميع الأسعار)</p>
+                <div className="flex flex-wrap gap-2">
+                  {(['A', 'B', 'C', 'D', 'E'] as const).map((tier) => {
+                    const isSelected = formData.allowed_price_tiers.includes(tier)
+                    return (
+                      <button
+                        key={tier}
+                        type="button"
+                        onClick={() => {
+                          const tiers = isSelected
+                            ? formData.allowed_price_tiers.filter(t => t !== tier)
+                            : [...formData.allowed_price_tiers, tier]
+                          setFormData({ ...formData, allowed_price_tiers: tiers })
+                        }}
+                        className={`px-3 py-2 rounded-lg text-sm font-bold border-2 transition-all ${
+                          isSelected
+                            ? 'bg-purple-600 text-white border-purple-600'
+                            : 'bg-white text-gray-700 border-gray-300 hover:border-purple-400'
+                        }`}
+                      >
+                        {getCategoryLabelArabic(tier)}
+                      </button>
+                    )
+                  })}
+                </div>
+                {formData.allowed_price_tiers.length > 0 && (
+                  <p className="text-xs text-purple-600 mt-1 font-bold">
+                    محدد: {formData.allowed_price_tiers.map(t => getCategoryLabelArabic(t)).join(' ، ')}
+                  </p>
+                )}
+              </div>
 
               <div className="flex gap-4 justify-end">
                 <button
