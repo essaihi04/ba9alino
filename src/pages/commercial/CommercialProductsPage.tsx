@@ -1,8 +1,10 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { Search, Package, ArrowLeft } from 'lucide-react'
 import { getCategoryLabelArabic } from '../../utils/categoryLabels'
+
+const PAGE_SIZE = 60
 
 interface Product {
   id: string
@@ -49,6 +51,7 @@ export default function CommercialProductsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [allowedTiers, setAllowedTiers] = useState<string[]>([])
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const loadingRef = useRef(false)
 
   const loadAll = async () => {
@@ -180,12 +183,22 @@ export default function CommercialProductsPage() {
     return () => document.removeEventListener('visibilitychange', handleVisibility)
   }, [])
 
-  const filteredProducts = products.filter(product => {
+  const filteredProducts = useMemo(() => products.filter(product => {
     const matchesSearch = product.name_ar.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          product.sku?.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesCategory = !selectedCategory || product.category_id === selectedCategory
     return matchesSearch && matchesCategory
-  })
+  }), [products, searchQuery, selectedCategory])
+
+  // Reset visible count when filters change
+  useEffect(() => { setVisibleCount(PAGE_SIZE) }, [searchQuery, selectedCategory])
+
+  const displayedProducts = useMemo(() => filteredProducts.slice(0, visibleCount), [filteredProducts, visibleCount])
+  const hasMore = visibleCount < filteredProducts.length
+
+  const loadMore = useCallback(() => {
+    setVisibleCount(prev => prev + PAGE_SIZE)
+  }, [])
 
   const shortCategoryLabel = (tier: string) =>
     getCategoryLabelArabic(tier).split('/')[0].trim() || tier
@@ -289,8 +302,9 @@ export default function CommercialProductsPage() {
             </button>
           </div>
         ) : (
+          <>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {filteredProducts.map((product) => {
+            {displayedProducts.map((product) => {
               const productPromotions = getProductPromotions(product.id)
               return (
               <div
@@ -303,7 +317,8 @@ export default function CommercialProductsPage() {
                     <img
                       src={product.image_url}
                       alt={product.name_ar}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-contain"
+                      loading="lazy"
                     />
                   ) : (
                     <Package size={24} className="text-gray-400" />
@@ -386,6 +401,20 @@ export default function CommercialProductsPage() {
               </div>
             )})}
           </div>
+          {hasMore && (
+            <div className="text-center mt-6 mb-4">
+              <button
+                onClick={loadMore}
+                className="bg-purple-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-purple-700 transition-colors"
+              >
+                عرض المزيد ({filteredProducts.length - visibleCount} متبقي)
+              </button>
+            </div>
+          )}
+          {!hasMore && filteredProducts.length > PAGE_SIZE && (
+            <p className="text-center text-gray-400 text-sm mt-4">تم عرض جميع المنتجات ({filteredProducts.length})</p>
+          )}
+          </>
         )}
       </div>
     </div>

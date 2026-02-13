@@ -1,9 +1,11 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { getCategoryLabelArabic } from '../../utils/categoryLabels'
 import { ArrowLeft, Plus, Minus, ShoppingCart, User, Check, Package } from 'lucide-react'
 import { useInputPad } from '../../components/useInputPad'
+
+const PAGE_SIZE = 60
 
 interface ProductVariant {
   price_a: number
@@ -98,6 +100,7 @@ export default function CommercialNewOrderPage() {
   const [showClientModal, setShowClientModal] = useState(false)
   const [showCreateClientModal, setShowCreateClientModal] = useState(false)
   const [allowedTiers, setAllowedTiers] = useState<string[]>([])
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [clientForm, setClientForm] = useState<NewClientForm>({
     company_name_ar: '',
     company_name_en: '',
@@ -523,13 +526,19 @@ export default function CommercialNewOrderPage() {
     }
   }
 
-  const filteredProducts = products.filter(p => {
+  const filteredProducts = useMemo(() => products.filter(p => {
     const matchesSearch =
       p.name_ar.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.sku?.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesCategory = !selectedCategory || p.category_id === selectedCategory
     return matchesSearch && matchesCategory
-  })
+  }), [products, searchQuery, selectedCategory])
+
+  useEffect(() => { setVisibleCount(PAGE_SIZE) }, [searchQuery, selectedCategory])
+
+  const displayedProducts = useMemo(() => filteredProducts.slice(0, visibleCount), [filteredProducts, visibleCount])
+  const hasMore = visibleCount < filteredProducts.length
+  const loadMore = useCallback(() => setVisibleCount(prev => prev + PAGE_SIZE), [])
 
   return (
     <div className="min-h-screen bg-gray-50" dir="rtl">
@@ -634,8 +643,9 @@ export default function CommercialNewOrderPage() {
         ) : filteredProducts.length === 0 ? (
           <div className="text-center py-12 text-gray-500">لا توجد منتجات</div>
         ) : (
+          <>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {filteredProducts.map((product) => {
+            {displayedProducts.map((product) => {
               const price = selectedClient ? getPriceForTier(product, selectedClient.subscription_tier) : product.price_e
               const inCart = cart.find(item => item.id === product.id)
               return (
@@ -646,7 +656,8 @@ export default function CommercialNewOrderPage() {
                       <img
                         src={product.image_url}
                         alt={product.name_ar}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-contain"
+                        loading="lazy"
                       />
                     ) : (
                       <Package size={32} className="text-gray-400" />
@@ -737,6 +748,17 @@ export default function CommercialNewOrderPage() {
               )
             })}
           </div>
+          {hasMore && (
+            <div className="text-center mt-6 mb-4">
+              <button
+                onClick={loadMore}
+                className="bg-green-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-green-700 transition-colors"
+              >
+                عرض المزيد ({filteredProducts.length - visibleCount} متبقي)
+              </button>
+            </div>
+          )}
+          </>
         )}
       </div>
 
