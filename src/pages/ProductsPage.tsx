@@ -1,5 +1,5 @@
-import { useEffect, useState, useRef } from 'react'
-import { Search, Plus, Package, Edit2, AlertCircle, TrendingUp, Upload, Barcode, Trash2, Box } from 'lucide-react'
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
+import { Search, Plus, Package, Edit2, AlertCircle, TrendingUp, Upload, Barcode, Trash2, Box, ChevronLeft, ChevronRight } from 'lucide-react'
 import { getCategoryLabelArabic } from '../utils/categoryLabels'
 import { supabase } from '../lib/supabase'
 import * as XLSX from 'xlsx'
@@ -114,23 +114,48 @@ export default function ProductsPage() {
   const [isUploading, setIsUploading] = useState(false)
   const barcodeInputRef = useRef<HTMLInputElement | null>(null)
 
+  // Pagination
+  const PRODUCTS_PER_PAGE = 50
+  const [currentPage, setCurrentPage] = useState(1)
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const lastLoadRef = useRef<number>(0)
+
+  // Import Excel progress
+  const [importProgress, setImportProgress] = useState<{ current: number; total: number; added: number; duplicates: number; noBarcode: number; noName: number; errors: number } | null>(null)
+
   useEffect(() => {
     loadProducts()
     loadCategories()
   }, [])
 
-  // Recharger les données lorsque la page devient visible (après retour d'une autre page)
+  // Debounce search input (300ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm)
+      setCurrentPage(1)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+
+  // Reset page when category changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [selectedCategory])
+
+  // Recharger les données lorsque la page devient visible (throttled: max once per 60s)
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (!document.hidden) {
+      if (!document.hidden && Date.now() - lastLoadRef.current > 60000) {
         console.log('Page became visible, reloading products...')
         loadProducts()
       }
     }
 
     const handleFocus = () => {
-      console.log('Page gained focus, reloading products...')
-      loadProducts()
+      if (Date.now() - lastLoadRef.current > 60000) {
+        console.log('Page gained focus, reloading products...')
+        loadProducts()
+      }
     }
 
     document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -160,36 +185,59 @@ export default function ProductsPage() {
   const loadProducts = async () => {
     setLoading(true)
     try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('id, name_ar, sku, cost_price, price_a, price_b, price_c, price_d, price_e, stock, category_id, image_url, created_at, weight, weight_unit')
-        .eq('is_active', true)
-        .order('name_ar', { ascending: true })
-
-      if (error) throw error
-      
-      console.log('Produits récupérés:', data?.length, 'produits')
-
-      if (data && data.length > 0) {
-        const { data: variants, error: variantsError } = await supabase
-          .from('product_variants')
-          .select('product_id, primary_variant_id, unit_type, quantity_contained, stock')
-          .eq('is_active', true)
-          .in('product_id', data.map(p => p.id))
-
-        if (variantsError) {
-          setProducts(data || [])
-          return
+      // Helper: batch .in() queries to avoid Supabase "Bad Request" with >1000 IDs
+      const BATCH_IN_SIZE = 500
+      const batchIn = async (table: string, select: string, column: string, ids: string[], extraFilters?: (q: any) => any) => {
+        let allRows: any[] = []
+        for (let i = 0; i < ids.length; i += BATCH_IN_SIZE) {
+          const chunk = ids.slice(i, i + BATCH_IN_SIZE)
+          let q = supabase.from(table).select(select).in(column, chunk)
+          if (extraFilters) q = extraFilters(q)
+          const { data, error } = await q
+          if (error) throw error
+          allRows = allRows.concat(data || [])
         }
+        return allRows
+      }
+
+      // Paginate to fetch ALL products (Supabase default limit is 1000)
+      let allData: any[] = []
+      let from = 0
+      const pageSize = 1000
+      while (true) {
+        const { data: page, error: pageError } = await supabase
+          .from('products')
+          .select('id, name_ar, sku, cost_price, price_a, price_b, price_c, price_d, price_e, stock, category_id, image_url, created_at, weight, weight_unit')
+          .eq('is_active', true)
+          .order('name_ar', { ascending: true })
+          .range(from, from + pageSize - 1)
+        if (pageError) throw pageError
+        if (!page || page.length === 0) break
+        allData = allData.concat(page)
+        if (page.length < pageSize) break
+        from += pageSize
+      }
+      
+      console.log('Produits récupérés:', allData.length, 'produits')
+
+      if (allData.length > 0) {
+        const productIds = allData.map(p => p.id)
+        const variants = await batchIn(
+          'product_variants',
+          'product_id, primary_variant_id, unit_type, quantity_contained, stock',
+          'product_id',
+          productIds,
+          (q: any) => q.eq('is_active', true)
+        )
 
         const byProduct = new Map<string, any[]>()
-        ;(variants || []).forEach(v => {
+        variants.forEach(v => {
           const list = byProduct.get(v.product_id) || []
           list.push(v)
           byProduct.set(v.product_id, list)
         })
 
-        const enriched = (data || []).map(p => {
+        const enriched = allData.map(p => {
           const vs = byProduct.get(p.id) || []
           const unitPieces = vs
             .filter(v => v.unit_type === 'unit')
@@ -214,12 +262,11 @@ export default function ProductsPage() {
           }
         })
 
-        console.log('Stock examples:', enriched?.slice(0, 3).map(p => ({ name: p.name_ar, stock: p.stock })))
         setProducts(enriched)
       } else {
-        console.log('Stock examples:', data?.slice(0, 3).map(p => ({ name: p.name_ar, stock: p.stock })))
-        setProducts(data || [])
+        setProducts([])
       }
+      lastLoadRef.current = Date.now()
     } catch (error) {
       console.error('Error loading products:', error)
     } finally {
@@ -618,14 +665,26 @@ export default function ProductsPage() {
     }
   }
 
-  const filteredProducts = products.filter(product =>
-    product.name_ar?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.sku?.toLowerCase().includes(searchTerm.toLowerCase())
-  ).filter(product => {
-    if (selectedCategory === null) return true
-    if (selectedCategory === 'no-family') return !product.category_id
-    return product.category_id === selectedCategory
-  })
+  const filteredProducts = useMemo(() => {
+    const search = debouncedSearch.toLowerCase()
+    return products.filter(product => {
+      if (search) {
+        const nameMatch = product.name_ar?.toLowerCase().includes(search)
+        const skuMatch = product.sku?.toLowerCase().includes(search)
+        if (!nameMatch && !skuMatch) return false
+      }
+      if (selectedCategory === null) return true
+      if (selectedCategory === 'no-family') return !product.category_id
+      return product.category_id === selectedCategory
+    })
+  }, [products, debouncedSearch, selectedCategory])
+
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PRODUCTS_PER_PAGE))
+  const safePage = Math.min(currentPage, totalPages)
+  const paginatedProducts = useMemo(() => {
+    const start = (safePage - 1) * PRODUCTS_PER_PAGE
+    return filteredProducts.slice(start, start + PRODUCTS_PER_PAGE)
+  }, [filteredProducts, safePage, PRODUCTS_PER_PAGE])
 
   const allFilteredSelected = filteredProducts.length > 0 && filteredProducts.every((p) => selectedProductIds.has(p.id))
 
@@ -1426,77 +1485,140 @@ export default function ProductsPage() {
       const sheet = workbook.Sheets[sheetName]
       const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][]
 
+      // Structure: A=الاسم, B=الفئة, C=السعر, D=الباركود, E=رابط الصورة
       // Skip header row
       const rows = jsonData.slice(1).filter(row => row.length > 0)
 
+      // Fetch ALL existing barcodes from DB (paginated)
+      const existingBarcodes = new Set<string>()
+      let bFrom = 0
+      const bPageSize = 1000
+      while (true) {
+        const { data: page } = await supabase
+          .from('products')
+          .select('sku')
+          .eq('is_active', true)
+          .range(bFrom, bFrom + bPageSize - 1)
+        if (!page || page.length === 0) break
+        page.forEach(p => {
+          const sku = String(p.sku || '').trim()
+          if (sku) existingBarcodes.add(sku)
+        })
+        if (page.length < bPageSize) break
+        bFrom += bPageSize
+      }
+
       let createdCategories: { [key: string]: string } = {}
-      let createdProducts = 0
+      let added = 0
+      let duplicates = 0
+      let noBarcode = 0
+      let noName = 0
       let errors = 0
+      const total = rows.length
 
-      for (const row of rows) {
-        try {
-          const family = row[0]?.toString().trim()
-          const id = row[1]?.toString().trim()
-          const product = row[2]?.toString().trim()
-          const priceC = parseFloat(row[3]?.toString().replace(/[^\d.]/g, '')) || 0
-          const priceD = parseFloat(row[4]?.toString().replace(/[^\d.]/g, '')) || 0
-          const priceE = parseFloat(row[5]?.toString().replace(/[^\d.]/g, '')) || 0
-          const priceB = parseFloat(row[6]?.toString().replace(/[^\d.]/g, '')) || 0
-          const priceA = parseFloat(row[7]?.toString().replace(/[^\d.]/g, '')) || 0
+      setImportProgress({ current: 0, total, added: 0, duplicates: 0, noBarcode: 0, noName: 0, errors: 0 })
 
-          if (!family || !id || !product) {
-            errors++
-            continue
-          }
+      // Process in batches of 50 for performance
+      const BATCH_SIZE = 50
+      for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+        const batch = rows.slice(i, i + BATCH_SIZE)
+        const toInsert: any[] = []
+
+        for (const row of batch) {
+          const name = row[0]?.toString().trim() || ''
+          const family = row[1]?.toString().trim() || ''
+          const price = parseFloat(row[2]?.toString().replace(/[^\d.]/g, '')) || 0
+          const barcode = row[3]?.toString().trim() || ''
+          const imageUrl = row[4]?.toString().trim() || ''
+
+          if (!barcode) { noBarcode++; continue }
+          if (existingBarcodes.has(barcode)) { duplicates++; continue }
+          if (!name) { noName++; continue }
 
           // Créer ou récupérer la catégorie
-          let categoryId = createdCategories[family]
-          if (!categoryId) {
-            const { data: existingCategory } = await supabase
-              .from('product_categories')
-              .select('id')
-              .eq('name_ar', family)
-              .maybeSingle()
+          let categoryId: string | null = null
+          if (family) {
+            categoryId = createdCategories[family] || null
+            if (!categoryId) {
+              try {
+                const { data: existingCategory } = await supabase
+                  .from('product_categories')
+                  .select('id')
+                  .eq('name_ar', family)
+                  .maybeSingle()
 
-            if (existingCategory) {
-              categoryId = existingCategory.id
-            } else {
-              const { data: newCategory } = await supabase
-                .from('product_categories')
-                .insert({ name_ar: family })
-                .select()
-                .single()
-              categoryId = newCategory?.id
+                if (existingCategory) {
+                  categoryId = existingCategory.id
+                } else {
+                  const { data: newCategory } = await supabase
+                    .from('product_categories')
+                    .insert({ name_ar: family })
+                    .select()
+                    .single()
+                  categoryId = newCategory?.id || null
+                }
+                if (categoryId) createdCategories[family] = categoryId
+              } catch { /* ignore category errors */ }
             }
-            createdCategories[family] = categoryId
           }
 
-          // Créer le produit
-          const productData = {
-            name_ar: product,
-            sku: id,
-            price_a: priceA,
-            price_b: priceB,
-            price_c: priceC,
-            price_d: priceD,
-            price_e: priceE,
+          const productData: any = {
+            name_ar: name,
+            sku: barcode,
+            price_a: price,
+            price_b: 0,
+            price_c: 0,
+            price_d: 0,
+            price_e: 0,
             stock: 0,
             category_id: categoryId,
           }
+          if (imageUrl) productData.image_url = imageUrl
 
-          await supabase.from('products').insert(productData)
-          createdProducts++
-        } catch (error) {
-          console.error('Error importing row:', error)
-          errors++
+          toInsert.push(productData)
+          existingBarcodes.add(barcode)
         }
+
+        // Batch insert
+        if (toInsert.length > 0) {
+          try {
+            const { error: insertError } = await supabase.from('products').insert(toInsert)
+            if (insertError) {
+              // Fallback: insert one by one
+              for (const item of toInsert) {
+                try {
+                  await supabase.from('products').insert(item)
+                  added++
+                } catch { errors++ }
+              }
+            } else {
+              added += toInsert.length
+            }
+          } catch {
+            errors += toInsert.length
+          }
+        }
+
+        const current = Math.min(i + BATCH_SIZE, total)
+        setImportProgress({ current, total, added, duplicates, noBarcode, noName, errors })
       }
 
+      setImportProgress(null)
       await loadProducts()
       await loadCategories()
-      alert(`✅ تم استيراد ${createdProducts} منتج بنجاح${errors > 0 ? ` (${errors} أخطاء)` : ''}`)
+
+      let msg = `📊 ملخص الاستيراد:\n`
+      msg += `━━━━━━━━━━━━━━━━━━\n`
+      msg += `📄 إجمالي الصفوف: ${total}\n`
+      msg += `✅ تم إضافة: ${added} منتج\n`
+      msg += `🔁 باركود مكرر (مرفوض): ${duplicates}\n`
+      msg += `⛔ بدون باركود (مرفوض): ${noBarcode}\n`
+      msg += `⛔ بدون اسم (مرفوض): ${noName}\n`
+      if (errors > 0) msg += `❌ أخطاء: ${errors}\n`
+      alert(msg)
     } catch (error) {
       console.error('Error importing Excel:', error)
+      setImportProgress(null)
       alert('❌ حدث خطأ أثناء استيراد الملف')
     }
   }
@@ -1528,6 +1650,49 @@ export default function ProductsPage() {
           </button>
         </div>
       </div>
+
+      {/* Import Progress Bar */}
+      {importProgress && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-2xl" dir="rtl">
+            <h3 className="text-lg font-bold text-gray-800 mb-4 text-center">جاري استيراد المنتجات...</h3>
+            <div className="w-full bg-gray-200 rounded-full h-5 mb-3 overflow-hidden">
+              <div
+                className="bg-purple-600 h-5 rounded-full transition-all duration-300 flex items-center justify-center text-white text-xs font-bold"
+                style={{ width: `${importProgress.total > 0 ? Math.round((importProgress.current / importProgress.total) * 100) : 0}%` }}
+              >
+                {importProgress.total > 0 ? Math.round((importProgress.current / importProgress.total) * 100) : 0}%
+              </div>
+            </div>
+            <p className="text-sm text-gray-600 text-center mb-4">
+              {importProgress.current} / {importProgress.total} صف
+            </p>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="bg-green-50 rounded-lg p-2 text-center">
+                <span className="font-bold text-green-700">✅ {importProgress.added}</span>
+                <p className="text-green-600 text-xs">تم إضافته</p>
+              </div>
+              <div className="bg-yellow-50 rounded-lg p-2 text-center">
+                <span className="font-bold text-yellow-700">🔁 {importProgress.duplicates}</span>
+                <p className="text-yellow-600 text-xs">باركود مكرر</p>
+              </div>
+              <div className="bg-red-50 rounded-lg p-2 text-center">
+                <span className="font-bold text-red-700">⛔ {importProgress.noBarcode}</span>
+                <p className="text-red-600 text-xs">بدون باركود</p>
+              </div>
+              <div className="bg-orange-50 rounded-lg p-2 text-center">
+                <span className="font-bold text-orange-700">⛔ {importProgress.noName}</span>
+                <p className="text-orange-600 text-xs">بدون اسم</p>
+              </div>
+            </div>
+            {importProgress.errors > 0 && (
+              <div className="mt-2 bg-red-50 rounded-lg p-2 text-center">
+                <span className="font-bold text-red-700">❌ {importProgress.errors} أخطاء</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Statistiques rapides */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -1573,7 +1738,7 @@ export default function ProductsPage() {
       </div>
 
       {/* العائلات (Catégories) */}
-      <div className="bg-white rounded-xl shadow-lg p-4 sticky top-16 z-10">
+      <div className="bg-white rounded-xl shadow-lg p-4 sticky top-16 z-20">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-bold text-gray-800">العائلات</h3>
           {selectedCategory && selectedCategory !== 'no-family' && (
@@ -1656,7 +1821,7 @@ export default function ProductsPage() {
       </div>
 
       {/* Tableau des produits */}
-      <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+      <div className="bg-white rounded-xl shadow-lg">
         {loading ? (
           <div className="text-center py-12 text-gray-500">
             جاري التحميل...
@@ -1666,9 +1831,9 @@ export default function ProductsPage() {
             لا توجد منتجات
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
             {selectedProductIds.size > 0 && (
-              <div className="p-4 border-b bg-purple-50 sticky top-32 z-10">
+              <div className="p-4 border-b bg-purple-50 sticky top-40 z-20 mt-2">
                 <div className="flex flex-col md:flex-row md:items-center gap-3">
                   <div className="font-bold text-gray-800">{selectedProductIds.size} منتجات محددة</div>
                   <div className="flex flex-wrap items-center gap-2">
@@ -1725,6 +1890,7 @@ export default function ProductsPage() {
                 </div>
               </div>
             )}
+            <div className="overflow-x-auto">
             <table className="w-full border border-gray-200 border-collapse">
               <thead className="bg-gray-100 text-black">
                 <tr>
@@ -1745,7 +1911,7 @@ export default function ProductsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredProducts.map((product) => {
+                {paginatedProducts.map((product) => {
                   const stockStatus = getStockStatus(product.stock)
                   const totalValue = product.price_a * product.stock
                   
@@ -1841,7 +2007,66 @@ export default function ProductsPage() {
                 })}
               </tbody>
             </table>
-          </div>
+            </div>
+
+            {/* Pagination */}
+            {filteredProducts.length > PRODUCTS_PER_PAGE && (
+              <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-t">
+                <div className="text-sm text-gray-600">
+                  عرض {((safePage - 1) * PRODUCTS_PER_PAGE) + 1} - {Math.min(safePage * PRODUCTS_PER_PAGE, filteredProducts.length)} من {filteredProducts.length} منتج
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setCurrentPage(1)}
+                    disabled={safePage <= 1}
+                    className="px-2 py-1 rounded text-xs font-bold bg-gray-200 hover:bg-gray-300 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    الأولى
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={safePage <= 1}
+                    className="p-1 rounded bg-gray-200 hover:bg-gray-300 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                  {(() => {
+                    const pages: number[] = []
+                    const start = Math.max(1, safePage - 2)
+                    const end = Math.min(totalPages, safePage + 2)
+                    for (let i = start; i <= end; i++) pages.push(i)
+                    return pages.map(p => (
+                      <button
+                        key={p}
+                        onClick={() => setCurrentPage(p)}
+                        className={`px-2.5 py-1 rounded text-xs font-bold transition-colors ${
+                          p === safePage
+                            ? 'bg-purple-600 text-white'
+                            : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    ))
+                  })()}
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={safePage >= totalPages}
+                    className="p-1 rounded bg-gray-200 hover:bg-gray-300 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={safePage >= totalPages}
+                    className="px-2 py-1 rounded text-xs font-bold bg-gray-200 hover:bg-gray-300 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    الأخيرة
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 

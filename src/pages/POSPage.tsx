@@ -748,15 +748,40 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
 
   const loadProducts = async () => {
     try {
-      const { data: products, error: productsError } = await supabase
-        .from('products')
-        .select('id, name_ar, sku, category_id, image_url')
-        .eq('is_active', true)
-        .order('name_ar')
+      // Helper: batch .in() queries to avoid Supabase "Bad Request" with >1000 IDs
+      const BATCH_SIZE = 500
+      const batchIn = async (table: string, select: string, column: string, ids: string[], extraFilters?: (q: any) => any) => {
+        let allRows: any[] = []
+        for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+          const chunk = ids.slice(i, i + BATCH_SIZE)
+          let q = supabase.from(table).select(select).in(column, chunk)
+          if (extraFilters) q = extraFilters(q)
+          const { data, error } = await q
+          if (error) throw error
+          allRows = allRows.concat(data || [])
+        }
+        return allRows
+      }
 
-      if (productsError) throw productsError
+      // Paginate to fetch ALL products
+      let allProducts: any[] = []
+      let from = 0
+      const pageSize = 1000
+      while (true) {
+        const { data: page, error: pageError } = await supabase
+          .from('products')
+          .select('id, name_ar, sku, category_id, image_url, price_a, price_b, price_c, price_d, price_e')
+          .eq('is_active', true)
+          .order('name_ar')
+          .range(from, from + pageSize - 1)
+        if (pageError) throw pageError
+        if (!page || page.length === 0) break
+        allProducts = allProducts.concat(page)
+        if (page.length < pageSize) break
+        from += pageSize
+      }
 
-      const productIds = (products || []).map(p => p.id)
+      const productIds = allProducts.map(p => p.id)
       if (productIds.length === 0) {
         setProducts([])
         setPackagingVariantsByPrimaryId({})
@@ -764,32 +789,26 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         return
       }
 
-      const { data: primaryVariants, error: primaryError } = await supabase
-        .from('product_primary_variants')
-        .select('id, product_id, variant_name, barcode, price_a, price_b, price_c, price_d, price_e, is_active')
-        .eq('is_active', true)
-        .in('product_id', productIds)
-
-      if (primaryError) throw primaryError
+      const primaryVariants = await batchIn(
+        'product_primary_variants',
+        'id, product_id, variant_name, barcode, price_a, price_b, price_c, price_d, price_e, is_active',
+        'product_id',
+        productIds,
+        (q: any) => q.eq('is_active', true)
+      )
 
       // No secondary variants loaded - POS will only show primary variants
       setPackagingVariantsByPrimaryId({})
       setPackagingVariantsFlat([])
 
       const warehouseId = cashSession?.warehouse_id
-      let stockQuery = supabase
-        .from('stock')
-        .select('product_id, primary_variant_id, quantity_in_stock')
-        .in('product_id', productIds)
-
-      if (warehouseId) {
-        stockQuery = stockQuery.eq('warehouse_id', warehouseId)
-      }
-
-      const { data: stockRows, error: stockError } = await stockQuery
-      if (stockError) {
-        console.warn('Error loading stock for POS (will default to 0):', stockError)
-      }
+      const stockRows = await batchIn(
+        'stock',
+        'product_id, primary_variant_id, quantity_in_stock',
+        'product_id',
+        productIds,
+        warehouseId ? (q: any) => q.eq('warehouse_id', warehouseId) : undefined
+      )
 
       const stockMap = new Map<string, number>()
       ;(stockRows || []).forEach((row: any) => {
@@ -799,7 +818,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       })
 
       const productsById = new Map<string, any>()
-      ;(products || []).forEach(p => productsById.set(p.id, p))
+      ;(allProducts || []).forEach(p => productsById.set(p.id, p))
 
       const dedupedPrimaryVariants = Array.from(
         new Map(
@@ -811,7 +830,10 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         ).values()
       )
 
-      const enrichedProducts: Product[] = dedupedPrimaryVariants.map((pv: any) => {
+      // Products WITH primary variants
+      const productIdsWithPV = new Set(dedupedPrimaryVariants.map((pv: any) => pv.product_id))
+
+      const enrichedFromPV: Product[] = dedupedPrimaryVariants.map((pv: any) => {
         const base = productsById.get(pv.product_id)
         const suffix = pv.variant_name && pv.variant_name !== 'افتراضي' ? ` - ${pv.variant_name}` : ''
         const name = `${base?.name_ar || ''}${suffix}`
@@ -832,7 +854,25 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         }
       })
 
-      setProducts(enrichedProducts)
+      // Products WITHOUT primary variants (e.g. imported from Excel) — fallback using base product data
+      const productsWithoutPV: Product[] = allProducts
+        .filter(p => !productIdsWithPV.has(p.id))
+        .map(p => ({
+          id: p.id,
+          primary_variant_id: '',
+          name_ar: p.name_ar || '',
+          price_a: Number(p.price_a || 0),
+          price_b: Number(p.price_b || 0),
+          price_c: Number(p.price_c || 0),
+          price_d: Number(p.price_d || 0),
+          price_e: Number(p.price_e || 0),
+          stock: 0,
+          barcode: p.sku || undefined,
+          category_id: p.category_id,
+          image_url: p.image_url,
+        }))
+
+      setProducts([...enrichedFromPV, ...productsWithoutPV])
     } catch (error) {
       console.error('Error loading products:', error)
       setProducts([])
