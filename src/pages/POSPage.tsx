@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useInputPad } from '../components/useInputPad'
@@ -272,6 +272,10 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
   const [closingCashInput, setClosingCashInput] = useState('')
   const [closingNoteInput, setClosingNoteInput] = useState('')
 
+  // Performance: debounced search + limit visible products
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
+  const MAX_VISIBLE_PRODUCTS = 60
+
   const searchInputRef = useRef<HTMLInputElement>(null)
   const invoicePanelRef = useRef<HTMLDivElement>(null)
 
@@ -422,6 +426,14 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
   useEffect(() => {
     focusSearchInput()
   }, [])
+
+  // Debounce search for product grid filtering (300ms) — barcode scan still instant via useEffect
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
 
   const checkForOpenSession = async () => {
     try {
@@ -1110,17 +1122,27 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     focusSearchInput()
   }
 
-  const filteredProducts = products.filter(p =>
-    p.name_ar?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.barcode?.includes(searchQuery)
-  ).filter(p => {
-    if (selectedCategory === 'no-category') {
-      // Show only products without categories
-      return !p.category_id || p.category_id === ''
+  const filteredProducts = useMemo(() => {
+    const search = debouncedSearchQuery.toLowerCase()
+    let result = products
+    if (search) {
+      result = result.filter(p =>
+        p.name_ar?.toLowerCase().includes(search) ||
+        p.barcode?.includes(debouncedSearchQuery)
+      )
     }
-    if (selectedCategory && p.category_id !== selectedCategory) return false
-    return true
-  })
+    if (selectedCategory === 'no-category') {
+      result = result.filter(p => !p.category_id || p.category_id === '')
+    } else if (selectedCategory) {
+      result = result.filter(p => p.category_id === selectedCategory)
+    }
+    return result
+  }, [products, debouncedSearchQuery, selectedCategory])
+
+  // Limit visible products in the grid for DOM performance
+  const visibleProducts = useMemo(() => {
+    return filteredProducts.slice(0, MAX_VISIBLE_PRODUCTS)
+  }, [filteredProducts])
 
   useEffect(() => {
     if (!searchQuery.trim()) return
@@ -2756,8 +2778,13 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
 
         {/* Liste des produits */}
         <div className="flex-1 overflow-y-auto">
+          {filteredProducts.length > MAX_VISIBLE_PRODUCTS && (
+            <div className="text-xs text-gray-500 text-center py-1 bg-yellow-50 rounded mb-2">
+              عرض {MAX_VISIBLE_PRODUCTS} من {filteredProducts.length} منتج — استخدم البحث أو اختر عائلة لتصفية النتائج
+            </div>
+          )}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-            {filteredProducts.map((product) => {
+            {visibleProducts.map((product) => {
               const stockColor = product.stock > 10
                 ? 'text-green-600'
                 : product.stock > 0
@@ -2782,6 +2809,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                           src={product.image_url}
                           alt={product.name_ar}
                           className="w-full h-full object-cover rounded-lg"
+                          loading="lazy"
                           onError={(e) => {
                             // Fallback si l'image ne charge pas
                             e.currentTarget.style.display = 'none'
