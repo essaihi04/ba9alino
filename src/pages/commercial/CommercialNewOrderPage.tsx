@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { getCategoryLabelArabic } from '../../utils/categoryLabels'
 import { ArrowLeft, Plus, Minus, ShoppingCart, User, Check, Package } from 'lucide-react'
 import { useInputPad } from '../../components/useInputPad'
+
+const BATCH_SIZE = 300
 
 interface ProductVariant {
   price_a: number
@@ -126,112 +128,107 @@ export default function CommercialNewOrderPage() {
     }
   }, [preselectedClientId, clients])
 
+  const loadingRef = useRef(false)
+
+  // Reload on tab focus (debounced via loadingRef)
   useEffect(() => {
-    const handleVisibilityChange = () => {
+    const handleVisibility = () => {
       if (!document.hidden) {
-        const commercialId = localStorage.getItem('commercial_id')
-        if (commercialId) loadData(commercialId)
+        const cid = localStorage.getItem('commercial_id')
+        if (cid) loadData(cid)
       }
     }
-
-    const handleFocus = () => {
-      const commercialId = localStorage.getItem('commercial_id')
-      if (commercialId) loadData(commercialId)
-    }
-
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    window.addEventListener('focus', handleFocus)
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      window.removeEventListener('focus', handleFocus)
-    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
   }, [])
 
   const loadData = async (commercialId: string) => {
+    if (loadingRef.current) return
+    loadingRef.current = true
     setLoading(true)
     try {
-      // Paginate to fetch ALL products (Supabase default limit is 1000)
-      let allProductsData: any[] = []
-      let from = 0
-      const pageSize = 1000
-      let productsError: any = null
-      while (true) {
-        const { data: page, error: pageError } = await supabase
-          .from('products')
-          .select(`
-            *,
-            product_variants (
-              price_a,
-              price_b,
-              price_c,
-              price_d,
-              price_e,
-              purchase_price,
-              stock,
-              unit_type,
-              quantity_contained
-            )
-          `)
-          .order('name_ar')
-          .range(from, from + pageSize - 1)
-        if (pageError) { productsError = pageError; break }
-        if (!page || page.length === 0) break
-        allProductsData = allProductsData.concat(page)
-        if (page.length < pageSize) break
-        from += pageSize
-      }
-      const productsWithPrices = allProductsData
+      // 1) Fetch products (paginated), categories, clients, promotions in parallel
+      const productsPromise = (async () => {
+        let allData: any[] = []
+        let from = 0
+        const pageSize = 1000
+        while (true) {
+          const { data: page, error: pageError } = await supabase
+            .from('products')
+            .select('id, name_ar, sku, price, price_a, price_b, price_c, price_d, price_e, stock, category_id, image_url, is_active_for_commercial')
+            .eq('is_active', true)
+            .order('name_ar')
+            .range(from, from + pageSize - 1)
+          if (pageError) throw pageError
+          if (!page || page.length === 0) break
+          allData = allData.concat(page)
+          if (page.length < pageSize) break
+          from += pageSize
+        }
+        return allData
+      })()
 
-      let categoriesData: any[] | null = null
-      let categoriesError: any = null
-
-      const categoriesAttempt = await supabase
+      const categoriesPromise = supabase
         .from('product_categories')
-        .select('*')
-        .eq('is_active', true)
+        .select('id, name_ar')
         .order('name_ar')
 
-      categoriesData = categoriesAttempt.data as any[]
-      categoriesError = categoriesAttempt.error
-
-      if (categoriesError) {
-        const msg = String((categoriesError as any)?.message || '')
-        const code = String((categoriesError as any)?.code || '')
-        const missingIsActive = code === '42703' || msg.toLowerCase().includes('is_active')
-        if (!missingIsActive) throw categoriesError
-
-        const fallback = await supabase
-          .from('product_categories')
-          .select('*')
-          .order('name_ar')
-
-        categoriesData = fallback.data as any[]
-        categoriesError = fallback.error
-      }
-
-      const [clientsRes, promotionsRes] = await Promise.all([
+      const [allProducts, catRes, clientsRes, promotionsRes] = await Promise.all([
+        productsPromise,
+        categoriesPromise,
         supabase.from('clients').select('*').eq('created_by', commercialId).order('company_name_ar'),
         supabase.from('promotions').select('*').eq('is_active', true).order('created_at', { ascending: false })
       ])
 
-      if (productsError) throw productsError
-      if (categoriesError) throw categoriesError
-      if (clientsRes.error) throw clientsRes.error
-      if (promotionsRes.error) throw promotionsRes.error
+      const visibleProducts = allProducts.filter((p: any) => p.is_active_for_commercial !== false)
+      const productIds = visibleProducts.map((p: any) => p.id)
 
-      const rawProducts = (productsWithPrices || []) as any[]
-      const visibleProducts = rawProducts.filter(p => p.is_active_for_commercial !== false)
-      console.log('Total products loaded:', rawProducts.length, 'Visible:', visibleProducts.length)
+      // 2) Fetch variant prices in batches
+      const variantMap = new Map<string, any>()
+      for (let i = 0; i < productIds.length; i += BATCH_SIZE) {
+        const batch = productIds.slice(i, i + BATCH_SIZE)
+        const { data: variants } = await supabase
+          .from('product_variants')
+          .select('product_id, price_a, price_b, price_c, price_d, price_e, purchase_price, stock, unit_type, quantity_contained')
+          .eq('is_active', true)
+          .in('product_id', batch)
+        if (variants) {
+          for (const v of variants) {
+            const existing = variantMap.get(v.product_id)
+            if (!existing) {
+              variantMap.set(v.product_id, [v])
+            } else {
+              existing.push(v)
+            }
+          }
+        }
+      }
 
-      setProducts(visibleProducts)
-      setCategories((categoriesData || []) as Category[])
+      // 3) Enrich products with variant data
+      const enriched = visibleProducts.map((p: any) => {
+        const vs = variantMap.get(p.id) || []
+        return {
+          ...p,
+          product_variants: vs,
+          price_a: vs[0]?.price_a || p.price_a || 0,
+          price_b: vs[0]?.price_b || p.price_b || 0,
+          price_c: vs[0]?.price_c || p.price_c || 0,
+          price_d: vs[0]?.price_d || p.price_d || 0,
+          price_e: vs[0]?.price_e || p.price_e || 0,
+          stock: vs[0]?.stock ?? p.stock ?? 0,
+        }
+      })
+
+      setProducts(enriched)
+      setCategories((catRes.data || []) as Category[])
       setClients(clientsRes.data || [])
       setPromotions((promotionsRes.data || []) as Promotion[])
+      console.log('NewOrder loaded:', enriched.length, 'products')
     } catch (error) {
       console.error('Error loading data:', error)
     } finally {
       setLoading(false)
+      loadingRef.current = false
     }
   }
 
