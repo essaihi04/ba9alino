@@ -185,50 +185,73 @@ export default function ProductsPage() {
   const loadProducts = async () => {
     setLoading(true)
     try {
-      // Helper: batch .in() queries to avoid Supabase "Bad Request" with >1000 IDs
-      const BATCH_IN_SIZE = 500
-      const batchIn = async (table: string, select: string, column: string, ids: string[], extraFilters?: (q: any) => any) => {
-        let allRows: any[] = []
+      console.time('⏱️ Products loadProducts total')
+
+      // Helper: batch .in() queries in PARALLEL
+      const BATCH_IN_SIZE = 800
+      const batchInParallel = async (table: string, select: string, column: string, ids: string[], extraFilters?: (q: any) => any) => {
+        const chunks: string[][] = []
         for (let i = 0; i < ids.length; i += BATCH_IN_SIZE) {
-          const chunk = ids.slice(i, i + BATCH_IN_SIZE)
-          let q = supabase.from(table).select(select).in(column, chunk)
-          if (extraFilters) q = extraFilters(q)
-          const { data, error } = await q
+          chunks.push(ids.slice(i, i + BATCH_IN_SIZE))
+        }
+        const results = await Promise.all(
+          chunks.map(chunk => {
+            let q = supabase.from(table).select(select).in(column, chunk)
+            if (extraFilters) q = extraFilters(q)
+            return q
+          })
+        )
+        let allRows: any[] = []
+        for (const { data, error } of results) {
           if (error) throw error
           allRows = allRows.concat(data || [])
         }
         return allRows
       }
 
-      // Paginate to fetch ALL products (Supabase default limit is 1000)
-      let allData: any[] = []
-      let from = 0
-      const pageSize = 1000
-      while (true) {
-        const { data: page, error: pageError } = await supabase
-          .from('products')
-          .select('id, name_ar, sku, cost_price, price_a, price_b, price_c, price_d, price_e, stock, category_id, image_url, created_at, weight, weight_unit')
-          .eq('is_active', true)
-          .order('name_ar', { ascending: true })
-          .range(from, from + pageSize - 1)
-        if (pageError) throw pageError
-        if (!page || page.length === 0) break
-        allData = allData.concat(page)
-        if (page.length < pageSize) break
-        from += pageSize
+      // Fetch first page, then remaining pages in parallel
+      console.time('⏱️ fetch products')
+      const { data: firstPage, error: firstError } = await supabase
+        .from('products')
+        .select('id, name_ar, sku, cost_price, price_a, price_b, price_c, price_d, price_e, stock, category_id, image_url, created_at, weight, weight_unit')
+        .eq('is_active', true)
+        .order('name_ar', { ascending: true })
+        .range(0, 999)
+      if (firstError) throw firstError
+      let allData: any[] = firstPage || []
+
+      if (firstPage && firstPage.length === 1000) {
+        const pagePromises = []
+        for (let from = 1000; from < 20000; from += 1000) {
+          pagePromises.push(
+            supabase
+              .from('products')
+              .select('id, name_ar, sku, cost_price, price_a, price_b, price_c, price_d, price_e, stock, category_id, image_url, created_at, weight, weight_unit')
+              .eq('is_active', true)
+              .order('name_ar', { ascending: true })
+              .range(from, from + 999)
+          )
+        }
+        const pageResults = await Promise.all(pagePromises)
+        for (const { data, error } of pageResults) {
+          if (error) throw error
+          if (data && data.length > 0) allData = allData.concat(data)
+        }
       }
-      
+      console.timeEnd('⏱️ fetch products')
       console.log('Produits récupérés:', allData.length, 'produits')
 
       if (allData.length > 0) {
         const productIds = allData.map(p => p.id)
-        const variants = await batchIn(
+        console.time('⏱️ fetch variants')
+        const variants = await batchInParallel(
           'product_variants',
           'product_id, primary_variant_id, unit_type, quantity_contained, stock',
           'product_id',
           productIds,
           (q: any) => q.eq('is_active', true)
         )
+        console.timeEnd('⏱️ fetch variants')
 
         const byProduct = new Map<string, any[]>()
         variants.forEach(v => {
@@ -267,6 +290,7 @@ export default function ProductsPage() {
         setProducts([])
       }
       lastLoadRef.current = Date.now()
+      console.timeEnd('⏱️ Products loadProducts total')
     } catch (error) {
       console.error('Error loading products:', error)
     } finally {

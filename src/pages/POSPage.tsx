@@ -760,38 +760,63 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
 
   const loadProducts = async () => {
     try {
-      // Helper: batch .in() queries to avoid Supabase "Bad Request" with >1000 IDs
-      const BATCH_SIZE = 500
-      const batchIn = async (table: string, select: string, column: string, ids: string[], extraFilters?: (q: any) => any) => {
-        let allRows: any[] = []
+      console.time('⏱️ POS loadProducts total')
+
+      // Helper: batch .in() queries in PARALLEL to avoid sequential waits
+      const BATCH_SIZE = 800
+      const batchInParallel = async (table: string, select: string, column: string, ids: string[], extraFilters?: (q: any) => any) => {
+        const chunks: string[][] = []
         for (let i = 0; i < ids.length; i += BATCH_SIZE) {
-          const chunk = ids.slice(i, i + BATCH_SIZE)
-          let q = supabase.from(table).select(select).in(column, chunk)
-          if (extraFilters) q = extraFilters(q)
-          const { data, error } = await q
+          chunks.push(ids.slice(i, i + BATCH_SIZE))
+        }
+        const results = await Promise.all(
+          chunks.map(chunk => {
+            let q = supabase.from(table).select(select).in(column, chunk)
+            if (extraFilters) q = extraFilters(q)
+            return q
+          })
+        )
+        let allRows: any[] = []
+        for (const { data, error } of results) {
           if (error) throw error
           allRows = allRows.concat(data || [])
         }
         return allRows
       }
 
-      // Paginate to fetch ALL products
-      let allProducts: any[] = []
-      let from = 0
-      const pageSize = 1000
-      while (true) {
-        const { data: page, error: pageError } = await supabase
-          .from('products')
-          .select('id, name_ar, sku, category_id, image_url, price_a, price_b, price_c, price_d, price_e')
-          .eq('is_active', true)
-          .order('name_ar')
-          .range(from, from + pageSize - 1)
-        if (pageError) throw pageError
-        if (!page || page.length === 0) break
-        allProducts = allProducts.concat(page)
-        if (page.length < pageSize) break
-        from += pageSize
+      // Paginate to fetch ALL products — parallel page fetches
+      console.time('⏱️ fetch products')
+      // First fetch to know total count
+      const { data: firstPage, error: firstError } = await supabase
+        .from('products')
+        .select('id, name_ar, sku, category_id, image_url, price_a, price_b, price_c, price_d, price_e')
+        .eq('is_active', true)
+        .order('name_ar')
+        .range(0, 999)
+      if (firstError) throw firstError
+      let allProducts: any[] = firstPage || []
+
+      if (firstPage && firstPage.length === 1000) {
+        // Fetch remaining pages in parallel (estimate up to 20k products)
+        const pagePromises = []
+        for (let from = 1000; from < 20000; from += 1000) {
+          pagePromises.push(
+            supabase
+              .from('products')
+              .select('id, name_ar, sku, category_id, image_url, price_a, price_b, price_c, price_d, price_e')
+              .eq('is_active', true)
+              .order('name_ar')
+              .range(from, from + 999)
+          )
+        }
+        const pageResults = await Promise.all(pagePromises)
+        for (const { data, error } of pageResults) {
+          if (error) throw error
+          if (data && data.length > 0) allProducts = allProducts.concat(data)
+        }
       }
+      console.timeEnd('⏱️ fetch products')
+      console.log(`📦 ${allProducts.length} products fetched`)
 
       const productIds = allProducts.map(p => p.id)
       if (productIds.length === 0) {
@@ -801,26 +826,28 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         return
       }
 
-      const primaryVariants = await batchIn(
-        'product_primary_variants',
-        'id, product_id, variant_name, barcode, price_a, price_b, price_c, price_d, price_e, is_active',
-        'product_id',
-        productIds,
-        (q: any) => q.eq('is_active', true)
-      )
+      // Fetch primary variants AND stock in PARALLEL
+      console.time('⏱️ fetch variants+stock')
+      const [primaryVariants, stockRows] = await Promise.all([
+        batchInParallel(
+          'product_primary_variants',
+          'id, product_id, variant_name, barcode, price_a, price_b, price_c, price_d, price_e, is_active',
+          'product_id',
+          productIds,
+          (q: any) => q.eq('is_active', true)
+        ),
+        batchInParallel(
+          'stock',
+          'product_id, primary_variant_id, quantity_in_stock',
+          'product_id',
+          productIds,
+          cashSession?.warehouse_id ? (q: any) => q.eq('warehouse_id', cashSession.warehouse_id) : undefined
+        )
+      ])
+      console.timeEnd('⏱️ fetch variants+stock')
 
-      // No secondary variants loaded - POS will only show primary variants
       setPackagingVariantsByPrimaryId({})
       setPackagingVariantsFlat([])
-
-      const warehouseId = cashSession?.warehouse_id
-      const stockRows = await batchIn(
-        'stock',
-        'product_id, primary_variant_id, quantity_in_stock',
-        'product_id',
-        productIds,
-        warehouseId ? (q: any) => q.eq('warehouse_id', warehouseId) : undefined
-      )
 
       const stockMap = new Map<string, number>()
       ;(stockRows || []).forEach((row: any) => {
@@ -885,6 +912,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         }))
 
       setProducts([...enrichedFromPV, ...productsWithoutPV])
+      console.timeEnd('⏱️ POS loadProducts total')
     } catch (error) {
       console.error('Error loading products:', error)
       setProducts([])
@@ -2783,19 +2811,18 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
               عرض {MAX_VISIBLE_PRODUCTS} من {filteredProducts.length} منتج — استخدم البحث أو اختر عائلة لتصفية النتائج
             </div>
           )}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-1.5">
             {visibleProducts.map((product) => {
               const stockColor = product.stock > 10
                 ? 'text-green-600'
                 : product.stock > 0
                   ? 'text-orange-600'
                   : 'text-red-600'
-              const stockText = product.stock === 0 ? 'نفذ المخزون' : product.stock < 10 ? 'منخفض' : 'متوفر'
               const unitTypes = getAvailableUnitTypes(product.primary_variant_id)
               return (
                 <div
                   key={`${product.id}-${product.primary_variant_id}`}
-                  className="p-3 rounded-xl border-2 bg-white border-gray-200 hover:border-green-500 hover:shadow-lg transition-all"
+                  className="p-1.5 rounded-lg border bg-white border-gray-200 hover:border-green-500 hover:shadow transition-all"
                 >
                   <button
                     type="button"
@@ -2803,53 +2830,51 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                     className="w-full text-left"
                   >
                     {/* Image du produit */}
-                    <div className="w-full h-24 mb-2 flex items-center justify-center bg-gray-50 rounded-lg overflow-hidden">
+                    <div className="w-full h-14 mb-1 flex items-center justify-center bg-gray-50 rounded overflow-hidden">
                       {product.image_url ? (
                         <img
                           src={product.image_url}
                           alt={product.name_ar}
-                          className="w-full h-full object-cover rounded-lg"
+                          className="w-full h-full object-cover rounded"
                           loading="lazy"
                           onError={(e) => {
-                            // Fallback si l'image ne charge pas
                             e.currentTarget.style.display = 'none'
                             e.currentTarget.parentElement?.classList.add('bg-gray-100')
                           }}
                         />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-gray-100 rounded-lg">
-                          <ShoppingCart size={32} className="text-gray-400" />
+                        <div className="w-full h-full flex items-center justify-center bg-gray-100 rounded">
+                          <ShoppingCart size={18} className="text-gray-400" />
                         </div>
                       )}
                     </div>
                     
                     {/* Informations du produit */}
-                    <div className="text-sm font-bold text-gray-800 mb-1 line-clamp-2">
+                    <div className="text-[11px] font-bold text-gray-800 leading-tight line-clamp-2">
                       {product.name_ar}
                     </div>
-                    <div className="text-lg font-bold text-green-600">
-                      {getProductPrice(product).toFixed(2)} MAD
-                    </div>
-                    <div className={`text-xs font-bold mt-1 ${stockColor}`}>
-                      {stockText}
+                    <div className="text-xs font-bold text-green-600 mt-0.5">
+                      {getProductPrice(product).toFixed(2)}
                     </div>
                   </button>
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {unitTypes.map((t) => (
-                      <button
-                        key={`${product.id}-${product.primary_variant_id}-${t}`}
-                        type="button"
-                        onClick={() => addToInvoice(product, { unitType: t })}
-                        className={`px-2 py-1 rounded text-[10px] font-bold border ${
-                          t === 'unit'
-                            ? 'bg-green-50 text-green-700 border-green-200'
-                            : 'bg-gray-50 text-gray-700 border-gray-200'
-                        }`}
-                      >
-                        {t === 'unit' ? 'وحدة' : t === 'carton' ? 'كرتون' : t === 'kilo' ? 'كيلو' : t === 'litre' ? 'لتر' : t}
-                      </button>
-                    ))}
-                  </div>
+                  {unitTypes.length > 1 && (
+                    <div className="mt-1 flex flex-wrap gap-0.5">
+                      {unitTypes.map((t) => (
+                        <button
+                          key={`${product.id}-${product.primary_variant_id}-${t}`}
+                          type="button"
+                          onClick={() => addToInvoice(product, { unitType: t })}
+                          className={`px-1 py-0.5 rounded text-[8px] font-bold border ${
+                            t === 'unit'
+                              ? 'bg-green-50 text-green-700 border-green-200'
+                              : 'bg-gray-50 text-gray-700 border-gray-200'
+                          }`}
+                        >
+                          {t === 'unit' ? 'وحدة' : t === 'carton' ? 'كرتون' : t === 'kilo' ? 'كيلو' : t === 'litre' ? 'لتر' : t}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )
             })}
