@@ -762,8 +762,8 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     try {
       console.time('⏱️ POS loadProducts total')
 
-      // Helper: batch .in() queries in PARALLEL to avoid sequential waits
-      const BATCH_SIZE = 800
+      // Helper: batch .in() queries in PARALLEL — keep batch small to avoid URL length limit
+      const BATCH_SIZE = 300
       const batchInParallel = async (table: string, select: string, column: string, ids: string[], extraFilters?: (q: any) => any) => {
         const chunks: string[][] = []
         for (let i = 0; i < ids.length; i += BATCH_SIZE) {
@@ -784,36 +784,23 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         return allRows
       }
 
-      // Paginate to fetch ALL products — parallel page fetches
+      // Paginate to fetch ALL products — sequential to be safe, fast enough with 1000/page
       console.time('⏱️ fetch products')
-      // First fetch to know total count
-      const { data: firstPage, error: firstError } = await supabase
-        .from('products')
-        .select('id, name_ar, sku, category_id, image_url, price_a, price_b, price_c, price_d, price_e')
-        .eq('is_active', true)
-        .order('name_ar')
-        .range(0, 999)
-      if (firstError) throw firstError
-      let allProducts: any[] = firstPage || []
-
-      if (firstPage && firstPage.length === 1000) {
-        // Fetch remaining pages in parallel (estimate up to 20k products)
-        const pagePromises = []
-        for (let from = 1000; from < 20000; from += 1000) {
-          pagePromises.push(
-            supabase
-              .from('products')
-              .select('id, name_ar, sku, category_id, image_url, price_a, price_b, price_c, price_d, price_e')
-              .eq('is_active', true)
-              .order('name_ar')
-              .range(from, from + 999)
-          )
-        }
-        const pageResults = await Promise.all(pagePromises)
-        for (const { data, error } of pageResults) {
-          if (error) throw error
-          if (data && data.length > 0) allProducts = allProducts.concat(data)
-        }
+      let allProducts: any[] = []
+      let from = 0
+      const pageSize = 1000
+      while (true) {
+        const { data: page, error: pageError } = await supabase
+          .from('products')
+          .select('id, name_ar, sku, category_id, image_url, price_a, price_b, price_c, price_d, price_e')
+          .eq('is_active', true)
+          .order('name_ar')
+          .range(from, from + pageSize - 1)
+        if (pageError) throw pageError
+        if (!page || page.length === 0) break
+        allProducts = allProducts.concat(page)
+        if (page.length < pageSize) break
+        from += pageSize
       }
       console.timeEnd('⏱️ fetch products')
       console.log(`📦 ${allProducts.length} products fetched`)
