@@ -1222,8 +1222,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         console.log('✅ Fallback trouvé:', fallback)
         return fallback
       }
-      console.log('⚠️ Tous les prix sont à 0, prix par défaut: 10.00')
-      return 10.00 // Prix par défaut si tout est à 0
+      return 0
     }
     
     // Déterminer le prix selon la catégorie du client
@@ -1243,40 +1242,32 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         console.log('✅ Fallback trouvé:', fallback)
         return fallback
       }
-      console.log('⚠️ Tous les prix sont à 0, prix par défaut: 10.00')
-      return 10.00
+      return 0
     }
     
     // Les catégories sont : A, B, C, D, E, basic
     let price = 0
     switch (clientCategory) {
       case 'A':
-        price = getFirstNonZeroPrice([item.price_a, item.price_b, item.price_c, item.price_d, item.price_e]) || 10.00
-        console.log('✅ Catégorie A, prix:', price)
+        price = getFirstNonZeroPrice([item.price_a, item.price_b, item.price_c, item.price_d, item.price_e]) || 0
         break
       case 'B':
-        price = getFirstNonZeroPrice([item.price_b, item.price_a, item.price_c, item.price_d, item.price_e]) || 10.00
-        console.log('✅ Catégorie B, prix:', price)
+        price = getFirstNonZeroPrice([item.price_b, item.price_a, item.price_c, item.price_d, item.price_e]) || 0
         break
       case 'C':
-        price = getFirstNonZeroPrice([item.price_c, item.price_a, item.price_b, item.price_d, item.price_e]) || 10.00
-        console.log('✅ Catégorie C, prix:', price)
+        price = getFirstNonZeroPrice([item.price_c, item.price_a, item.price_b, item.price_d, item.price_e]) || 0
         break
       case 'D':
-        price = getFirstNonZeroPrice([item.price_d, item.price_a, item.price_b, item.price_c, item.price_e]) || 10.00
-        console.log('✅ Catégorie D, prix:', price)
+        price = getFirstNonZeroPrice([item.price_d, item.price_a, item.price_b, item.price_c, item.price_e]) || 0
         break
       case 'E':
-        price = getFirstNonZeroPrice([item.price_e, item.price_a, item.price_b, item.price_c, item.price_d]) || 10.00
-        console.log('✅ Catégorie E, prix:', price)
+        price = getFirstNonZeroPrice([item.price_e, item.price_a, item.price_b, item.price_c, item.price_d]) || 0
         break
       case 'basic':
-        price = getFirstNonZeroPrice([item.price_a, item.price_b, item.price_c, item.price_d, item.price_e]) || 10.00
-        console.log('✅ Catégorie basic, prix:', price)
+        price = getFirstNonZeroPrice([item.price_a, item.price_b, item.price_c, item.price_d, item.price_e]) || 0
         break
       default:
-        console.log('⚠️ Catégorie inconnue:', clientCategory, ', prix E par défaut:', item.price_e, 'fallback prix A:', item.price_a)
-        price = getFirstNonZeroPrice([item.price_e, item.price_a, item.price_b, item.price_c, item.price_d]) || 10.00
+        price = getFirstNonZeroPrice([item.price_e, item.price_a, item.price_b, item.price_c, item.price_d]) || 0
     }
     
     return price
@@ -1331,7 +1322,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
 
     const primary = Number(prices[tier] || 0)
     if (primary > 0) return primary
-    return getFirstNonZeroPrice([item.price_e, item.price_a, item.price_b, item.price_c, item.price_d]) || 10.0
+    return getFirstNonZeroPrice([item.price_e, item.price_a, item.price_b, item.price_c, item.price_d]) || 0
   }
 
   const getProductPriceWithTierOverride = (
@@ -2798,71 +2789,41 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
               عرض {MAX_VISIBLE_PRODUCTS} من {filteredProducts.length} منتج — استخدم البحث أو اختر عائلة لتصفية النتائج
             </div>
           )}
-          <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-1.5">
+          <div className="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-8 gap-1">
             {visibleProducts.map((product) => {
-              const stockColor = product.stock > 10
-                ? 'text-green-600'
-                : product.stock > 0
-                  ? 'text-orange-600'
-                  : 'text-red-600'
               const unitTypes = getAvailableUnitTypes(product.primary_variant_id)
               return (
-                <div
+                <button
                   key={`${product.id}-${product.primary_variant_id}`}
-                  className="p-1.5 rounded-lg border bg-white border-gray-200 hover:border-green-500 hover:shadow transition-all"
+                  type="button"
+                  onClick={() => addToInvoice(product)}
+                  className="p-1 rounded border bg-white border-gray-200 hover:border-green-500 hover:shadow transition-all text-right"
                 >
-                  <button
-                    type="button"
-                    onClick={() => addToInvoice(product)}
-                    className="w-full text-left"
-                  >
-                    {/* Image du produit */}
-                    <div className="w-full h-14 mb-1 flex items-center justify-center bg-gray-50 rounded overflow-hidden">
-                      {product.image_url ? (
-                        <img
-                          src={product.image_url}
-                          alt={product.name_ar}
-                          className="w-full h-full object-cover rounded"
-                          loading="lazy"
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none'
-                            e.currentTarget.parentElement?.classList.add('bg-gray-100')
-                          }}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-gray-100 rounded">
-                          <ShoppingCart size={18} className="text-gray-400" />
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Informations du produit */}
-                    <div className="text-[11px] font-bold text-gray-800 leading-tight line-clamp-2">
-                      {product.name_ar}
-                    </div>
-                    <div className="text-xs font-bold text-green-600 mt-0.5">
-                      {getProductPrice(product).toFixed(2)}
-                    </div>
-                  </button>
-                  {unitTypes.length > 1 && (
-                    <div className="mt-1 flex flex-wrap gap-0.5">
-                      {unitTypes.map((t) => (
-                        <button
-                          key={`${product.id}-${product.primary_variant_id}-${t}`}
-                          type="button"
-                          onClick={() => addToInvoice(product, { unitType: t })}
-                          className={`px-1 py-0.5 rounded text-[8px] font-bold border ${
-                            t === 'unit'
-                              ? 'bg-green-50 text-green-700 border-green-200'
-                              : 'bg-gray-50 text-gray-700 border-gray-200'
-                          }`}
-                        >
-                          {t === 'unit' ? 'وحدة' : t === 'carton' ? 'كرتون' : t === 'kilo' ? 'كيلو' : t === 'litre' ? 'لتر' : t}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                  <div className="w-full h-10 mb-0.5 flex items-center justify-center bg-gray-50 rounded overflow-hidden">
+                    {product.image_url ? (
+                      <img
+                        src={product.image_url}
+                        alt={product.name_ar}
+                        className="w-full h-full object-cover rounded"
+                        loading="lazy"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none'
+                          e.currentTarget.parentElement?.classList.add('bg-gray-100')
+                        }}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gray-100 rounded">
+                        <ShoppingCart size={14} className="text-gray-400" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-[9px] font-bold text-gray-800 leading-tight line-clamp-1">
+                    {product.name_ar}
+                  </div>
+                  <div className="text-[10px] font-bold text-green-600">
+                    {getProductPrice(product).toFixed(2)}
+                  </div>
+                </button>
               )
             })}
           </div>
