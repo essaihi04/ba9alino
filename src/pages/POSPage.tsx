@@ -2804,7 +2804,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                       <img
                         src={product.image_url}
                         alt={product.name_ar}
-                        className="w-full h-full object-cover rounded"
+                        className="w-full h-full object-contain rounded"
                         loading="lazy"
                         onError={(e) => {
                           e.currentTarget.style.display = 'none'
@@ -2905,7 +2905,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                             <img
                               src={line.image_url}
                               alt={line.product_name_ar}
-                              className="w-6 h-6 object-cover rounded border border-gray-300"
+                              className="w-6 h-6 object-contain rounded border border-gray-300"
                               onError={(e) => {
                                 e.currentTarget.style.display = 'none'
                               }}

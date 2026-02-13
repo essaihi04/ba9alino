@@ -1915,6 +1915,7 @@ export default function ProductsPage() {
                       className="h-4 w-4"
                     />
                   </th>
+                  <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">الصورة</th>
                   <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">اسم المنتج</th>
                   <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">سعر البيع</th>
                   <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">المخزون</th>
@@ -1940,6 +1941,23 @@ export default function ProductsPage() {
                           onChange={(e) => toggleProductSelection(product.id, e.target.checked)}
                           className="h-4 w-4"
                         />
+                      </td>
+                      <td className="px-2 py-1 border border-gray-200 w-12">
+                        <div className="w-10 h-10 flex items-center justify-center bg-gray-50 rounded overflow-hidden">
+                          {product.image_url ? (
+                            <img
+                              src={product.image_url}
+                              alt={product.name_ar}
+                              className="w-full h-full object-contain rounded"
+                              loading="lazy"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none'
+                              }}
+                            />
+                          ) : (
+                            <Package size={16} className="text-gray-300" />
+                          )}
+                        </div>
                       </td>
                       <td className="px-3 py-2 border border-gray-200">
                         <button
@@ -2164,7 +2182,7 @@ export default function ProductsPage() {
                       onChange={handleImageUpload}
                       className="flex-1"
                     />
-                    {imagePreview && <img src={imagePreview} alt="preview" className="w-12 h-12 object-cover rounded border" />}
+                    {imagePreview && <img src={imagePreview} alt="preview" className="w-12 h-12 object-contain rounded border" />}
                   </div>
                 </div>
               </div>
@@ -2371,7 +2389,7 @@ export default function ProductsPage() {
                       onChange={handleImageUpload}
                       className="flex-1"
                     />
-                    {imagePreview && <img src={imagePreview} alt="preview" className="w-12 h-12 object-cover rounded border" />}
+                    {imagePreview && <img src={imagePreview} alt="preview" className="w-12 h-12 object-contain rounded border" />}
                   </div>
                 </div>
                 <div>
