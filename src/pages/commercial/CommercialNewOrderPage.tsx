@@ -214,7 +214,7 @@ export default function CommercialNewOrderPage() {
       const [allProducts, allVariants, catRes, clientsRes, promotionsRes] = await Promise.all([
         fetchAllPages('products', 'id, name_ar, sku, price, price_a, price_b, price_c, price_d, price_e, stock, category_id, image_url, is_active_for_commercial', [{ col: 'is_active', val: true }]),
         fetchAllPages('product_variants', 'product_id, price_a, price_b, price_c, price_d, price_e, purchase_price, stock, unit_type, quantity_contained', [{ col: 'is_active', val: true }]),
-        supabase.from('product_categories').select('id, name_ar').order('name_ar'),
+        supabase.from('product_categories').select('id, name_ar').eq('is_active', true).order('name_ar'),
         supabase.from('clients').select('*').eq('created_by', commercialId).order('company_name_ar'),
         supabase.from('promotions').select('*').eq('is_active', true).order('created_at', { ascending: false })
       ])

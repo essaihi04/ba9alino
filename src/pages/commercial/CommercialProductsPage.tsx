@@ -129,7 +129,7 @@ export default function CommercialProductsPage() {
       const [allProducts, allVariants, catRes, promoRes] = await Promise.all([
         fetchAllPages('products', 'id, name_ar, sku, stock, category_id, image_url, is_active_for_commercial', [{ col: 'is_active', val: true }]),
         fetchAllPages('product_variants', 'product_id, price_a, price_b, price_c, price_d, price_e, stock, unit_type', [{ col: 'is_active', val: true }]),
-        supabase.from('product_categories').select('id, name_ar').order('name_ar'),
+        supabase.from('product_categories').select('id, name_ar').eq('is_active', true).order('name_ar'),
         supabase.from('promotions').select('*').eq('is_active', true).order('created_at', { ascending: false })
       ])
 
