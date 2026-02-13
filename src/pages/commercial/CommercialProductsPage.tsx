@@ -104,13 +104,23 @@ export default function CommercialProductsPage() {
   const loadProducts = async () => {
     setLoading(true)
     try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .order('name_ar')
-
-      if (error) throw error
-      const rawProducts = (data || []) as Product[]
+      // Paginate to fetch ALL products (Supabase default limit is 1000)
+      let allData: any[] = []
+      let from = 0
+      const pageSize = 1000
+      while (true) {
+        const { data: page, error: pageError } = await supabase
+          .from('products')
+          .select('*')
+          .order('name_ar')
+          .range(from, from + pageSize - 1)
+        if (pageError) throw pageError
+        if (!page || page.length === 0) break
+        allData = allData.concat(page)
+        if (page.length < pageSize) break
+        from += pageSize
+      }
+      const rawProducts = allData as Product[]
       const visibleProducts = rawProducts.filter(p => p.is_active_for_commercial !== false)
       setProducts(visibleProducts)
     } catch (error) {
@@ -162,6 +172,15 @@ export default function CommercialProductsPage() {
     const matchesCategory = !selectedCategory || product.category_id === selectedCategory
     return matchesSearch && matchesCategory
   })
+
+  // Load allowed price tiers from localStorage
+  const allowedTiers: string[] = (() => {
+    try {
+      const stored = localStorage.getItem('commercial_allowed_price_tiers')
+      if (stored) return JSON.parse(stored)
+    } catch {}
+    return [] // empty = all tiers
+  })()
 
   const shortCategoryLabel = (tier: string) =>
     getCategoryLabelArabic(tier).split('/')[0].trim() || tier
@@ -306,24 +325,41 @@ export default function CommercialProductsPage() {
                     المخزون: {product.stock}
                   </div>
 
-                  {/* Prices Grid - Compact */}
-                  <div className="grid grid-cols-2 gap-1 bg-gray-50 rounded p-2 text-xs">
-                    <div className="text-center">
-                      <p className="text-gray-500 text-xs">{shortCategoryLabel('A')}</p>
-                      <p className="font-bold text-blue-600">{product.price_a.toFixed(0)}</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-gray-500 text-xs">{shortCategoryLabel('B')}</p>
-                      <p className="font-bold text-green-600">{product.price_b.toFixed(0)}</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-gray-500 text-xs">{shortCategoryLabel('C')}</p>
-                      <p className="font-bold text-orange-600">{product.price_c.toFixed(0)}</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-gray-500 text-xs">{shortCategoryLabel('D')}</p>
-                      <p className="font-bold text-purple-600">{product.price_d.toFixed(0)}</p>
-                    </div>
+                  {/* Prices Grid - Compact (filtered by allowed tiers) */}
+                  <div className={`grid gap-1 bg-gray-50 rounded p-2 text-xs ${(() => {
+                    const count = allowedTiers.length > 0 ? allowedTiers.length : 4
+                    return count <= 2 ? 'grid-cols-2' : count === 3 ? 'grid-cols-3' : 'grid-cols-2'
+                  })()}`}>
+                    {(allowedTiers.length === 0 || allowedTiers.includes('A')) && (
+                      <div className="text-center">
+                        <p className="text-gray-500 text-xs">{shortCategoryLabel('A')}</p>
+                        <p className="font-bold text-blue-600">{(product.price_a || 0).toFixed(0)}</p>
+                      </div>
+                    )}
+                    {(allowedTiers.length === 0 || allowedTiers.includes('B')) && (
+                      <div className="text-center">
+                        <p className="text-gray-500 text-xs">{shortCategoryLabel('B')}</p>
+                        <p className="font-bold text-green-600">{(product.price_b || 0).toFixed(0)}</p>
+                      </div>
+                    )}
+                    {(allowedTiers.length === 0 || allowedTiers.includes('C')) && (
+                      <div className="text-center">
+                        <p className="text-gray-500 text-xs">{shortCategoryLabel('C')}</p>
+                        <p className="font-bold text-orange-600">{(product.price_c || 0).toFixed(0)}</p>
+                      </div>
+                    )}
+                    {(allowedTiers.length === 0 || allowedTiers.includes('D')) && (
+                      <div className="text-center">
+                        <p className="text-gray-500 text-xs">{shortCategoryLabel('D')}</p>
+                        <p className="font-bold text-purple-600">{(product.price_d || 0).toFixed(0)}</p>
+                      </div>
+                    )}
+                    {(allowedTiers.length === 0 || allowedTiers.includes('E')) && (
+                      <div className="text-center">
+                        <p className="text-gray-500 text-xs">{shortCategoryLabel('E')}</p>
+                        <p className="font-bold text-red-600">{(product.price_e || 0).toFixed(0)}</p>
+                      </div>
+                    )}
                   </div>
                   {productPromotions.length > 0 && (
                     <div className="mt-2 space-y-1">

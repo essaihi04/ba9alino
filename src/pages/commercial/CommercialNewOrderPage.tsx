@@ -151,24 +151,37 @@ export default function CommercialNewOrderPage() {
   const loadData = async (commercialId: string) => {
     setLoading(true)
     try {
-      // Récupérer les produits avec leurs prix depuis la table des variables
-      const { data: productsWithPrices, error: productsError } = await supabase
-        .from('products')
-        .select(`
-          *,
-          product_variants (
-            price_a,
-            price_b,
-            price_c,
-            price_d,
-            price_e,
-            purchase_price,
-            stock,
-            unit_type,
-            quantity_contained
-          )
-        `)
-        .order('name_ar')
+      // Paginate to fetch ALL products (Supabase default limit is 1000)
+      let allProductsData: any[] = []
+      let from = 0
+      const pageSize = 1000
+      let productsError: any = null
+      while (true) {
+        const { data: page, error: pageError } = await supabase
+          .from('products')
+          .select(`
+            *,
+            product_variants (
+              price_a,
+              price_b,
+              price_c,
+              price_d,
+              price_e,
+              purchase_price,
+              stock,
+              unit_type,
+              quantity_contained
+            )
+          `)
+          .order('name_ar')
+          .range(from, from + pageSize - 1)
+        if (pageError) { productsError = pageError; break }
+        if (!page || page.length === 0) break
+        allProductsData = allProductsData.concat(page)
+        if (page.length < pageSize) break
+        from += pageSize
+      }
+      const productsWithPrices = allProductsData
 
       let categoriesData: any[] | null = null
       let categoriesError: any = null
@@ -207,13 +220,9 @@ export default function CommercialNewOrderPage() {
       if (clientsRes.error) throw clientsRes.error
       if (promotionsRes.error) throw promotionsRes.error
 
-      console.log('Products with variants from DB:', productsWithPrices?.slice(0, 1)) // Debug
-      
       const rawProducts = (productsWithPrices || []) as any[]
-      console.log('Raw products from DB (keys):', rawProducts.length > 0 ? Object.keys(rawProducts[0]) : []) // Debug all field names
-      
       const visibleProducts = rawProducts.filter(p => p.is_active_for_commercial !== false)
-      console.log('Visible products:', visibleProducts.slice(0, 3)) // Debug filtered products
+      console.log('Total products loaded:', rawProducts.length, 'Visible:', visibleProducts.length)
 
       setProducts(visibleProducts)
       setCategories((categoriesData || []) as Category[])
@@ -255,8 +264,6 @@ export default function CommercialNewOrderPage() {
   }
 
   const addToCart = (product: Product) => {
-    console.log('addToCart called', { product: product.name_ar, selectedClient, stock: product.stock })
-    
     if (!selectedClient) {
       alert('الرجاء اختيار العميل أولاً')
       return
@@ -268,8 +275,6 @@ export default function CommercialNewOrderPage() {
     }
 
     const price = getPriceForTier(product, selectedClient.subscription_tier)
-    console.log('Price calculated', { tier: selectedClient.subscription_tier, price })
-    
     const existingItem = cart.find(item => item.id === product.id)
 
     if (existingItem) {
@@ -281,8 +286,6 @@ export default function CommercialNewOrderPage() {
     } else {
       setCart([...cart, { ...product, quantity: 1, selectedPrice: price }])
     }
-    
-    console.log('Cart updated', cart)
   }
 
   const updateQuantity = (productId: string, delta: number) => {
@@ -501,6 +504,15 @@ export default function CommercialNewOrderPage() {
     }
   }
 
+  // Load allowed price tiers from localStorage
+  const allowedTiers: string[] = (() => {
+    try {
+      const stored = localStorage.getItem('commercial_allowed_price_tiers')
+      if (stored) return JSON.parse(stored)
+    } catch {}
+    return [] // empty = all tiers
+  })()
+
   const filteredProducts = products.filter(p => {
     const matchesSearch =
       p.name_ar.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -616,24 +628,6 @@ export default function CommercialNewOrderPage() {
             {filteredProducts.map((product) => {
               const price = selectedClient ? getPriceForTier(product, selectedClient.subscription_tier) : product.price_e
               const inCart = cart.find(item => item.id === product.id)
-              
-              // Debug log for first product only
-              if (filteredProducts.indexOf(product) === 0) {
-                const variant = product.product_variants && product.product_variants.length > 0 ? product.product_variants[0] : null
-                console.log('First product data:', {
-                  name: product.name_ar,
-                  has_variant: !!variant,
-                  price: product.price,
-                  price_a: variant?.price_a || product.price_a,
-                  price_b: variant?.price_b || product.price_b,
-                  price_c: variant?.price_c || product.price_c,
-                  price_d: variant?.price_d || product.price_d,
-                  price_e: variant?.price_e || product.price_e,
-                  calculated_price: price,
-                  selected_client: selectedClient?.subscription_tier
-                })
-              }
-              
               return (
                 <div key={product.id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow">
                   {/* Product Image */}
@@ -659,32 +653,27 @@ export default function CommercialNewOrderPage() {
                     <h3 className="font-bold text-gray-800 text-sm mb-1 line-clamp-2">{product.name_ar}</h3>
                     <p className="text-xs text-gray-500 mb-2">SKU: {product.sku}</p>
                     
-                    {/* Prices Grid - All Tiers */}
+                    {/* Prices Grid - Filtered by allowed tiers */}
                     <div className="bg-gray-50 rounded-lg p-2 mb-3">
                       {(() => {
                         const variant = product.product_variants && product.product_variants.length > 0 ? product.product_variants[0] : null
+                        const tiers = [
+                          { key: 'A', label: getCategoryLabelArabic('A'), value: variant?.price_a || product.price_a || product.price || 0, color: 'text-blue-600' },
+                          { key: 'B', label: getCategoryLabelArabic('B'), value: variant?.price_b || product.price_b || product.price || 0, color: 'text-green-600' },
+                          { key: 'C', label: getCategoryLabelArabic('C'), value: variant?.price_c || product.price_c || product.price || 0, color: 'text-orange-600' },
+                          { key: 'D', label: getCategoryLabelArabic('D'), value: variant?.price_d || product.price_d || product.price || 0, color: 'text-purple-600' },
+                          { key: 'E', label: getCategoryLabelArabic('E'), value: variant?.price_e || product.price_e || product.price || 0, color: 'text-red-600' },
+                        ]
+                        const visibleTiers = allowedTiers.length > 0 ? tiers.filter(t => allowedTiers.includes(t.key)) : tiers
+                        const cols = visibleTiers.length <= 2 ? 'grid-cols-2' : visibleTiers.length === 3 ? 'grid-cols-3' : visibleTiers.length === 4 ? 'grid-cols-4' : 'grid-cols-5'
                         return (
-                          <div className="grid grid-cols-5 gap-1 text-[10px]">
-                            <div className="text-center">
-                              <p className="text-gray-500 font-medium">{getCategoryLabelArabic('A')}</p>
-                              <p className="font-bold text-blue-600">{(variant?.price_a || product.price_a || product.price || 0).toFixed(0)}</p>
-                            </div>
-                            <div className="text-center">
-                              <p className="text-gray-500 font-medium">{getCategoryLabelArabic('B')}</p>
-                              <p className="font-bold text-green-600">{(variant?.price_b || product.price_b || product.price || 0).toFixed(0)}</p>
-                            </div>
-                            <div className="text-center">
-                              <p className="text-gray-500 font-medium">{getCategoryLabelArabic('C')}</p>
-                              <p className="font-bold text-orange-600">{(variant?.price_c || product.price_c || product.price || 0).toFixed(0)}</p>
-                            </div>
-                            <div className="text-center">
-                              <p className="text-gray-500 font-medium">{getCategoryLabelArabic('D')}</p>
-                              <p className="font-bold text-purple-600">{(variant?.price_d || product.price_d || product.price || 0).toFixed(0)}</p>
-                            </div>
-                            <div className="text-center">
-                              <p className="text-gray-500 font-medium">{getCategoryLabelArabic('E')}</p>
-                              <p className="font-bold text-red-600">{(variant?.price_e || product.price_e || product.price || 0).toFixed(0)}</p>
-                            </div>
+                          <div className={`grid ${cols} gap-1 text-[10px]`}>
+                            {visibleTiers.map(t => (
+                              <div key={t.key} className="text-center">
+                                <p className="text-gray-500 font-medium">{t.label}</p>
+                                <p className={`font-bold ${t.color}`}>{t.value.toFixed(0)}</p>
+                              </div>
+                            ))}
                           </div>
                         )
                       })()}

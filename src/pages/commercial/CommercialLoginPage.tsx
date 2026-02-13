@@ -56,6 +56,19 @@ export default function CommercialLoginPage() {
 
       if (ua.employee_id) {
         localStorage.setItem('commercial_id', ua.employee_id)
+
+        // Fetch allowed price tiers from employee record
+        const { data: empData } = await supabase
+          .from('employees')
+          .select('allowed_price_tiers')
+          .eq('id', ua.employee_id)
+          .single()
+
+        if (empData?.allowed_price_tiers && empData.allowed_price_tiers.length > 0) {
+          localStorage.setItem('commercial_allowed_price_tiers', JSON.stringify(empData.allowed_price_tiers))
+        } else {
+          localStorage.removeItem('commercial_allowed_price_tiers')
+        }
       }
       localStorage.setItem('commercial_name', ua.full_name || 'تاجر')
       localStorage.setItem('commercial_role', 'commercial')
