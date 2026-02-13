@@ -147,36 +147,38 @@ export default function CommercialNewOrderPage() {
     setLoading(true)
     try {
       // 0) Fetch employee's allowed_price_tiers
+      const commercialName = localStorage.getItem('commercial_name') || ''
       let tiers: string[] = []
 
-      // Try 1: direct lookup by id
-      const { data: empData } = await supabase
+      // Fetch all employees that have allowed_price_tiers configured
+      const { data: empsWithTiers } = await supabase
         .from('employees')
         .select('id, name, phone, allowed_price_tiers')
-        .eq('id', commercialId)
-        .maybeSingle()
+        .not('allowed_price_tiers', 'is', null)
 
-      if (empData?.allowed_price_tiers) {
-        tiers = empData.allowed_price_tiers
-      } else {
-        // Try 2: find via auth session → user_accounts → employee by phone
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user?.email) {
-          const { data: ua } = await supabase
-            .from('user_accounts')
-            .select('full_name, username')
-            .eq('email', user.email)
-            .maybeSingle()
-          if (ua?.username) {
-            const { data: empByPhone } = await supabase
-              .from('employees')
-              .select('id, name, phone, allowed_price_tiers')
-              .eq('phone', ua.username)
+      if (empsWithTiers && empsWithTiers.length > 0) {
+        let match = empsWithTiers.find(e => e.id === commercialId)
+        if (!match) match = empsWithTiers.find(e => e.name === commercialName)
+        if (!match) match = empsWithTiers.find(e =>
+          e.name?.toLowerCase().includes(commercialName.toLowerCase()) ||
+          commercialName.toLowerCase().includes(e.name?.toLowerCase() || '')
+        )
+        if (!match) {
+          const { data: { user } } = await supabase.auth.getUser()
+          if (user?.email) {
+            const { data: ua } = await supabase
+              .from('user_accounts')
+              .select('username')
+              .eq('email', user.email)
               .maybeSingle()
-            if (empByPhone?.allowed_price_tiers) {
-              tiers = empByPhone.allowed_price_tiers
+            if (ua?.username) {
+              match = empsWithTiers.find(e => e.phone === ua.username)
             }
           }
+        }
+        if (match?.allowed_price_tiers && match.allowed_price_tiers.length > 0) {
+          tiers = match.allowed_price_tiers
+          console.log('[TIERS] matched employee:', match.name, tiers)
         }
       }
 
@@ -186,7 +188,7 @@ export default function CommercialNewOrderPage() {
       } else {
         localStorage.removeItem('commercial_allowed_price_tiers')
       }
-      console.log('Employee allowed_price_tiers:', tiers)
+      console.log('[TIERS] final:', tiers)
 
       // 1) Fetch products, variants, categories, clients, promotions ALL in parallel
       const fetchAllPages = async (table: string, select: string, filters?: { col: string, val: any }[]) => {

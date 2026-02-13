@@ -58,49 +58,52 @@ export default function CommercialProductsPage() {
     try {
       // 0) Fetch employee's allowed_price_tiers
       const commercialId = localStorage.getItem('commercial_id')
-      if (commercialId) {
-        let tiers: string[] = []
+      const commercialName = localStorage.getItem('commercial_name') || ''
+      let tiers: string[] = []
 
-        // Try 1: direct lookup by id
-        const { data: empData } = await supabase
-          .from('employees')
-          .select('id, name, phone, allowed_price_tiers')
-          .eq('id', commercialId)
-          .maybeSingle()
+      // Fetch all employees that have allowed_price_tiers configured
+      const { data: empsWithTiers } = await supabase
+        .from('employees')
+        .select('id, name, phone, allowed_price_tiers')
+        .not('allowed_price_tiers', 'is', null)
 
-        if (empData?.allowed_price_tiers) {
-          tiers = empData.allowed_price_tiers
-        } else {
-          // Try 2: find via auth session → user_accounts → employee by phone
+      if (empsWithTiers && empsWithTiers.length > 0) {
+        // Try match by id
+        let match = empsWithTiers.find(e => e.id === commercialId)
+        // Try match by exact name
+        if (!match) match = empsWithTiers.find(e => e.name === commercialName)
+        // Try match by partial name (either direction)
+        if (!match) match = empsWithTiers.find(e =>
+          e.name?.toLowerCase().includes(commercialName.toLowerCase()) ||
+          commercialName.toLowerCase().includes(e.name?.toLowerCase() || '')
+        )
+        // Try match by phone via user_accounts
+        if (!match) {
           const { data: { user } } = await supabase.auth.getUser()
           if (user?.email) {
             const { data: ua } = await supabase
               .from('user_accounts')
-              .select('full_name, username')
+              .select('username')
               .eq('email', user.email)
               .maybeSingle()
             if (ua?.username) {
-              // username is the phone number, find employee by phone
-              const { data: empByPhone } = await supabase
-                .from('employees')
-                .select('id, name, phone, allowed_price_tiers')
-                .eq('phone', ua.username)
-                .maybeSingle()
-              if (empByPhone?.allowed_price_tiers) {
-                tiers = empByPhone.allowed_price_tiers
-              }
+              match = empsWithTiers.find(e => e.phone === ua.username)
             }
           }
         }
-
-        setAllowedTiers(tiers)
-        if (tiers.length > 0) {
-          localStorage.setItem('commercial_allowed_price_tiers', JSON.stringify(tiers))
-        } else {
-          localStorage.removeItem('commercial_allowed_price_tiers')
+        if (match?.allowed_price_tiers && match.allowed_price_tiers.length > 0) {
+          tiers = match.allowed_price_tiers
+          console.log('[TIERS] matched employee:', match.name, tiers)
         }
-        console.log('Employee allowed_price_tiers:', tiers)
       }
+
+      setAllowedTiers(tiers)
+      if (tiers.length > 0) {
+        localStorage.setItem('commercial_allowed_price_tiers', JSON.stringify(tiers))
+      } else {
+        localStorage.removeItem('commercial_allowed_price_tiers')
+      }
+      console.log('[TIERS] final:', tiers)
 
       // 1) Fetch products, variants, categories, promotions ALL in parallel
       const fetchAllPages = async (table: string, select: string, filters?: { col: string, val: any }[]) => {
