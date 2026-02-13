@@ -252,12 +252,12 @@ export default function CommercialProductsPage() {
         </div>
       </div>
 
-      {/* Categories Filter */}
-      <div className="bg-white p-4 shadow-sm overflow-x-auto">
-        <div className="flex gap-2 min-w-max">
+      {/* Categories Filter - max 3 rows, scrollable */}
+      <div className="bg-white p-3 shadow-sm overflow-y-auto" style={{ maxHeight: '140px' }}>
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setSelectedCategory(null)}
-            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
               !selectedCategory
                 ? 'bg-purple-600 text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -271,7 +271,7 @@ export default function CommercialProductsPage() {
               <button
                 key={category.id}
                 onClick={() => setSelectedCategory(category.id)}
-                className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
                   selectedCategory === category.id
                     ? 'bg-purple-600 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
