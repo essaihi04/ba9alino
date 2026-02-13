@@ -2799,7 +2799,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                   onClick={() => addToInvoice(product)}
                   className="p-1 rounded border bg-white border-gray-200 hover:border-green-500 hover:shadow transition-all text-right"
                 >
-                  <div className="w-full h-10 mb-0.5 flex items-center justify-center bg-gray-50 rounded overflow-hidden">
+                  <div className="w-full h-14 mb-0.5 flex items-center justify-center bg-gray-50 rounded overflow-hidden">
                     {product.image_url ? (
                       <img
                         src={product.image_url}
