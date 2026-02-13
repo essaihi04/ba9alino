@@ -5,8 +5,6 @@ import { getCategoryLabelArabic } from '../../utils/categoryLabels'
 import { ArrowLeft, Plus, Minus, ShoppingCart, User, Check, Package } from 'lucide-react'
 import { useInputPad } from '../../components/useInputPad'
 
-const BATCH_SIZE = 300
-
 interface ProductVariant {
   price_a: number
   price_b: number
@@ -156,7 +154,7 @@ export default function CommercialNewOrderPage() {
         .from('employees')
         .select('id, name, phone, allowed_price_tiers')
         .eq('id', commercialId)
-        .single()
+        .maybeSingle()
 
       if (empData?.allowed_price_tiers) {
         tiers = empData.allowed_price_tiers
@@ -168,13 +166,13 @@ export default function CommercialNewOrderPage() {
             .from('user_accounts')
             .select('full_name, username')
             .eq('email', user.email)
-            .single()
+            .maybeSingle()
           if (ua?.username) {
             const { data: empByPhone } = await supabase
               .from('employees')
               .select('id, name, phone, allowed_price_tiers')
               .eq('phone', ua.username)
-              .single()
+              .maybeSingle()
             if (empByPhone?.allowed_price_tiers) {
               tiers = empByPhone.allowed_price_tiers
             }

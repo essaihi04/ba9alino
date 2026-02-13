@@ -19,8 +19,6 @@ interface Product {
   is_active_for_commercial?: boolean
 }
 
-const BATCH_SIZE = 300
-
 interface Category {
   id: string
   name_ar: string
@@ -68,7 +66,7 @@ export default function CommercialProductsPage() {
           .from('employees')
           .select('id, name, phone, allowed_price_tiers')
           .eq('id', commercialId)
-          .single()
+          .maybeSingle()
 
         if (empData?.allowed_price_tiers) {
           tiers = empData.allowed_price_tiers
@@ -80,14 +78,14 @@ export default function CommercialProductsPage() {
               .from('user_accounts')
               .select('full_name, username')
               .eq('email', user.email)
-              .single()
+              .maybeSingle()
             if (ua?.username) {
               // username is the phone number, find employee by phone
               const { data: empByPhone } = await supabase
                 .from('employees')
                 .select('id, name, phone, allowed_price_tiers')
                 .eq('phone', ua.username)
-                .single()
+                .maybeSingle()
               if (empByPhone?.allowed_price_tiers) {
                 tiers = empByPhone.allowed_price_tiers
               }

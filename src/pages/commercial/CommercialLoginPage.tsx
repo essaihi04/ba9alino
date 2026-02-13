@@ -62,7 +62,7 @@ export default function CommercialLoginPage() {
           .from('employees')
           .select('allowed_price_tiers')
           .eq('id', ua.employee_id)
-          .single()
+          .maybeSingle()
 
         if (empData?.allowed_price_tiers && empData.allowed_price_tiers.length > 0) {
           localStorage.setItem('commercial_allowed_price_tiers', JSON.stringify(empData.allowed_price_tiers))
