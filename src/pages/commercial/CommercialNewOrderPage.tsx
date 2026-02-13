@@ -99,6 +99,7 @@ export default function CommercialNewOrderPage() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [showClientModal, setShowClientModal] = useState(false)
   const [showCreateClientModal, setShowCreateClientModal] = useState(false)
+  const [allowedTiers, setAllowedTiers] = useState<string[]>([])
   const [clientForm, setClientForm] = useState<NewClientForm>({
     company_name_ar: '',
     company_name_en: '',
@@ -147,64 +148,85 @@ export default function CommercialNewOrderPage() {
     loadingRef.current = true
     setLoading(true)
     try {
-      // 1) Fetch products (paginated), categories, clients, promotions in parallel
-      const productsPromise = (async () => {
+      // 0) Fetch employee's allowed_price_tiers
+      let tiers: string[] = []
+
+      // Try 1: direct lookup by id
+      const { data: empData } = await supabase
+        .from('employees')
+        .select('id, name, phone, allowed_price_tiers')
+        .eq('id', commercialId)
+        .single()
+
+      if (empData?.allowed_price_tiers) {
+        tiers = empData.allowed_price_tiers
+      } else {
+        // Try 2: find via auth session → user_accounts → employee by phone
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user?.email) {
+          const { data: ua } = await supabase
+            .from('user_accounts')
+            .select('full_name, username')
+            .eq('email', user.email)
+            .single()
+          if (ua?.username) {
+            const { data: empByPhone } = await supabase
+              .from('employees')
+              .select('id, name, phone, allowed_price_tiers')
+              .eq('phone', ua.username)
+              .single()
+            if (empByPhone?.allowed_price_tiers) {
+              tiers = empByPhone.allowed_price_tiers
+            }
+          }
+        }
+      }
+
+      setAllowedTiers(tiers)
+      if (tiers.length > 0) {
+        localStorage.setItem('commercial_allowed_price_tiers', JSON.stringify(tiers))
+      } else {
+        localStorage.removeItem('commercial_allowed_price_tiers')
+      }
+      console.log('Employee allowed_price_tiers:', tiers)
+
+      // 1) Fetch products, variants, categories, clients, promotions ALL in parallel
+      const fetchAllPages = async (table: string, select: string, filters?: { col: string, val: any }[]) => {
         let allData: any[] = []
         let from = 0
         const pageSize = 1000
         while (true) {
-          const { data: page, error: pageError } = await supabase
-            .from('products')
-            .select('id, name_ar, sku, price, price_a, price_b, price_c, price_d, price_e, stock, category_id, image_url, is_active_for_commercial')
-            .eq('is_active', true)
-            .order('name_ar')
-            .range(from, from + pageSize - 1)
-          if (pageError) throw pageError
+          let query = supabase.from(table).select(select).range(from, from + pageSize - 1)
+          if (filters) for (const f of filters) query = query.eq(f.col, f.val)
+          const { data: page, error } = await query
+          if (error) throw error
           if (!page || page.length === 0) break
           allData = allData.concat(page)
           if (page.length < pageSize) break
           from += pageSize
         }
         return allData
-      })()
+      }
 
-      const categoriesPromise = supabase
-        .from('product_categories')
-        .select('id, name_ar')
-        .order('name_ar')
-
-      const [allProducts, catRes, clientsRes, promotionsRes] = await Promise.all([
-        productsPromise,
-        categoriesPromise,
+      const [allProducts, allVariants, catRes, clientsRes, promotionsRes] = await Promise.all([
+        fetchAllPages('products', 'id, name_ar, sku, price, price_a, price_b, price_c, price_d, price_e, stock, category_id, image_url, is_active_for_commercial', [{ col: 'is_active', val: true }]),
+        fetchAllPages('product_variants', 'product_id, price_a, price_b, price_c, price_d, price_e, purchase_price, stock, unit_type, quantity_contained', [{ col: 'is_active', val: true }]),
+        supabase.from('product_categories').select('id, name_ar').order('name_ar'),
         supabase.from('clients').select('*').eq('created_by', commercialId).order('company_name_ar'),
         supabase.from('promotions').select('*').eq('is_active', true).order('created_at', { ascending: false })
       ])
 
-      const visibleProducts = allProducts.filter((p: any) => p.is_active_for_commercial !== false)
-      const productIds = visibleProducts.map((p: any) => p.id)
-
-      // 2) Fetch variant prices in batches
-      const variantMap = new Map<string, any>()
-      for (let i = 0; i < productIds.length; i += BATCH_SIZE) {
-        const batch = productIds.slice(i, i + BATCH_SIZE)
-        const { data: variants } = await supabase
-          .from('product_variants')
-          .select('product_id, price_a, price_b, price_c, price_d, price_e, purchase_price, stock, unit_type, quantity_contained')
-          .eq('is_active', true)
-          .in('product_id', batch)
-        if (variants) {
-          for (const v of variants) {
-            const existing = variantMap.get(v.product_id)
-            if (!existing) {
-              variantMap.set(v.product_id, [v])
-            } else {
-              existing.push(v)
-            }
-          }
-        }
+      // Build variant lookup map
+      const variantMap = new Map<string, any[]>()
+      for (const v of allVariants) {
+        const existing = variantMap.get(v.product_id)
+        if (!existing) variantMap.set(v.product_id, [v])
+        else existing.push(v)
       }
 
-      // 3) Enrich products with variant data
+      const visibleProducts = allProducts.filter((p: any) => p.is_active_for_commercial !== false)
+
+      // Enrich products with variant data
       const enriched = visibleProducts.map((p: any) => {
         const vs = variantMap.get(p.id) || []
         return {
@@ -500,15 +522,6 @@ export default function CommercialNewOrderPage() {
       alert('❌ حدث خطأ أثناء إنشاء الطلب')
     }
   }
-
-  // Load allowed price tiers from localStorage
-  const allowedTiers: string[] = (() => {
-    try {
-      const stored = localStorage.getItem('commercial_allowed_price_tiers')
-      if (stored) return JSON.parse(stored)
-    } catch {}
-    return [] // empty = all tiers
-  })()
 
   const filteredProducts = products.filter(p => {
     const matchesSearch =
