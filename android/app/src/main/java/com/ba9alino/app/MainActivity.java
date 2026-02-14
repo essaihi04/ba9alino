@@ -14,7 +14,7 @@ public class MainActivity extends BridgeActivity {
     private static final int REQUEST_PERMISSIONS = 1001;
     
     @Override
-    protected void onStart() {
+    public void onStart() {
         super.onStart();
         checkAndRequestPermissions();
     }

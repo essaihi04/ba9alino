@@ -360,7 +360,7 @@ export default function CommercialClientEditPage() {
             <label className="block text-sm font-medium">صورة المتجر</label>
             <div className="flex items-center gap-3">
               <label className="flex-1 flex items-center justify-center gap-2 px-3 py-2 border-2 border-dashed rounded-lg cursor-pointer hover:bg-gray-50">
-                <input type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
+                <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoChange} />
                 <ImageIcon size={18} className="text-gray-500" />
                 <span className="text-sm font-medium text-gray-600">اختر صورة</span>
               </label>
