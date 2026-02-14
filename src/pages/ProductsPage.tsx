@@ -834,6 +834,28 @@ export default function ProductsPage() {
     }
   }
 
+  const handleQuickPriceUpdate = async (productId: string, priceField: 'price_a' | 'price_b' | 'price_c' | 'price_d' | 'price_e', value: string) => {
+    const newPrice = parseFloat(value)
+    if (isNaN(newPrice) || newPrice < 0) return
+
+    // Update local state immediately for responsive UI
+    setProducts(prev => prev.map(p => 
+      p.id === productId ? { ...p, [priceField]: newPrice } : p
+    ))
+
+    // Debounce the server update
+    try {
+      await supabase
+        .from('products')
+        .update({ [priceField]: newPrice })
+        .eq('id', productId)
+    } catch (error) {
+      console.error('Error updating price:', error)
+      // Revert on error
+      await loadProducts()
+    }
+  }
+
   const handleAddStock = async () => {
     if (!selectedProduct || !stockQuantity) return
 
@@ -1917,7 +1939,11 @@ export default function ProductsPage() {
                   </th>
                   <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">الصورة</th>
                   <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">اسم المنتج</th>
-                  <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">سعر البيع</th>
+                  <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">سعر الجملة (A)</th>
+                  <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">نصف الجملة (B)</th>
+                  <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">موزع (C)</th>
+                  <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">تقسيط (D)</th>
+                  <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">مفرق (E)</th>
                   <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">المخزون</th>
                   <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">حالة المخزون</th>
                   <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">القيمة الإجمالية</th>
@@ -1972,10 +1998,55 @@ export default function ProductsPage() {
                           )}
                         </button>
                       </td>
-                      <td className="px-3 py-2 border border-gray-200">
-                        <span className="font-bold text-sm text-gray-800">
-                          {product.price_a.toFixed(2)} MAD
-                        </span>
+                      <td className="px-2 py-1 border border-gray-200">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={product.price_a || 0}
+                          onChange={(e) => handleQuickPriceUpdate(product.id, 'price_a', e.target.value)}
+                          className="w-20 p-1 text-xs border border-gray-300 rounded text-center"
+                        />
+                      </td>
+                      <td className="px-2 py-1 border border-gray-200">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={product.price_b || 0}
+                          onChange={(e) => handleQuickPriceUpdate(product.id, 'price_b', e.target.value)}
+                          className="w-20 p-1 text-xs border border-gray-300 rounded text-center"
+                        />
+                      </td>
+                      <td className="px-2 py-1 border border-gray-200">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={product.price_c || 0}
+                          onChange={(e) => handleQuickPriceUpdate(product.id, 'price_c', e.target.value)}
+                          className="w-20 p-1 text-xs border border-gray-300 rounded text-center"
+                        />
+                      </td>
+                      <td className="px-2 py-1 border border-gray-200">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={product.price_d || 0}
+                          onChange={(e) => handleQuickPriceUpdate(product.id, 'price_d', e.target.value)}
+                          className="w-20 p-1 text-xs border border-gray-300 rounded text-center"
+                        />
+                      </td>
+                      <td className="px-2 py-1 border border-gray-200">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={product.price_e || 0}
+                          onChange={(e) => handleQuickPriceUpdate(product.id, 'price_e', e.target.value)}
+                          className="w-20 p-1 text-xs border border-gray-300 rounded text-center"
+                        />
                       </td>
                       <td className="px-3 py-2 border border-gray-200">
                         <span className={`font-bold text-sm ${
