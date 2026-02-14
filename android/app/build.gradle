@@ -1,18 +1,39 @@
 apply plugin: 'com.android.application'
 
+def signingProperties = new Properties()
+def signingPropertiesFile = file('kotlin/new.properties')
+if (signingPropertiesFile.exists()) {
+    signingPropertiesFile.withReader('UTF-8') { reader ->
+        signingProperties.load(reader)
+    }
+}
+
 android {
     namespace = "com.ba9alino.app"
     compileSdk = rootProject.ext.compileSdkVersion
+    
+    signingConfigs {
+        release {
+            if (signingProperties.getProperty('release.keystore.path')) {
+                def keystoreFile = file(signingProperties.getProperty('release.keystore.path'))
+                if (keystoreFile.exists()) {
+                    storeFile keystoreFile
+                    storePassword signingProperties.getProperty('release.keystore.password')
+                    keyAlias signingProperties.getProperty('release.key.alias')
+                    keyPassword signingProperties.getProperty('release.key.password')
+                }
+            }
+        }
+    }
+
     defaultConfig {
         applicationId "com.ba9alino.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode 2
+        versionName "1.1"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
-             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
-             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
@@ -20,6 +41,9 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (signingProperties.getProperty('release.keystore.path') && file(signingProperties.getProperty('release.keystore.path')).exists()) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }
