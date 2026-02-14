@@ -786,20 +786,17 @@ export default function CommercialNewOrderPage() {
         )}
       </div>
 
-      {/* Floating Cart Button */}
+      {/* Floating Cart Button - Visual indicator only */}
       {cart.length > 0 && (
-        <button
-          onClick={() => {
-            document.getElementById('cart-summary')?.scrollIntoView({ behavior: 'smooth' })
-          }}
-          className="fixed bottom-20 left-4 z-40 bg-green-600 text-white rounded-full shadow-lg p-4 flex items-center gap-2 hover:bg-green-700 transition-colors"
+        <div
+          className="fixed bottom-20 left-4 z-40 bg-green-600 text-white rounded-full shadow-lg p-4 flex items-center gap-2 pointer-events-none"
         >
           <ShoppingCart size={24} />
           <div className="flex flex-col items-start">
             <span className="text-xs font-medium">{cart.reduce((sum, item) => sum + item.quantity, 0)} منتج</span>
             <span className="font-bold">{promotionSummary.finalTotal.toFixed(0)} DH</span>
           </div>
-        </button>
+        </div>
       )}
 
       {/* Cart Summary - Fixed Bottom */}
