@@ -649,72 +649,41 @@ export default function CommercialNewOrderPage() {
               const price = selectedClient ? getPriceForTier(product, selectedClient.subscription_tier) : product.price_e
               const inCart = cart.find(item => item.id === product.id)
               return (
-                <div key={product.id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow">
-                  {/* Product Image */}
-                  <div className="relative bg-gray-100 h-24 flex items-center justify-center overflow-hidden">
+                <div key={product.id} className="bg-white rounded-xl shadow-sm overflow-hidden hover:shadow-lg transition-shadow border border-gray-100">
+                  {/* Product Image - Large */}
+                  <div className="bg-gray-50 aspect-square flex items-center justify-center overflow-hidden relative">
                     {product.image_url ? (
                       <img
                         src={product.image_url}
                         alt={product.name_ar}
-                        className="w-full h-full object-contain"
+                        className="w-full h-full object-contain p-2"
                         loading="lazy"
                       />
                     ) : (
-                      <Package size={32} className="text-gray-400" />
+                      <Package size={48} className="text-gray-300" />
                     )}
                     {product.stock === 0 && (
                       <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                         <span className="text-white font-bold text-sm">نفذ المخزون</span>
                       </div>
                     )}
+                    {/* Stock indicator */}
+                    <div className={`absolute top-2 right-2 w-3 h-3 rounded-full ${
+                      product.stock > 10 ? 'bg-green-500' : product.stock > 0 ? 'bg-yellow-500' : 'bg-red-500'
+                    }`} />
                   </div>
 
-                  {/* Product Info */}
+                  {/* Product Info - Minimal */}
                   <div className="p-3">
-                    <h3 className="font-bold text-gray-800 text-sm mb-1 line-clamp-2">{product.name_ar}</h3>
-                    <p className="text-xs text-gray-500 mb-2">SKU: {product.sku}</p>
+                    <h3 className="font-semibold text-gray-800 text-sm mb-2 line-clamp-2 text-center">
+                      {product.name_ar}
+                    </h3>
                     
-                    {/* Prices Grid - Filtered by allowed tiers */}
-                    <div className="bg-gray-50 rounded-lg p-2 mb-3">
-                      {(() => {
-                        const variant = product.product_variants && product.product_variants.length > 0 ? product.product_variants[0] : null
-                        const tiers = [
-                          { key: 'A', label: getCategoryLabelArabic('A'), value: variant?.price_a || product.price_a || product.price || 0, color: 'text-blue-600' },
-                          { key: 'B', label: getCategoryLabelArabic('B'), value: variant?.price_b || product.price_b || product.price || 0, color: 'text-green-600' },
-                          { key: 'C', label: getCategoryLabelArabic('C'), value: variant?.price_c || product.price_c || product.price || 0, color: 'text-orange-600' },
-                          { key: 'D', label: getCategoryLabelArabic('D'), value: variant?.price_d || product.price_d || product.price || 0, color: 'text-purple-600' },
-                          { key: 'E', label: getCategoryLabelArabic('E'), value: variant?.price_e || product.price_e || product.price || 0, color: 'text-red-600' },
-                        ]
-                        const visibleTiers = allowedTiers.length > 0 ? tiers.filter(t => allowedTiers.includes(t.key)) : tiers
-                        const cols = visibleTiers.length <= 2 ? 'grid-cols-2' : visibleTiers.length === 3 ? 'grid-cols-3' : visibleTiers.length === 4 ? 'grid-cols-4' : 'grid-cols-5'
-                        return (
-                          <div className={`grid ${cols} gap-1 text-[10px]`}>
-                            {visibleTiers.map(t => (
-                              <div key={t.key} className="text-center">
-                                <p className="text-gray-500 font-medium">{t.label}</p>
-                                <p className={`font-bold ${t.color}`}>{t.value.toFixed(0)}</p>
-                              </div>
-                            ))}
-                          </div>
-                        )
-                      })()}
-                      {selectedClient && (
-                        <div className="text-center mt-2 pt-2 border-t border-gray-200">
-                          <p className="text-xs text-gray-500">
-                            سعر العميل ({getCategoryLabelArabic(selectedClient.subscription_tier) || selectedClient.subscription_tier})
-                          </p>
-                          <p className="text-lg font-bold text-green-700">{(price || 0).toFixed(2)} MAD</p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Stock Badge */}
-                    <div className={`text-xs font-medium px-2 py-1 rounded mb-3 inline-block ${
-                      product.stock > 10 ? 'bg-green-100 text-green-700' : 
-                      product.stock > 0 ? 'bg-orange-100 text-orange-700' : 
-                      'bg-red-100 text-red-700'
-                    }`}>
-                      {product.stock} متوفر
+                    {/* Single Price Display */}
+                    <div className="text-center mb-3">
+                      <p className="text-lg font-bold text-green-600">
+                        {price.toFixed(2)} MAD
+                      </p>
                     </div>
 
                     {/* Add to Cart Button */}

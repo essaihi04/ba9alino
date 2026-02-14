@@ -303,96 +303,70 @@ export default function CommercialProductsPage() {
           </div>
         ) : (
           <>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {displayedProducts.map((product) => {
               const productPromotions = getProductPromotions(product.id)
+              // Get the appropriate price based on allowed tiers
+              const getDisplayPrice = () => {
+                if (allowedTiers.length === 1) {
+                  const tier = allowedTiers[0]
+                  switch(tier) {
+                    case 'A': return product.price_a || 0
+                    case 'B': return product.price_b || 0
+                    case 'C': return product.price_c || 0
+                    case 'D': return product.price_d || 0
+                    case 'E': return product.price_e || 0
+                    default: return product.price_a || 0
+                  }
+                }
+                return product.price_a || 0
+              }
               return (
               <div
                 key={product.id}
-                className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow"
+                className="bg-white rounded-xl shadow-sm overflow-hidden hover:shadow-lg transition-shadow border border-gray-100"
               >
-                {/* Product Image */}
-                <div className="bg-gray-100 h-20 flex items-center justify-center overflow-hidden">
+                {/* Product Image - Large */}
+                <div className="bg-gray-50 aspect-square flex items-center justify-center overflow-hidden relative">
                   {product.image_url ? (
                     <img
                       src={product.image_url}
                       alt={product.name_ar}
-                      className="w-full h-full object-contain"
+                      className="w-full h-full object-contain p-2"
                       loading="lazy"
                     />
                   ) : (
-                    <Package size={24} className="text-gray-400" />
+                    <Package size={48} className="text-gray-300" />
                   )}
+                  {/* Stock indicator */}
+                  <div className={`absolute top-2 right-2 w-3 h-3 rounded-full ${
+                    product.stock > 10 ? 'bg-green-500' : product.stock > 0 ? 'bg-yellow-500' : 'bg-red-500'
+                  }`} />
                 </div>
 
-                {/* Product Info */}
-                <div className="p-2">
-                  <h3 className="font-bold text-gray-800 text-xs mb-1 line-clamp-2">
+                {/* Product Info - Minimal */}
+                <div className="p-3">
+                  <h3 className="font-semibold text-gray-800 text-sm mb-2 line-clamp-2 text-center">
                     {product.name_ar}
                   </h3>
-                  <p className="text-xs text-gray-500 mb-2">
-                    SKU: {product.sku || 'N/A'}
-                  </p>
-
-                  {/* Stock Badge */}
-                  <div className={`text-xs font-medium px-2 py-1 rounded mb-2 inline-block ${
-                    product.stock > 10
-                      ? 'bg-green-100 text-green-700'
-                      : product.stock > 0
-                      ? 'bg-yellow-100 text-yellow-700'
-                      : 'bg-red-100 text-red-700'
-                  }`}>
-                    المخزون: {product.stock}
+                  
+                  {/* Single Price Display */}
+                  <div className="text-center">
+                    <p className="text-lg font-bold text-purple-600">
+                      {getDisplayPrice().toFixed(0)} DH
+                    </p>
                   </div>
-
-                  {/* Prices Grid - Compact (filtered by allowed tiers) */}
-                  <div className={`grid gap-1 bg-gray-50 rounded p-2 text-xs ${(() => {
-                    const count = allowedTiers.length > 0 ? allowedTiers.length : 4
-                    return count <= 2 ? 'grid-cols-2' : count === 3 ? 'grid-cols-3' : 'grid-cols-2'
-                  })()}`}>
-                    {(allowedTiers.length === 0 || allowedTiers.includes('A')) && (
-                      <div className="text-center">
-                        <p className="text-gray-500 text-xs">{shortCategoryLabel('A')}</p>
-                        <p className="font-bold text-blue-600">{(product.price_a || 0).toFixed(0)}</p>
-                      </div>
-                    )}
-                    {(allowedTiers.length === 0 || allowedTiers.includes('B')) && (
-                      <div className="text-center">
-                        <p className="text-gray-500 text-xs">{shortCategoryLabel('B')}</p>
-                        <p className="font-bold text-green-600">{(product.price_b || 0).toFixed(0)}</p>
-                      </div>
-                    )}
-                    {(allowedTiers.length === 0 || allowedTiers.includes('C')) && (
-                      <div className="text-center">
-                        <p className="text-gray-500 text-xs">{shortCategoryLabel('C')}</p>
-                        <p className="font-bold text-orange-600">{(product.price_c || 0).toFixed(0)}</p>
-                      </div>
-                    )}
-                    {(allowedTiers.length === 0 || allowedTiers.includes('D')) && (
-                      <div className="text-center">
-                        <p className="text-gray-500 text-xs">{shortCategoryLabel('D')}</p>
-                        <p className="font-bold text-purple-600">{(product.price_d || 0).toFixed(0)}</p>
-                      </div>
-                    )}
-                    {(allowedTiers.length === 0 || allowedTiers.includes('E')) && (
-                      <div className="text-center">
-                        <p className="text-gray-500 text-xs">{shortCategoryLabel('E')}</p>
-                        <p className="font-bold text-red-600">{(product.price_e || 0).toFixed(0)}</p>
-                      </div>
-                    )}
-                  </div>
+                  
                   {productPromotions.length > 0 && (
                     <div className="mt-2 space-y-1">
                       {productPromotions.map((promo) => (
                         <div
                           key={promo.id}
-                          className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-1"
+                          className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-1 text-center"
                         >
-                          <span className="font-semibold">{promo.title}</span>
-                          <span className="mx-1">•</span>
                           {promo.type === 'discount'
-                            ? `خصم ${promo.discount_percent || 0}% عند ${promo.min_quantity} ${promo.unit_type || ''}`
-                            : `هدية عند ${promo.min_quantity} ${promo.unit_type || ''}`}
+                            ? `خصم ${promo.discount_percent || 0}%`
+                            : `هدية`}
                         </div>
                       ))}
                     </div>
