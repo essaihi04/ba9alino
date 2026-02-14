@@ -98,7 +98,6 @@ export default function CommercialClientsPage() {
           city: formData.city || null,
           subscription_tier: formData.subscription_tier,
           created_by: commercialId,
-          commercial_id: commercialId,
           gps_lat: formData.gps_lat,
           gps_lng: formData.gps_lng,
           shop_photo_url: formData.shop_photo_url || null,
