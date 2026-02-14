@@ -640,16 +640,21 @@ export default function CommercialNewOrderPage() {
       {/* Active Promotions Banner */}
       {selectedClient && activePromotions.length > 0 && (
         <div className="bg-gradient-to-r from-orange-500 to-red-500 text-white p-3 shadow-md">
-          <p className="text-sm font-bold mb-2">🎁 العروض النشطة - اضغط للإضافة التلقائية</p>
-          <div className="flex flex-wrap gap-2">
-            {activePromotions.map((promo) => (
-              <button
-                key={promo.id}
-                onClick={() => {
-                  if (promo.type === 'gift' && promo.gift_product_id) {
-                    const giftProduct = products.find((p) => p.id === promo.gift_product_id)
-                    if (giftProduct) {
-                      const price = getPriceForTier(giftProduct, selectedClient.subscription_tier)
+          <p className="text-sm font-bold mb-3">🎁 العروض النشطة - اضغط للإضافة التلقائية</p>
+          <div className="space-y-3 max-h-48 overflow-y-auto">
+            {activePromotions.map((promo) => {
+              const giftProduct = promo.type === 'gift' && promo.gift_product_id 
+                ? products.find((p) => p.id === promo.gift_product_id) 
+                : null
+              const targetProduct = promo.scope === 'product' && promo.product_id
+                ? products.find((p) => p.id === promo.product_id)
+                : null
+              
+              return (
+                <button
+                  key={promo.id}
+                  onClick={() => {
+                    if (promo.type === 'gift' && giftProduct) {
                       const existingItem = cart.find(item => item.id === giftProduct.id)
                       if (existingItem) {
                         setCart(cart.map(item =>
@@ -667,16 +672,62 @@ export default function CommercialNewOrderPage() {
                         }])
                       }
                       alert(`✅ تم إضافة ${promo.gift_quantity || 1} ${giftProduct.name_ar} كهدية`)
+                    } else if (promo.type === 'discount') {
+                      alert(`💰 خصم ${promo.discount_percent}% عند شراء ${promo.min_quantity} ${promo.unit_type || 'وحدة'}`)
                     }
-                  } else if (promo.type === 'discount') {
-                    alert(`💰 خصم ${promo.discount_percent}% عند شراء ${promo.min_quantity} ${promo.unit_type || 'وحدة'}`)
-                  }
-                }}
-                className="bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg text-xs font-medium transition-colors text-right"
-              >
-                {promo.type === 'gift' ? '🎁' : '💰'} {promo.title}
-              </button>
-            ))}
+                  }}
+                  className="w-full bg-white/20 hover:bg-white/30 p-3 rounded-xl text-right transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    {/* Gift Product Image */}
+                    <div className="w-16 h-16 bg-white rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
+                      {promo.type === 'gift' && giftProduct?.image_url ? (
+                        <img src={giftProduct.image_url} alt={giftProduct.name_ar} className="w-full h-full object-contain p-1" />
+                      ) : promo.type === 'gift' ? (
+                        <Package size={32} className="text-orange-300" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-green-100 rounded-lg">
+                          <span className="text-2xl font-bold text-green-600">%</span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Promotion Details */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-lg">{promo.type === 'gift' ? '🎁' : '💰'}</span>
+                        <p className="font-bold text-sm truncate">{promo.title}</p>
+                      </div>
+                      
+                      {/* Condition */}
+                      <p className="text-xs text-white/90 mb-1">
+                        {promo.scope === 'global' 
+                          ? `على إجمالي الطلب ≥ ${promo.min_quantity} ${promo.unit_type || 'وحدة'}`
+                          : `عند شراء ${promo.min_quantity} ${promo.unit_type || targetProduct?.name_ar || 'وحدة'}`
+                        }
+                      </p>
+                      
+                      {/* Gift or Discount Details */}
+                      {promo.type === 'gift' && giftProduct && (
+                        <p className="text-xs text-yellow-200 font-semibold">
+                          هدية: {giftProduct.name_ar} × {promo.gift_quantity || 1}
+                        </p>
+                      )}
+                      {promo.type === 'discount' && (
+                        <p className="text-xs text-green-200 font-semibold">
+                          خصم: {promo.discount_percent}% على {promo.scope === 'global' ? 'المجموع' : targetProduct?.name_ar || 'المنتج'}
+                        </p>
+                      )}
+                    </div>
+                    
+                    {/* Action Arrow */}
+                    <div className="text-white/60">
+                      <Plus size={24} />
+                    </div>
+                  </div>
+                </button>
+              )
+            })}
           </div>
         </div>
       )}
