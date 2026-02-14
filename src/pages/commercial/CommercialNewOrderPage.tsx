@@ -101,6 +101,7 @@ export default function CommercialNewOrderPage() {
   const [showCreateClientModal, setShowCreateClientModal] = useState(false)
   const [allowedTiers, setAllowedTiers] = useState<string[]>([])
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
+  const [showCartSummary, setShowCartSummary] = useState(false)
   const [clientForm, setClientForm] = useState<NewClientForm>({
     company_name_ar: '',
     company_name_en: '',
@@ -786,22 +787,23 @@ export default function CommercialNewOrderPage() {
         )}
       </div>
 
-      {/* Floating Cart Button - Visual indicator only */}
+      {/* Floating Cart Button - Clickable to toggle cart */}
       {cart.length > 0 && (
-        <div
-          className="fixed bottom-20 left-4 z-40 bg-green-600 text-white rounded-full shadow-lg p-4 flex items-center gap-2 pointer-events-none"
+        <button
+          onClick={() => setShowCartSummary(!showCartSummary)}
+          className="fixed bottom-4 right-4 z-50 bg-green-600 text-white rounded-full shadow-xl p-4 flex items-center gap-2 hover:bg-green-700 transition-colors"
         >
           <ShoppingCart size={24} />
           <div className="flex flex-col items-start">
             <span className="text-xs font-medium">{cart.reduce((sum, item) => sum + item.quantity, 0)} منتج</span>
             <span className="font-bold">{promotionSummary.finalTotal.toFixed(0)} DH</span>
           </div>
-        </div>
+        </button>
       )}
 
-      {/* Cart Summary - Fixed Bottom */}
-      {cart.length > 0 && (
-        <div id="cart-summary" className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-gray-200 p-4 shadow-lg" dir="rtl">
+      {/* Cart Summary - Expandable from floating button */}
+      {showCartSummary && cart.length > 0 && (
+        <div className="fixed bottom-20 right-4 left-4 md:left-auto md:w-96 bg-white border-2 border-green-200 rounded-xl p-4 shadow-2xl z-40 max-h-[60vh] overflow-y-auto" dir="rtl">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <ShoppingCart className="text-green-600" size={24} />
