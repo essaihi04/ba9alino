@@ -14,6 +14,7 @@ interface Order {
   created_at: string
   clients?: {
     company_name_ar: string
+    subscription_tier?: string
   }
 }
 
@@ -41,6 +42,9 @@ export default function CommercialOrdersPage() {
   const [loadingItems, setLoadingItems] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [editedItems, setEditedItems] = useState<OrderItem[]>([])
+  const [showProductSelector, setShowProductSelector] = useState(false)
+  const [availableProducts, setAvailableProducts] = useState<any[]>([])
+  const [loadingProducts, setLoadingProducts] = useState(false)
 
   useEffect(() => {
     const commercialId = localStorage.getItem('commercial_id')
@@ -120,19 +124,48 @@ export default function CommercialOrdersPage() {
     ))
   }
 
+  const removeItem = (itemId: string) => {
+    if (!confirm('هل أنت متأكد من حذف هذا المنتج من الطلب؟')) return
+    setEditedItems(items => items.filter(item => item.id !== itemId))
+  }
+
   const saveOrderChanges = async () => {
     if (!selectedOrder) return
     
     try {
-      // Update each item
+      // Get IDs of items to keep
+      const keepIds = editedItems.map(item => item.id)
+      
+      // Delete items that are no longer in the list
+      const itemsToDelete = orderItems.filter(item => !keepIds.includes(item.id))
+      for (const item of itemsToDelete) {
+        await supabase.from('order_items').delete().eq('id', item.id)
+      }
+
+      // Update remaining items
       for (const item of editedItems) {
-        await supabase
-          .from('order_items')
-          .update({ 
-            quantity: item.quantity,
-            line_total: item.line_total
-          })
-          .eq('id', item.id)
+        const existingItem = orderItems.find(oi => oi.id === item.id)
+        if (existingItem) {
+          // Update existing item
+          await supabase
+            .from('order_items')
+            .update({ 
+              quantity: item.quantity,
+              line_total: item.line_total
+            })
+            .eq('id', item.id)
+        } else {
+          // Insert new item (for items added during editing)
+          await supabase
+            .from('order_items')
+            .insert({
+              order_id: selectedOrder.id,
+              product_id: item.product_id,
+              quantity: item.quantity,
+              unit_price: item.unit_price,
+              line_total: item.line_total
+            })
+        }
       }
 
       // Update order total
@@ -172,6 +205,58 @@ export default function CommercialOrdersPage() {
       console.error('Error deleting order:', error)
       alert('❌ حدث خطأ أثناء حذف الطلب')
     }
+  }
+
+  const loadAvailableProducts = async () => {
+    setLoadingProducts(true)
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('id, name_ar, price, price_a, price_b, price_c, price_d, price_e, image_url, is_active_for_commercial')
+        .eq('is_active', true)
+        .order('name_ar')
+
+      if (error) throw error
+      // Filter out products already in the order
+      const existingIds = editedItems.map(item => item.product_id)
+      const filtered = (data || []).filter(p => !existingIds.includes(p.id) && p.is_active_for_commercial !== false)
+      setAvailableProducts(filtered)
+      setShowProductSelector(true)
+    } catch (error) {
+      console.error('Error loading products:', error)
+    } finally {
+      setLoadingProducts(false)
+    }
+  }
+
+  const addProductToOrder = (product: any) => {
+    // Get client subscription tier for pricing
+    const clientTier = selectedOrder?.clients?.subscription_tier || 'E'
+    let price = product.price_e || product.price || 0
+    
+    switch (clientTier) {
+      case 'A': price = product.price_a || price; break
+      case 'B': price = product.price_b || price; break
+      case 'C': price = product.price_c || price; break
+      case 'D': price = product.price_d || price; break
+      case 'E': price = product.price_e || price; break
+    }
+
+    const newItem: OrderItem = {
+      id: `temp-${Date.now()}`, // Temporary ID for new items
+      order_id: selectedOrder?.id || '',
+      product_id: product.id,
+      quantity: 1,
+      unit_price: price,
+      line_total: price,
+      products: {
+        name_ar: product.name_ar,
+        image_url: product.image_url
+      }
+    }
+
+    setEditedItems([...editedItems, newItem])
+    setShowProductSelector(false)
   }
 
   const getStatusBadge = (status: string) => {
@@ -380,6 +465,19 @@ export default function CommercialOrdersPage() {
                 })()}
               </div>
 
+              {/* Add Product Button (when editing) */}
+              {isEditing && selectedOrder.status === 'pending' && (
+                <div className="mb-4">
+                  <button
+                    onClick={loadAvailableProducts}
+                    className="w-full bg-blue-50 border-2 border-blue-200 text-blue-600 py-2 rounded-lg font-bold hover:bg-blue-100 flex items-center justify-center gap-2"
+                  >
+                    <Plus size={18} />
+                    إضافة منتج جديد
+                  </button>
+                </div>
+              )}
+
               {/* Order Items */}
               <h3 className="font-bold text-gray-800 mb-3">منتجات الطلب</h3>
               {loadingItems ? (
@@ -406,6 +504,12 @@ export default function CommercialOrdersPage() {
                       {/* Quantity Controls (if editing) */}
                       {isEditing && selectedOrder.status === 'pending' ? (
                         <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => removeItem(item.id)}
+                            className="w-7 h-7 bg-red-200 text-red-700 rounded hover:bg-red-300 flex items-center justify-center"
+                          >
+                            <Trash2 size={12} />
+                          </button>
                           <button
                             onClick={() => updateItemQuantity(item.id, item.quantity - 1)}
                             className="w-7 h-7 bg-red-100 text-red-600 rounded hover:bg-red-200 flex items-center justify-center text-sm font-bold"
@@ -496,6 +600,56 @@ export default function CommercialOrdersPage() {
               >
                 إغلاق
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Product Selector Modal */}
+      {showProductSelector && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-xl w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold">إضافة منتج للطلب</h2>
+                <button 
+                  onClick={() => setShowProductSelector(false)}
+                  className="p-2 hover:bg-white/20 rounded-lg"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-4">
+              {loadingProducts ? (
+                <div className="text-center py-8 text-gray-500">جاري التحميل...</div>
+              ) : availableProducts.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">لا توجد منتجات متاحة</div>
+              ) : (
+                <div className="space-y-2">
+                  {availableProducts.map((product) => (
+                    <button
+                      key={product.id}
+                      onClick={() => addProductToOrder(product)}
+                      className="w-full flex items-center gap-3 bg-gray-50 hover:bg-blue-50 p-3 rounded-lg transition-colors text-right"
+                    >
+                      <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden border">
+                        {product.image_url ? (
+                          <img src={product.image_url} alt={product.name_ar} className="w-full h-full object-contain" />
+                        ) : (
+                          <Package size={20} className="text-gray-300" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm text-gray-800 truncate">{product.name_ar}</p>
+                        <p className="text-xs text-blue-600">اضغط للإضافة</p>
+                      </div>
+                      <Plus size={20} className="text-blue-600" />
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
