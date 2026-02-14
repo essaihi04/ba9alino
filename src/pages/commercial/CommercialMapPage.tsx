@@ -55,7 +55,7 @@ export default function CommercialMapPage() {
       const { data, error } = await supabase
         .from('clients')
         .select('*')
-        .eq('commercial_id', commercialId)
+        .eq('created_by', commercialId)
         .order('company_name_ar')
 
       if (error) throw error
@@ -81,8 +81,18 @@ export default function CommercialMapPage() {
 
   const openInMaps = (client: Client) => {
     if (client.gps_lat && client.gps_lng) {
-      const url = `https://www.google.com/maps/dir/?api=1&destination=${client.gps_lat},${client.gps_lng}`
-      window.open(url, '_blank')
+      // Try geo: protocol first (works better on mobile apps)
+      const geoUrl = `geo:${client.gps_lat},${client.gps_lng}?q=${client.gps_lat},${client.gps_lng}(${encodeURIComponent(client.company_name_ar)})`
+      // Fallback to Google Maps web URL
+      const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${client.gps_lat},${client.gps_lng}`
+      
+      // On mobile, try geo: first, then fallback to Google Maps
+      window.location.href = geoUrl
+      
+      // Fallback after short delay if geo: doesn't work
+      setTimeout(() => {
+        window.open(mapsUrl, '_blank')
+      }, 300)
     }
   }
 
@@ -142,7 +152,8 @@ export default function CommercialMapPage() {
             return (
               <div
                 key={client.id}
-                className="bg-white rounded-xl shadow-md p-4 hover:shadow-lg transition-shadow"
+                onClick={() => openInMaps(client)}
+                className="bg-white rounded-xl shadow-md p-4 hover:shadow-lg transition-shadow cursor-pointer active:scale-[0.98]"
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1">
@@ -151,7 +162,10 @@ export default function CommercialMapPage() {
                     </h3>
                     <p className="text-sm text-gray-600">{client.contact_person_name}</p>
                     {client.address && (
-                      <p className="text-xs text-gray-500 mt-1">{client.address}</p>
+                      <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                        <MapPin size={12} />
+                        {client.address}
+                      </p>
                     )}
                   </div>
                   {distance !== null && (
@@ -161,7 +175,7 @@ export default function CommercialMapPage() {
                   )}
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                   <button
                     onClick={() => openInMaps(client)}
                     className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
