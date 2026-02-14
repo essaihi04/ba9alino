@@ -636,6 +636,50 @@ export default function CommercialNewOrderPage() {
         </div>
       </div>
 
+      {/* Active Promotions Banner */}
+      {selectedClient && activePromotions.length > 0 && (
+        <div className="bg-gradient-to-r from-orange-500 to-red-500 text-white p-3 shadow-md">
+          <p className="text-sm font-bold mb-2">🎁 العروض النشطة - اضغط للإضافة التلقائية</p>
+          <div className="flex flex-wrap gap-2">
+            {activePromotions.map((promo) => (
+              <button
+                key={promo.id}
+                onClick={() => {
+                  if (promo.type === 'gift' && promo.gift_product_id) {
+                    const giftProduct = products.find((p) => p.id === promo.gift_product_id)
+                    if (giftProduct) {
+                      const price = getPriceForTier(giftProduct, selectedClient.subscription_tier)
+                      const existingItem = cart.find(item => item.id === giftProduct.id)
+                      if (existingItem) {
+                        setCart(cart.map(item =>
+                          item.id === giftProduct.id
+                            ? { ...item, quantity: item.quantity + (promo.gift_quantity || 1), is_gift: true, promotion_id: promo.id }
+                            : item
+                        ))
+                      } else {
+                        setCart([...cart, { 
+                          ...giftProduct, 
+                          quantity: promo.gift_quantity || 1, 
+                          selectedPrice: 0, 
+                          is_gift: true, 
+                          promotion_id: promo.id 
+                        }])
+                      }
+                      alert(`✅ تم إضافة ${promo.gift_quantity || 1} ${giftProduct.name_ar} كهدية`)
+                    }
+                  } else if (promo.type === 'discount') {
+                    alert(`💰 خصم ${promo.discount_percent}% عند شراء ${promo.min_quantity} ${promo.unit_type || 'وحدة'}`)
+                  }
+                }}
+                className="bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg text-xs font-medium transition-colors text-right"
+              >
+                {promo.type === 'gift' ? '🎁' : '💰'} {promo.title}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Products Grid - Card View */}
       <div className="p-4 pb-32">
         {loading ? (
@@ -705,8 +749,19 @@ export default function CommercialNewOrderPage() {
                       </div>
                     ) : (
                       <button
-                        onClick={() => addToCart(product)}
-                        disabled={!selectedClient || product.stock === 0}
+                        onClick={() => {
+                          if (!selectedClient) {
+                            alert('الرجاء اختيار العميل أولاً')
+                            setShowClientModal(true)
+                            return
+                          }
+                          if (product.stock === 0) {
+                            alert('المنتج غير متوفر في المخزون')
+                            return
+                          }
+                          addToCart(product)
+                        }}
+                        disabled={product.stock === 0}
                         className="w-full bg-green-600 text-white py-2 rounded-lg font-bold hover:bg-green-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed text-sm"
                       >
                         إضافة للطلب
