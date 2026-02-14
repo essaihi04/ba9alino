@@ -1,0 +1,78 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+    
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Build web app
+      run: npm run build
+      env:
+        VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+        VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+    
+    - name: Sync Capacitor
+      run: npx cap sync android
+    
+    - name: Decode keystore
+      run: |
+        echo "${{ secrets.RELEASE_KEYSTORE }}" | base64 -d > android/app/release-key.jks
+    
+    - name: Create keystore properties
+      run: |
+        cat > android/keystore.properties << EOF
+        storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+        keyPassword=${{ secrets.KEY_PASSWORD }}
+        keyAlias=${{ secrets.KEY_ALIAS }}
+        storeFile=release-key.jks
+        EOF
+    
+    - name: Build Release APK
+      run: |
+        cd android
+        ./gradlew assembleRelease \
+          -Pandroid.injected.signing.store.file=app/release-key.jks \
+          -Pandroid.injected.signing.store.password=${{ secrets.KEYSTORE_PASSWORD }} \
+          -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
+          -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
+    
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: ba9alino-apk
+        path: android/app/build/outputs/apk/release/app-release.apk
+    
+    - name: Create Release
+      if: github.ref == 'refs/heads/main'
+      uses: softprops/action-gh-release@v1
+      with:
+        files: android/app/build/outputs/apk/release/app-release.apk
+        tag_name: v${{ github.run_number }}
+        name: Release v${{ github.run_number }}
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
