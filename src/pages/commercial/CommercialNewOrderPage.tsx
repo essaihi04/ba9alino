@@ -803,7 +803,7 @@ export default function CommercialNewOrderPage() {
 
       {/* Cart Summary - Expandable from floating button */}
       {showCartSummary && cart.length > 0 && (
-        <div className="fixed bottom-20 right-4 left-4 md:left-auto md:w-96 bg-white border-2 border-green-200 rounded-xl p-4 shadow-2xl z-40 max-h-[60vh] overflow-y-auto" dir="rtl">
+        <div className="fixed bottom-20 right-4 left-4 md:left-auto md:w-[28rem] bg-white border-2 border-green-200 rounded-xl p-4 shadow-2xl z-40 max-h-[70vh] overflow-y-auto" dir="rtl">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <ShoppingCart className="text-green-600" size={24} />
@@ -814,6 +814,49 @@ export default function CommercialNewOrderPage() {
               <p className="text-2xl font-bold text-green-600">{promotionSummary.finalTotal.toFixed(2)} MAD</p>
             </div>
           </div>
+
+          {/* Cart Items List */}
+          <div className="border-t border-b border-gray-200 py-3 mb-3 space-y-3 max-h-[35vh] overflow-y-auto">
+            {cart.map((item) => (
+              <div key={item.id} className="flex items-center gap-3 bg-gray-50 rounded-lg p-2">
+                {/* Product Image */}
+                <div className="w-16 h-16 bg-white rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden border border-gray-200">
+                  {item.image_url ? (
+                    <img src={item.image_url} alt={item.name_ar} className="w-full h-full object-contain" />
+                  ) : (
+                    <Package size={24} className="text-gray-300" />
+                  )}
+                </div>
+                {/* Product Info */}
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm text-gray-800 truncate">{item.name_ar}</p>
+                  <p className="text-xs text-gray-500">{item.selectedPrice.toFixed(2)} MAD / وحدة</p>
+                  {item.is_gift && <span className="text-xs text-orange-600 font-medium">🎁 هدية</span>}
+                </div>
+                {/* Quantity Controls */}
+                <div className="flex items-center gap-1 bg-white rounded-lg p-1 border border-gray-200">
+                  <button
+                    onClick={() => updateQuantity(item.id, -1)}
+                    className="w-7 h-7 bg-red-100 text-red-600 rounded hover:bg-red-200 flex items-center justify-center text-sm font-bold"
+                  >
+                    <Minus size={14} />
+                  </button>
+                  <span className="w-8 text-center font-bold text-sm">{item.quantity}</span>
+                  <button
+                    onClick={() => updateQuantity(item.id, 1)}
+                    className="w-7 h-7 bg-green-100 text-green-600 rounded hover:bg-green-200 flex items-center justify-center text-sm font-bold"
+                  >
+                    <Plus size={14} />
+                  </button>
+                </div>
+                {/* Total */}
+                <div className="text-left min-w-[60px]">
+                  <p className="font-bold text-green-600 text-sm">{(item.selectedPrice * item.quantity).toFixed(0)} DH</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
           {(promotionSummary.discountTotal > 0 || promotionSummary.giftItems.length > 0) && (
             <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 mb-3 text-sm text-emerald-800 space-y-1">
               {promotionSummary.discountTotal > 0 && (
