@@ -4,6 +4,7 @@ import { getCategoryLabelArabic } from '../utils/categoryLabels'
 import { supabase } from '../lib/supabase'
 import * as XLSX from 'xlsx'
 import { BarcodeScanner } from '../components/BarcodeScanner'
+import { useInputPad } from '../components/useInputPad'
 
 interface ProductVariant {
   id?: string
