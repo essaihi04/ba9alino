@@ -116,7 +116,7 @@ export default function ProductsPage() {
   const barcodeInputRef = useRef<HTMLInputElement | null>(null)
 
   // Pagination
-  const PRODUCTS_PER_PAGE = 100
+  const PRODUCTS_PER_PAGE = 200
   const [currentPage, setCurrentPage] = useState(1)
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const lastLoadRef = useRef<number>(0)
