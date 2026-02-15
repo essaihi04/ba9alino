@@ -1710,25 +1710,6 @@ export default function ProductsPage() {
             <Package size={20} />
             إدارة المنتجات
           </h1>
-          <div className="flex gap-2">
-            <label className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg font-bold text-sm transition-all duration-200 transform hover:scale-105 flex items-center gap-2 cursor-pointer">
-              <Upload size={14} />
-              استيراد Excel
-              <input
-                type="file"
-                accept=".xlsx,.xls"
-                onChange={handleImportExcel}
-                className="hidden"
-              />
-            </label>
-            <button
-              onClick={openAddModal}
-              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 flex items-center gap-2"
-            >
-              <Plus size={16} />
-              منتج جديد
-            </button>
-          </div>
         </div>
       </div>
 
@@ -1816,6 +1797,27 @@ export default function ProductsPage() {
             <Package size={16} className="text-green-200" />
           </div>
         </div>
+      </div>
+
+      {/* Boutons d'action */}
+      <div className="flex-none px-4 py-2 bg-gray-50 border-b flex gap-2">
+        <label className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg font-bold text-sm transition-all duration-200 transform hover:scale-105 flex items-center gap-2 cursor-pointer">
+          <Upload size={14} />
+          استيراد Excel
+          <input
+            type="file"
+            accept=".xlsx,.xls"
+            onChange={handleImportExcel}
+            className="hidden"
+          />
+        </label>
+        <button
+          onClick={openAddModal}
+          className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 flex items-center gap-2"
+        >
+          <Plus size={16} />
+          منتج جديد
+        </button>
       </div>
 
       {/* العائلات (Catégories) */}
