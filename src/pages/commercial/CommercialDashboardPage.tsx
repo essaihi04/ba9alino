@@ -31,6 +31,8 @@ interface RecentOrder {
   created_at: string
   clients?: {
     company_name_ar: string
+  } | {
+    company_name_ar: string
   }[]
 }
 
@@ -66,24 +68,36 @@ export default function CommercialDashboardPage() {
       const today = new Date().toISOString().split('T')[0]
 
       // Commandes du jour
-      const { data: todayOrders } = await supabase
+      const { data: todayOrders, error: todayError } = await supabase
         .from('orders')
         .select('total_amount')
         .eq('created_by', commercialId)
         .gte('created_at', today)
 
+      if (todayError) {
+        console.error('Error fetching today orders:', todayError)
+      }
+
       // Commandes en attente
-      const { data: pendingOrders } = await supabase
+      const { data: pendingOrders, error: pendingError } = await supabase
         .from('orders')
         .select('id')
         .eq('created_by', commercialId)
         .eq('status', 'pending')
 
+      if (pendingError) {
+        console.error('Error fetching pending orders:', pendingError)
+      }
+
       // Clients du commercial
-      const { data: myClients } = await supabase
+      const { data: myClients, error: clientsError } = await supabase
         .from('clients')
         .select('id')
         .eq('created_by', commercialId)
+
+      if (clientsError) {
+        console.error('Error fetching clients:', clientsError)
+      }
 
       const { data: orders, error: ordersError } = await supabase
         .from('orders')
@@ -101,7 +115,10 @@ export default function CommercialDashboardPage() {
         .order('created_at', { ascending: false })
         .limit(5)
 
-      if (ordersError) throw ordersError
+      if (ordersError) {
+        console.error('Error fetching orders:', ordersError)
+        throw ordersError
+      }
 
       setStats({
         todayOrders: todayOrders?.length || 0,
@@ -109,9 +126,32 @@ export default function CommercialDashboardPage() {
         todayRevenue: todayOrders?.reduce((sum, o) => sum + (o.total_amount || 0), 0) || 0,
         myClients: myClients?.length || 0
       })
-      setRecentOrders((orders || []) as RecentOrder[])
+      
+      // Safely transform orders data
+      const safeOrders = (orders || []).map((order: any) => ({
+        id: order.id,
+        order_number: order.order_number,
+        status: order.status,
+        total_amount: order.total_amount,
+        created_at: order.created_at,
+        clients: order.clients && !Array.isArray(order.clients) 
+          ? [{ company_name_ar: order.clients.company_name_ar }]
+          : Array.isArray(order.clients) 
+            ? order.clients 
+            : []
+      })) as RecentOrder[]
+      
+      setRecentOrders(safeOrders)
     } catch (error) {
       console.error('Error loading dashboard data:', error)
+      // Reset stats on error so page still displays
+      setStats({
+        todayOrders: 0,
+        pendingOrders: 0,
+        todayRevenue: 0,
+        myClients: 0
+      })
+      setRecentOrders([])
     } finally {
       setLoading(false)
     }
@@ -281,7 +321,14 @@ export default function CommercialDashboardPage() {
                     <div>
                       <p className="text-sm font-bold text-gray-800">{order.order_number}</p>
                       <p className="text-xs text-gray-500">
-                        {order.clients?.[0]?.company_name_ar || 'عميل'}
+                        {(() => {
+                          const clients = order.clients
+                          if (!clients) return 'عميل'
+                          if (Array.isArray(clients)) {
+                            return clients[0]?.company_name_ar || 'عميل'
+                          }
+                          return clients.company_name_ar || 'عميل'
+                        })()}
                       </p>
                     </div>
                     <div className="text-left">
