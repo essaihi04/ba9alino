@@ -1886,8 +1886,8 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      {/* Recherche */}
-      <div className="flex-none bg-white border-b px-4 py-2">
+      {/* Recherche - sticky search bar */}
+      <div className="sticky top-0 z-20 flex-none bg-white border-b px-4 py-2 shadow-sm">
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Search className="absolute right-3 top-2 text-gray-400" size={16} />

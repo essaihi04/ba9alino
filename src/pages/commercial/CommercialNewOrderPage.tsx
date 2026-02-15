@@ -594,8 +594,8 @@ export default function CommercialNewOrderPage() {
         </div>
       </div>
 
-      {/* Products Search */}
-      <div className="bg-white border-b p-4">
+      {/* Products Search - sticky */}
+      <div className="sticky top-0 z-20 bg-white border-b p-4 shadow-sm">
         <input
           type="text"
           value={searchQuery}
