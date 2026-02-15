@@ -2213,18 +2213,6 @@ export default function ProductsPage() {
                               تعديل المنتج
                             </button>
                             <button
-                              onClick={() => {
-                                setSelectedProduct(product)
-                                setEditPrice(product.price_a.toString())
-                                setShowEditModal(true)
-                              }}
-                              className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded-lg text-xs font-bold transition-colors"
-                            >
-                              <span className="inline-flex items-center gap-1">
-                                تعديل السعر
-                              </span>
-                            </button>
-                            <button
                               onClick={() => handleArchiveOne(product)}
                               className="bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded-lg text-xs font-bold transition-colors"
                               disabled={bulkLoading}
