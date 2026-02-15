@@ -116,7 +116,7 @@ export default function ProductsPage() {
   const barcodeInputRef = useRef<HTMLInputElement | null>(null)
 
   // Pagination
-  const PRODUCTS_PER_PAGE = 200
+  const PRODUCTS_PER_PAGE = 50
   const [currentPage, setCurrentPage] = useState(1)
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const lastLoadRef = useRef<number>(0)
@@ -2559,6 +2559,16 @@ export default function ProductsPage() {
                     onChange={(e) => setFormData({ ...formData, name_ar: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg"
                     required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">الباركود / الكود</label>
+                  <input
+                    type="text"
+                    value={formData.sku || ''}
+                    onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    placeholder="أدخل الباركود أو الكود"
                   />
                 </div>
                 <div>
