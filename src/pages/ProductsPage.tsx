@@ -2577,13 +2577,24 @@ export default function ProductsPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">الباركود / الكود</label>
-                  <input
-                    type="text"
-                    value={formData.sku || ''}
-                    onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                    placeholder="أدخل الباركود أو الكود"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={formData.sku || ''}
+                      onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg"
+                      placeholder="أدخل الباركود أو الكود"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowBarcodeScanner(true)}
+                      className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-lg flex items-center gap-1"
+                      title="مسح الباركود بالكاميرا"
+                    >
+                      <Barcode size={18} />
+                      <span className="hidden sm:inline text-sm">مسح</span>
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">العائلة</label>
