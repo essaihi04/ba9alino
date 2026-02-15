@@ -2052,6 +2052,7 @@ export default function ProductsPage() {
                           />
                         ) : (
                           <button
+                            type="button"
                             onClick={() => handlePriceClick(product, 'price_a')}
                             className="w-full px-2 py-1 text-sm bg-purple-50 hover:bg-purple-100 rounded font-medium text-gray-800"
                           >
@@ -2072,6 +2073,7 @@ export default function ProductsPage() {
                           />
                         ) : (
                           <button
+                            type="button"
                             onClick={() => handlePriceClick(product, 'price_b')}
                             className="w-full px-2 py-1 text-sm bg-blue-50 hover:bg-blue-100 rounded font-medium text-gray-800"
                           >
@@ -2092,6 +2094,7 @@ export default function ProductsPage() {
                           />
                         ) : (
                           <button
+                            type="button"
                             onClick={() => handlePriceClick(product, 'price_c')}
                             className="w-full px-2 py-1 text-sm bg-green-50 hover:bg-green-100 rounded font-medium text-gray-800"
                           >
@@ -2112,6 +2115,7 @@ export default function ProductsPage() {
                           />
                         ) : (
                           <button
+                            type="button"
                             onClick={() => handlePriceClick(product, 'price_d')}
                             className="w-full px-2 py-1 text-sm bg-orange-50 hover:bg-orange-100 rounded font-medium text-gray-800"
                           >
@@ -2132,6 +2136,7 @@ export default function ProductsPage() {
                           />
                         ) : (
                           <button
+                            type="button"
                             onClick={() => handlePriceClick(product, 'price_e')}
                             className="w-full px-2 py-1 text-sm bg-gray-50 hover:bg-gray-100 rounded font-medium text-gray-800"
                           >
