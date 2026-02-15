@@ -3,7 +3,7 @@ import { Search, Plus, Package, Edit2, AlertCircle, TrendingUp, Upload, Barcode,
 import { getCategoryLabelArabic } from '../utils/categoryLabels'
 import { supabase } from '../lib/supabase'
 import * as XLSX from 'xlsx'
-import { useInputPad } from '../components/useInputPad'
+import { BarcodeScanner } from '../components/BarcodeScanner'
 
 interface ProductVariant {
   id?: string
@@ -123,6 +123,9 @@ export default function ProductsPage() {
 
   // Import Excel progress
   const [importProgress, setImportProgress] = useState<{ current: number; total: number; added: number; duplicates: number; noBarcode: number; noName: number; errors: number } | null>(null)
+  
+  // Barcode scanner
+  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false)
 
   useEffect(() => {
     loadProducts()
@@ -2333,23 +2336,34 @@ export default function ProductsPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">الباركود / الكود</label>
-                  <input
-                    ref={barcodeInputRef}
-                    type="text"
-                    value={formData.sku || ''}
-                    onChange={(e) => {
-                      setFormData({ ...formData, sku: e.target.value })
-                      setBarcodeInput(e.target.value)
-                      if (barcodeLookupError) setBarcodeLookupError(null)
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        handleBarcodeLookup(e.currentTarget.value)
-                      }
-                    }}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      ref={barcodeInputRef}
+                      type="text"
+                      value={formData.sku || ''}
+                      onChange={(e) => {
+                        setFormData({ ...formData, sku: e.target.value })
+                        setBarcodeInput(e.target.value)
+                        if (barcodeLookupError) setBarcodeLookupError(null)
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          handleBarcodeLookup(e.currentTarget.value)
+                        }
+                      }}
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowBarcodeScanner(true)}
+                      className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-lg flex items-center gap-1"
+                      title="مسح الباركود بالكاميرا"
+                    >
+                      <Barcode size={18} />
+                      <span className="hidden sm:inline text-sm">مسح</span>
+                    </button>
+                  </div>
                   {barcodeLookupError && (
                     <p className="mt-1 text-xs font-semibold text-red-600">{barcodeLookupError}</p>
                   )}
@@ -2837,6 +2851,17 @@ export default function ProductsPage() {
           </div>
         </div>
       )}
+      <BarcodeScanner
+        isOpen={showBarcodeScanner}
+        onClose={() => setShowBarcodeScanner(false)}
+        onScan={(barcode) => {
+          setFormData({ ...formData, sku: barcode })
+          setBarcodeInput(barcode)
+          if (barcodeLookupError) setBarcodeLookupError(null)
+          // Trigger barcode lookup after scanning
+          handleBarcodeLookup(barcode)
+        }}
+      />
       {inputPad.Modal}
     </div>
   )
