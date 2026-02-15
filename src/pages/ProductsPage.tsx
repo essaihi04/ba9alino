@@ -1702,30 +1702,33 @@ export default function ProductsPage() {
   }
 
   return (
-    <div className="space-y-6" dir="rtl">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-white flex items-center gap-2">
-          <Package size={20} />
-          إدارة المنتجات
-        </h1>
-        <div className="flex gap-2">
-          <label className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg font-bold text-sm transition-all duration-200 transform hover:scale-105 flex items-center gap-2 cursor-pointer">
-            <Upload size={14} />
-            استيراد Excel
-            <input
-              type="file"
-              accept=".xlsx,.xls"
-              onChange={handleImportExcel}
-              className="hidden"
-            />
-          </label>
-          <button
-            onClick={openAddModal}
-            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 flex items-center gap-2"
-          >
-            <Plus size={16} />
-            منتج جديد
-          </button>
+    <div className="h-screen flex flex-col overflow-hidden" dir="rtl">
+      {/* Header fixe */}
+      <div className="flex-none p-4 bg-gray-50 border-b">
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+            <Package size={20} />
+            إدارة المنتجات
+          </h1>
+          <div className="flex gap-2">
+            <label className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg font-bold text-sm transition-all duration-200 transform hover:scale-105 flex items-center gap-2 cursor-pointer">
+              <Upload size={14} />
+              استيراد Excel
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleImportExcel}
+                className="hidden"
+              />
+            </label>
+            <button
+              onClick={openAddModal}
+              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 flex items-center gap-2"
+            >
+              <Plus size={16} />
+              منتج جديد
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1773,82 +1776,82 @@ export default function ProductsPage() {
       )}
 
       {/* Statistiques rapides */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-xl p-3 shadow-lg">
+      <div className="flex-none grid grid-cols-4 gap-2 px-4 py-2 bg-gray-50 border-b">
+        <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-lg p-2 shadow">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-purple-100 text-xs mb-1">إجمالي المنتجات</p>
+              <p className="text-purple-100 text-xs">إجمالي المنتجات</p>
               <p className="text-lg font-bold">{products.length}</p>
             </div>
-            <Package size={20} className="text-purple-200" />
+            <Package size={16} className="text-purple-200" />
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-red-500 to-red-600 text-white rounded-xl p-3 shadow-lg">
+        <div className="bg-gradient-to-br from-red-500 to-red-600 text-white rounded-lg p-2 shadow">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-red-100 text-xs mb-1">نفذ المخزون</p>
+              <p className="text-red-100 text-xs">نفذ المخزون</p>
               <p className="text-lg font-bold">{outOfStockCount}</p>
             </div>
-            <AlertCircle size={20} className="text-red-200" />
+            <AlertCircle size={16} className="text-red-200" />
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-xl p-3 shadow-lg">
+        <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-lg p-2 shadow">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-orange-100 text-xs mb-1">منخفض المخزون</p>
+              <p className="text-orange-100 text-xs">منخفض المخزون</p>
               <p className="text-lg font-bold">{lowStockCount}</p>
             </div>
-            <TrendingUp size={20} className="text-orange-200" />
+            <TrendingUp size={16} className="text-orange-200" />
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl p-3 shadow-lg">
+        <div className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-lg p-2 shadow">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-green-100 text-xs mb-1">متوفر</p>
+              <p className="text-green-100 text-xs">متوفر</p>
               <p className="text-lg font-bold">{products.length - lowStockCount}</p>
             </div>
-            <Package size={20} className="text-green-200" />
+            <Package size={16} className="text-green-200" />
           </div>
         </div>
       </div>
 
       {/* العائلات (Catégories) */}
-      <div className="bg-white rounded-xl shadow-lg p-4 sticky top-16 z-20">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-base font-bold text-gray-800">العائلات</h3>
+      <div className="flex-none bg-white border-b px-4 py-2">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-sm font-bold text-gray-800">العائلات</h3>
           {selectedCategory && selectedCategory !== 'no-family' && (
             <button
               onClick={() => setSelectedCategory(null)}
-              className="text-sm text-blue-600 hover:text-blue-800"
+              className="text-xs text-blue-600 hover:text-blue-800"
             >
               إلغاء التصفية
             </button>
           )}
         </div>
-        <div className="max-h-24 overflow-y-auto">
-          <div className="flex flex-wrap gap-2">
+        <div className="max-h-16 overflow-y-auto">
+          <div className="flex flex-wrap gap-1">
             <button
               onClick={() => setSelectedCategory(null)}
-              className={`px-2.5 py-1 rounded-lg transition-colors text-xs whitespace-nowrap ${
+              className={`px-2 py-0.5 rounded transition-colors text-xs whitespace-nowrap ${
                 !selectedCategory
                   ? 'bg-purple-600 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
-              جميع المنتجات ({products.length})
+              جميع ({products.length})
             </button>
             <button
               onClick={() => setSelectedCategory('no-family')}
-              className={`px-2.5 py-1 rounded-lg transition-colors text-xs whitespace-nowrap ${
+              className={`px-2 py-0.5 rounded transition-colors text-xs whitespace-nowrap ${
                 selectedCategory === 'no-family'
                   ? 'bg-purple-600 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
-              بدون عائلة ({products.filter(p => !p.category_id).length})
+              بدون ({products.filter(p => !p.category_id).length})
             </button>
             {categories.map((category) => {
               const productCount = products.filter(p => p.category_id === category.id).length
@@ -1857,7 +1860,7 @@ export default function ProductsPage() {
                   key={category.id}
                   onClick={() => setSelectedCategory(category.id)}
                   title={category.name_ar}
-                  className={`px-2.5 py-1 rounded-lg transition-colors text-xs whitespace-nowrap max-w-[160px] truncate ${
+                  className={`px-2 py-0.5 rounded transition-colors text-xs whitespace-nowrap max-w-[120px] truncate ${
                     selectedCategory === category.id
                       ? 'bg-purple-600 text-white'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -1872,14 +1875,14 @@ export default function ProductsPage() {
       </div>
 
       {/* Recherche */}
-      <div className="bg-white rounded-xl shadow-lg p-6 sticky top-0 z-20">
-        <div className="flex gap-4">
+      <div className="flex-none bg-white border-b px-4 py-2">
+        <div className="flex gap-2">
           <div className="relative flex-1">
-            <Search className="absolute right-3 top-3 text-gray-400" size={20} />
+            <Search className="absolute right-3 top-2 text-gray-400" size={16} />
             <input
               type="text"
               placeholder="ابحث عن منتج..."
-              className="w-full pr-10 pl-4 py-3 border-2 border-gray-200 rounded-lg focus:border-purple-500 focus:outline-none"
+              className="w-full pr-9 pl-4 py-2 border border-gray-200 rounded-lg focus:border-purple-500 focus:outline-none text-sm"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -1889,17 +1892,17 @@ export default function ProductsPage() {
               console.log('Manual refresh triggered')
               loadProducts()
             }}
-            className="bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+            className="bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1 text-sm"
             title="تحديث البيانات"
           >
-            <Package size={20} />
+            <Package size={16} />
             تحديث
           </button>
         </div>
       </div>
 
-      {/* Tableau des produits */}
-      <div className="bg-white rounded-xl shadow-lg">
+      {/* Tableau des produits - scrollable area */}
+      <div className="flex-1 overflow-hidden bg-white">
         {loading ? (
           <div className="text-center py-12 text-gray-500">
             جاري التحميل...
@@ -1909,18 +1912,18 @@ export default function ProductsPage() {
             لا توجد منتجات
           </div>
         ) : (
-          <>
+          <div className="h-full flex flex-col">
             {selectedProductIds.size > 0 && (
-              <div className="p-4 border-b bg-purple-50 sticky top-40 z-20 mt-2">
-                <div className="flex flex-col md:flex-row md:items-center gap-3">
-                  <div className="font-bold text-gray-800">{selectedProductIds.size} منتجات محددة</div>
-                  <div className="flex flex-wrap items-center gap-2">
+              <div className="flex-none p-2 border-b bg-purple-50">
+                <div className="flex flex-col md:flex-row md:items-center gap-2">
+                  <div className="font-bold text-gray-800 text-sm">{selectedProductIds.size} منتجات محددة</div>
+                  <div className="flex flex-wrap items-center gap-1">
                     <button
                       onClick={allFilteredSelected ? clearSelection : selectAllFiltered}
-                      className="bg-white border border-gray-200 px-3 py-2 rounded-lg text-sm font-bold hover:bg-gray-50"
+                      className="bg-white border border-gray-200 px-2 py-1 rounded text-xs font-bold hover:bg-gray-50"
                       disabled={bulkLoading}
                     >
-                      {allFilteredSelected ? 'إلغاء التحديد' : 'تحديد الكل (حسب الفلتر)'}
+                      {allFilteredSelected ? 'إلغاء التحديد' : 'تحديد الكل'}
                     </button>
 
                     {selectedProductIds.size === 1 && (
@@ -1930,16 +1933,16 @@ export default function ProductsPage() {
                           const product = products.find((p) => p.id === selectedId)
                           if (product) openEditModal(product)
                         }}
-                        className="bg-purple-600 text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-purple-700"
+                        className="bg-purple-600 text-white px-2 py-1 rounded text-xs font-bold hover:bg-purple-700"
                       >
-                        تعديل المنتج
+                        تعديل
                       </button>
                     )}
 
                     <select
                       value={bulkTargetCategoryId}
                       onChange={(e) => setBulkTargetCategoryId(e.target.value)}
-                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      className="border border-gray-300 rounded px-2 py-1 text-xs"
                       disabled={bulkLoading}
                     >
                       <option value="">اختر عائلة...</option>
@@ -1952,15 +1955,15 @@ export default function ProductsPage() {
                     <button
                       onClick={handleBulkMoveToFamily}
                       disabled={bulkLoading}
-                      className="bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 disabled:opacity-50"
+                      className="bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold hover:bg-blue-700 disabled:opacity-50"
                     >
-                      نقل إلى العائلة
+                      نقل
                     </button>
 
                     <button
                       onClick={handleBulkArchive}
                       disabled={bulkLoading}
-                      className="bg-red-600 text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-red-700 disabled:opacity-50"
+                      className="bg-red-600 text-white px-2 py-1 rounded text-xs font-bold hover:bg-red-700 disabled:opacity-50"
                     >
                       حذف
                     </button>
@@ -1968,9 +1971,9 @@ export default function ProductsPage() {
                 </div>
               </div>
             )}
-            <div className="overflow-x-auto max-h-[calc(100vh-300px)] overflow-y-auto">
+            <div className="flex-1 overflow-auto">
             <table className="w-full border border-gray-200 border-collapse">
-              <thead className="bg-gray-100 text-black sticky top-0 z-30">
+              <thead className="bg-gray-100 text-black sticky top-0 z-10">
                 <tr>
                   <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">
                     <input
@@ -2279,7 +2282,7 @@ export default function ProductsPage() {
                 </div>
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
 
