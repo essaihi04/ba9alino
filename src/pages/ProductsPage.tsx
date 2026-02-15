@@ -835,7 +835,7 @@ export default function ProductsPage() {
     }
   }
 
-  const handlePriceClick = (product: Product, field: 'name_ar' | 'price_a' | 'price_b' | 'price_c' | 'price_d' | 'price_e') => {
+  const handlePriceClick = (product: Product, field: 'name_ar' | 'sku' | 'stock' | 'price_a' | 'price_b' | 'price_c' | 'price_d' | 'price_e') => {
     const currentValue = product[field]
     setEditingPrice({ productId: product.id, field, value: currentValue ? currentValue.toString() : '' })
   }
@@ -844,15 +844,23 @@ export default function ProductsPage() {
     if (!editingPrice) return
     const { productId, field, value } = editingPrice
     
-    // Don't save if value is empty for name field
-    if (field === 'name_ar' && (!value || value.trim() === '')) {
+    // Don't save if value is empty for name or sku field
+    if ((field === 'name_ar' || field === 'sku') && (!value || value.trim() === '')) {
       setEditingPrice(null)
       return
     }
     
     try {
-      // For name_ar, use string value; for prices, use numeric
-      const newValue = field === 'name_ar' ? value.trim() : (parseFloat(value) || 0)
+      // Determine the new value based on field type
+      let newValue: string | number
+      if (field === 'name_ar' || field === 'sku') {
+        newValue = value.trim()
+      } else if (field === 'stock') {
+        newValue = parseInt(value) || 0
+      } else {
+        // Price fields
+        newValue = parseFloat(value) || 0
+      }
       
       const { error } = await supabase
         .from('products')
@@ -865,8 +873,8 @@ export default function ProductsPage() {
       setProducts(products.map(p => p.id === productId ? { ...p, [field]: newValue } : p))
       
       if (moveToNext) {
-        // For name_ar, move to price_a next
-        const fields: ('name_ar' | 'price_a' | 'price_b' | 'price_c' | 'price_d' | 'price_e')[] = ['name_ar', 'price_a', 'price_b', 'price_c', 'price_d', 'price_e']
+        // Navigation order: name_ar -> sku -> stock -> price_a -> price_b -> price_c -> price_d -> price_e
+        const fields: ('name_ar' | 'sku' | 'stock' | 'price_a' | 'price_b' | 'price_c' | 'price_d' | 'price_e')[] = ['name_ar', 'sku', 'stock', 'price_a', 'price_b', 'price_c', 'price_d', 'price_e']
         const currentIndex = fields.indexOf(field)
         const nextField = fields[currentIndex + 1]
         
@@ -887,7 +895,7 @@ export default function ProductsPage() {
     }
   }
 
-  const handlePriceKeyDown = (e: React.KeyboardEvent, product: Product, field: 'name_ar' | 'price_a' | 'price_b' | 'price_c' | 'price_d' | 'price_e') => {
+  const handlePriceKeyDown = (e: React.KeyboardEvent, product: Product, field: 'name_ar' | 'sku' | 'stock' | 'price_a' | 'price_b' | 'price_c' | 'price_d' | 'price_e') => {
     if (e.key === 'Enter') {
       e.preventDefault()
       handlePriceSave(true) // true = move to next cell
@@ -1988,12 +1996,13 @@ export default function ProductsPage() {
                   </th>
                   <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">الصورة</th>
                   <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">اسم المنتج</th>
+                  <th className="px-3 py-2 text-center font-bold text-sm border border-gray-200 w-20">المرجع</th>
                   <th className="px-3 py-2 text-center font-bold text-sm border border-gray-200 w-24">خاص (A)</th>
                   <th className="px-3 py-2 text-center font-bold text-sm border border-gray-200 w-24">جملة (B)</th>
                   <th className="px-3 py-2 text-center font-bold text-sm border border-gray-200 w-24">نصف جملة (C)</th>
                   <th className="px-3 py-2 text-center font-bold text-sm border border-gray-200 w-24">حانوت (D)</th>
                   <th className="px-3 py-2 text-center font-bold text-sm border border-gray-200 w-24">تقسيط (E)</th>
-                  <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">المخزون</th>
+                  <th className="px-3 py-2 text-center font-bold text-sm border border-gray-200 w-16">المخزون</th>
                   <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">حالة المخزون</th>
                   <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">القيمة الإجمالية</th>
                   <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">إجراءات سريعة</th>
@@ -2054,9 +2063,27 @@ export default function ProductsPage() {
                             <p className="font-bold text-sm text-gray-800 hover:text-purple-700 underline-offset-4 hover:underline">
                               {product.name_ar}
                             </p>
-                            {product.sku && (
-                              <p className="text-xs text-gray-500">SKU: {product.sku}</p>
-                            )}
+                          </button>
+                        )}
+                      </td>
+                      <td className="px-2 py-1 border border-gray-200 text-center w-20">
+                        {editingPrice?.productId === product.id && editingPrice?.field === 'sku' ? (
+                          <input
+                            type="text"
+                            value={editingPrice.value}
+                            onChange={(e) => setEditingPrice({ ...editingPrice, value: e.target.value })}
+                            onBlur={() => handlePriceSave(false)}
+                            onKeyDown={(e) => handlePriceKeyDown(e, product, 'sku')}
+                            className="w-full px-1 py-1 text-sm border border-purple-500 rounded text-center"
+                            autoFocus
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handlePriceClick(product, 'sku')}
+                            className="w-full px-2 py-1 text-sm bg-gray-50 hover:bg-gray-100 rounded font-medium text-gray-800"
+                          >
+                            {product.sku || ''}
                           </button>
                         )}
                       </td>
@@ -2165,13 +2192,30 @@ export default function ProductsPage() {
                           </button>
                         )}
                       </td>
-                      <td className="px-3 py-2 border border-gray-200">
-                        <span className={`font-bold text-sm ${
-                          product.stock === 0 ? 'text-red-600' : 
-                          product.stock < 10 ? 'text-orange-600' : 'text-green-600'
-                        }`}>
-                          {product.stock}
-                        </span>
+                      <td className="px-2 py-1 border border-gray-200 text-center w-16">
+                        {editingPrice?.productId === product.id && editingPrice?.field === 'stock' ? (
+                          <input
+                            type="number"
+                            value={editingPrice.value}
+                            onChange={(e) => setEditingPrice({ ...editingPrice, value: e.target.value })}
+                            onBlur={() => handlePriceSave(false)}
+                            onKeyDown={(e) => handlePriceKeyDown(e, product, 'stock')}
+                            className="w-full px-1 py-1 text-sm border border-purple-500 rounded text-center"
+                            autoFocus
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handlePriceClick(product, 'stock')}
+                            className={`w-full px-2 py-1 text-sm rounded font-medium ${
+                              product.stock === 0 ? 'text-red-600 bg-red-50 hover:bg-red-100' : 
+                              product.stock < 10 ? 'text-orange-600 bg-orange-50 hover:bg-orange-100' : 
+                              'text-green-600 bg-green-50 hover:bg-green-100'
+                            }`}
+                          >
+                            {product.stock}
+                          </button>
+                        )}
                       </td>
                       <td className="px-3 py-2 border border-gray-200">
                         <span className={`px-2 py-0.5 rounded-full font-bold text-xs ${stockStatus.color}`}>
