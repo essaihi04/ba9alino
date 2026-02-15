@@ -1970,7 +1970,7 @@ export default function ProductsPage() {
             )}
             <div className="overflow-x-auto max-h-[calc(100vh-300px)] overflow-y-auto">
             <table className="w-full border border-gray-200 border-collapse">
-              <thead className="bg-gray-100 text-black sticky top-0 z-10">
+              <thead className="bg-gray-100 text-black sticky top-0 z-30">
                 <tr>
                   <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">
                     <input
