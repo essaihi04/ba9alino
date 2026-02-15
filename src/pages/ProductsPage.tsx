@@ -836,12 +836,19 @@ export default function ProductsPage() {
   }
 
   const handlePriceClick = (product: Product, field: 'price_a' | 'price_b' | 'price_c' | 'price_d' | 'price_e') => {
-    setEditingPrice({ productId: product.id, field, value: (product[field] || 0).toString() })
+    const currentValue = product[field]
+    setEditingPrice({ productId: product.id, field, value: currentValue ? currentValue.toString() : '' })
   }
 
-  const handlePriceSave = async () => {
+  const handlePriceSave = async (moveToNext: boolean = false) => {
     if (!editingPrice) return
     const { productId, field, value } = editingPrice
+    
+    // Don't save if value is empty
+    if (value === '' || value === null || value === undefined) {
+      setEditingPrice(null)
+      return
+    }
     
     try {
       const newPrice = parseFloat(value) || 0
@@ -854,18 +861,39 @@ export default function ProductsPage() {
       
       // Update local state
       setProducts(products.map(p => p.id === productId ? { ...p, [field]: newPrice } : p))
-      setEditingPrice(null)
+      
+      if (moveToNext) {
+        // Move to next price field (A→B→C→D→E)
+        const fields: ('price_a' | 'price_b' | 'price_c' | 'price_d' | 'price_e')[] = ['price_a', 'price_b', 'price_c', 'price_d', 'price_e']
+        const currentIndex = fields.indexOf(field)
+        const nextField = fields[currentIndex + 1]
+        
+        if (nextField) {
+          const currentProduct = products.find(p => p.id === productId)
+          const nextValue = currentProduct?.[nextField]
+          setEditingPrice({ productId, field: nextField, value: nextValue ? nextValue.toString() : '' })
+        } else {
+          setEditingPrice(null)
+        }
+      } else {
+        setEditingPrice(null)
+      }
     } catch (error) {
       console.error('Error updating price:', error)
       alert('❌ حدث خطأ أثناء تحديث السعر')
+      setEditingPrice(null)
     }
   }
 
-  const handlePriceKeyDown = (e: React.KeyboardEvent) => {
+  const handlePriceKeyDown = (e: React.KeyboardEvent, product: Product, field: 'price_a' | 'price_b' | 'price_c' | 'price_d' | 'price_e') => {
     if (e.key === 'Enter') {
-      handlePriceSave()
+      e.preventDefault()
+      handlePriceSave(true) // true = move to next cell
     } else if (e.key === 'Escape') {
       setEditingPrice(null)
+    } else if (e.key === 'Tab') {
+      e.preventDefault()
+      handlePriceSave(true) // Tab also moves to next
     }
   }
 
@@ -2017,8 +2045,8 @@ export default function ProductsPage() {
                             type="number"
                             value={editingPrice.value}
                             onChange={(e) => setEditingPrice({ ...editingPrice, value: e.target.value })}
-                            onBlur={handlePriceSave}
-                            onKeyDown={handlePriceKeyDown}
+                            onBlur={() => handlePriceSave(false)}
+                            onKeyDown={(e) => handlePriceKeyDown(e, product, 'price_a')}
                             className="w-full px-1 py-1 text-sm border border-purple-500 rounded text-center"
                             autoFocus
                           />
@@ -2027,7 +2055,7 @@ export default function ProductsPage() {
                             onClick={() => handlePriceClick(product, 'price_a')}
                             className="w-full px-2 py-1 text-sm bg-purple-50 hover:bg-purple-100 rounded font-medium text-gray-800"
                           >
-                            {product.price_a?.toFixed(2) || '0.00'}
+                            {product.price_a && product.price_a > 0 ? product.price_a.toFixed(2) : ''}
                           </button>
                         )}
                       </td>
@@ -2037,8 +2065,8 @@ export default function ProductsPage() {
                             type="number"
                             value={editingPrice.value}
                             onChange={(e) => setEditingPrice({ ...editingPrice, value: e.target.value })}
-                            onBlur={handlePriceSave}
-                            onKeyDown={handlePriceKeyDown}
+                            onBlur={() => handlePriceSave(false)}
+                            onKeyDown={(e) => handlePriceKeyDown(e, product, 'price_b')}
                             className="w-full px-1 py-1 text-sm border border-purple-500 rounded text-center"
                             autoFocus
                           />
@@ -2047,7 +2075,7 @@ export default function ProductsPage() {
                             onClick={() => handlePriceClick(product, 'price_b')}
                             className="w-full px-2 py-1 text-sm bg-blue-50 hover:bg-blue-100 rounded font-medium text-gray-800"
                           >
-                            {product.price_b?.toFixed(2) || '0.00'}
+                            {product.price_b && product.price_b > 0 ? product.price_b.toFixed(2) : ''}
                           </button>
                         )}
                       </td>
@@ -2057,8 +2085,8 @@ export default function ProductsPage() {
                             type="number"
                             value={editingPrice.value}
                             onChange={(e) => setEditingPrice({ ...editingPrice, value: e.target.value })}
-                            onBlur={handlePriceSave}
-                            onKeyDown={handlePriceKeyDown}
+                            onBlur={() => handlePriceSave(false)}
+                            onKeyDown={(e) => handlePriceKeyDown(e, product, 'price_c')}
                             className="w-full px-1 py-1 text-sm border border-purple-500 rounded text-center"
                             autoFocus
                           />
@@ -2067,7 +2095,7 @@ export default function ProductsPage() {
                             onClick={() => handlePriceClick(product, 'price_c')}
                             className="w-full px-2 py-1 text-sm bg-green-50 hover:bg-green-100 rounded font-medium text-gray-800"
                           >
-                            {product.price_c?.toFixed(2) || '0.00'}
+                            {product.price_c && product.price_c > 0 ? product.price_c.toFixed(2) : ''}
                           </button>
                         )}
                       </td>
@@ -2077,8 +2105,8 @@ export default function ProductsPage() {
                             type="number"
                             value={editingPrice.value}
                             onChange={(e) => setEditingPrice({ ...editingPrice, value: e.target.value })}
-                            onBlur={handlePriceSave}
-                            onKeyDown={handlePriceKeyDown}
+                            onBlur={() => handlePriceSave(false)}
+                            onKeyDown={(e) => handlePriceKeyDown(e, product, 'price_d')}
                             className="w-full px-1 py-1 text-sm border border-purple-500 rounded text-center"
                             autoFocus
                           />
@@ -2087,7 +2115,7 @@ export default function ProductsPage() {
                             onClick={() => handlePriceClick(product, 'price_d')}
                             className="w-full px-2 py-1 text-sm bg-orange-50 hover:bg-orange-100 rounded font-medium text-gray-800"
                           >
-                            {product.price_d?.toFixed(2) || '0.00'}
+                            {product.price_d && product.price_d > 0 ? product.price_d.toFixed(2) : ''}
                           </button>
                         )}
                       </td>
@@ -2097,8 +2125,8 @@ export default function ProductsPage() {
                             type="number"
                             value={editingPrice.value}
                             onChange={(e) => setEditingPrice({ ...editingPrice, value: e.target.value })}
-                            onBlur={handlePriceSave}
-                            onKeyDown={handlePriceKeyDown}
+                            onBlur={() => handlePriceSave(false)}
+                            onKeyDown={(e) => handlePriceKeyDown(e, product, 'price_e')}
                             className="w-full px-1 py-1 text-sm border border-purple-500 rounded text-center"
                             autoFocus
                           />
@@ -2107,7 +2135,7 @@ export default function ProductsPage() {
                             onClick={() => handlePriceClick(product, 'price_e')}
                             className="w-full px-2 py-1 text-sm bg-gray-50 hover:bg-gray-100 rounded font-medium text-gray-800"
                           >
-                            {product.price_e?.toFixed(2) || '0.00'}
+                            {product.price_e && product.price_e > 0 ? product.price_e.toFixed(2) : ''}
                           </button>
                         )}
                       </td>
