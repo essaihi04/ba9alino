@@ -81,6 +81,7 @@ export default function ProductsPage() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [showEditProductModal, setShowEditProductModal] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [editingPrice, setEditingPrice] = useState<{ productId: string; field: string; value: string } | null>(null)
   const [editPrice, setEditPrice] = useState('')
   const [stockQuantity, setStockQuantity] = useState('')
   const [formData, setFormData] = useState({
@@ -834,25 +835,37 @@ export default function ProductsPage() {
     }
   }
 
-  const handleQuickPriceUpdate = async (productId: string, priceField: 'price_a' | 'price_b' | 'price_c' | 'price_d' | 'price_e', value: string) => {
-    const newPrice = parseFloat(value)
-    if (isNaN(newPrice) || newPrice < 0) return
+  const handlePriceClick = (product: Product, field: 'price_a' | 'price_b' | 'price_c' | 'price_d' | 'price_e') => {
+    setEditingPrice({ productId: product.id, field, value: (product[field] || 0).toString() })
+  }
 
-    // Update local state immediately for responsive UI
-    setProducts(prev => prev.map(p => 
-      p.id === productId ? { ...p, [priceField]: newPrice } : p
-    ))
-
-    // Debounce the server update
+  const handlePriceSave = async () => {
+    if (!editingPrice) return
+    const { productId, field, value } = editingPrice
+    
     try {
-      await supabase
+      const newPrice = parseFloat(value) || 0
+      const { error } = await supabase
         .from('products')
-        .update({ [priceField]: newPrice })
+        .update({ [field]: newPrice })
         .eq('id', productId)
+      
+      if (error) throw error
+      
+      // Update local state
+      setProducts(products.map(p => p.id === productId ? { ...p, [field]: newPrice } : p))
+      setEditingPrice(null)
     } catch (error) {
       console.error('Error updating price:', error)
-      // Revert on error
-      await loadProducts()
+      alert('❌ حدث خطأ أثناء تحديث السعر')
+    }
+  }
+
+  const handlePriceKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handlePriceSave()
+    } else if (e.key === 'Escape') {
+      setEditingPrice(null)
     }
   }
 
@@ -1939,11 +1952,11 @@ export default function ProductsPage() {
                   </th>
                   <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">الصورة</th>
                   <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">اسم المنتج</th>
-                  <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">سعر الجملة (A)</th>
-                  <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">نصف الجملة (B)</th>
-                  <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">موزع (C)</th>
-                  <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">تقسيط (D)</th>
-                  <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">مفرق (E)</th>
+                  <th className="px-3 py-2 text-center font-bold text-sm border border-gray-200 w-24">خاص (A)</th>
+                  <th className="px-3 py-2 text-center font-bold text-sm border border-gray-200 w-24">جملة (B)</th>
+                  <th className="px-3 py-2 text-center font-bold text-sm border border-gray-200 w-24">نصف جملة (C)</th>
+                  <th className="px-3 py-2 text-center font-bold text-sm border border-gray-200 w-24">حانوت (D)</th>
+                  <th className="px-3 py-2 text-center font-bold text-sm border border-gray-200 w-24">تقسيط (E)</th>
                   <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">المخزون</th>
                   <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">حالة المخزون</th>
                   <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">القيمة الإجمالية</th>
@@ -1998,55 +2011,105 @@ export default function ProductsPage() {
                           )}
                         </button>
                       </td>
-                      <td className="px-2 py-1 border border-gray-200">
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={product.price_a || 0}
-                          onChange={(e) => handleQuickPriceUpdate(product.id, 'price_a', e.target.value)}
-                          className="w-20 p-1 text-xs border border-gray-300 rounded text-center"
-                        />
+                      <td className="px-2 py-1 border border-gray-200 text-center w-24">
+                        {editingPrice?.productId === product.id && editingPrice?.field === 'price_a' ? (
+                          <input
+                            type="number"
+                            value={editingPrice.value}
+                            onChange={(e) => setEditingPrice({ ...editingPrice, value: e.target.value })}
+                            onBlur={handlePriceSave}
+                            onKeyDown={handlePriceKeyDown}
+                            className="w-full px-1 py-1 text-sm border border-purple-500 rounded text-center"
+                            autoFocus
+                          />
+                        ) : (
+                          <button
+                            onClick={() => handlePriceClick(product, 'price_a')}
+                            className="w-full px-2 py-1 text-sm bg-purple-50 hover:bg-purple-100 rounded font-medium text-gray-800"
+                          >
+                            {product.price_a?.toFixed(2) || '0.00'}
+                          </button>
+                        )}
                       </td>
-                      <td className="px-2 py-1 border border-gray-200">
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={product.price_b || 0}
-                          onChange={(e) => handleQuickPriceUpdate(product.id, 'price_b', e.target.value)}
-                          className="w-20 p-1 text-xs border border-gray-300 rounded text-center"
-                        />
+                      <td className="px-2 py-1 border border-gray-200 text-center w-24">
+                        {editingPrice?.productId === product.id && editingPrice?.field === 'price_b' ? (
+                          <input
+                            type="number"
+                            value={editingPrice.value}
+                            onChange={(e) => setEditingPrice({ ...editingPrice, value: e.target.value })}
+                            onBlur={handlePriceSave}
+                            onKeyDown={handlePriceKeyDown}
+                            className="w-full px-1 py-1 text-sm border border-purple-500 rounded text-center"
+                            autoFocus
+                          />
+                        ) : (
+                          <button
+                            onClick={() => handlePriceClick(product, 'price_b')}
+                            className="w-full px-2 py-1 text-sm bg-blue-50 hover:bg-blue-100 rounded font-medium text-gray-800"
+                          >
+                            {product.price_b?.toFixed(2) || '0.00'}
+                          </button>
+                        )}
                       </td>
-                      <td className="px-2 py-1 border border-gray-200">
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={product.price_c || 0}
-                          onChange={(e) => handleQuickPriceUpdate(product.id, 'price_c', e.target.value)}
-                          className="w-20 p-1 text-xs border border-gray-300 rounded text-center"
-                        />
+                      <td className="px-2 py-1 border border-gray-200 text-center w-24">
+                        {editingPrice?.productId === product.id && editingPrice?.field === 'price_c' ? (
+                          <input
+                            type="number"
+                            value={editingPrice.value}
+                            onChange={(e) => setEditingPrice({ ...editingPrice, value: e.target.value })}
+                            onBlur={handlePriceSave}
+                            onKeyDown={handlePriceKeyDown}
+                            className="w-full px-1 py-1 text-sm border border-purple-500 rounded text-center"
+                            autoFocus
+                          />
+                        ) : (
+                          <button
+                            onClick={() => handlePriceClick(product, 'price_c')}
+                            className="w-full px-2 py-1 text-sm bg-green-50 hover:bg-green-100 rounded font-medium text-gray-800"
+                          >
+                            {product.price_c?.toFixed(2) || '0.00'}
+                          </button>
+                        )}
                       </td>
-                      <td className="px-2 py-1 border border-gray-200">
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={product.price_d || 0}
-                          onChange={(e) => handleQuickPriceUpdate(product.id, 'price_d', e.target.value)}
-                          className="w-20 p-1 text-xs border border-gray-300 rounded text-center"
-                        />
+                      <td className="px-2 py-1 border border-gray-200 text-center w-24">
+                        {editingPrice?.productId === product.id && editingPrice?.field === 'price_d' ? (
+                          <input
+                            type="number"
+                            value={editingPrice.value}
+                            onChange={(e) => setEditingPrice({ ...editingPrice, value: e.target.value })}
+                            onBlur={handlePriceSave}
+                            onKeyDown={handlePriceKeyDown}
+                            className="w-full px-1 py-1 text-sm border border-purple-500 rounded text-center"
+                            autoFocus
+                          />
+                        ) : (
+                          <button
+                            onClick={() => handlePriceClick(product, 'price_d')}
+                            className="w-full px-2 py-1 text-sm bg-orange-50 hover:bg-orange-100 rounded font-medium text-gray-800"
+                          >
+                            {product.price_d?.toFixed(2) || '0.00'}
+                          </button>
+                        )}
                       </td>
-                      <td className="px-2 py-1 border border-gray-200">
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={product.price_e || 0}
-                          onChange={(e) => handleQuickPriceUpdate(product.id, 'price_e', e.target.value)}
-                          className="w-20 p-1 text-xs border border-gray-300 rounded text-center"
-                        />
+                      <td className="px-2 py-1 border border-gray-200 text-center w-24">
+                        {editingPrice?.productId === product.id && editingPrice?.field === 'price_e' ? (
+                          <input
+                            type="number"
+                            value={editingPrice.value}
+                            onChange={(e) => setEditingPrice({ ...editingPrice, value: e.target.value })}
+                            onBlur={handlePriceSave}
+                            onKeyDown={handlePriceKeyDown}
+                            className="w-full px-1 py-1 text-sm border border-purple-500 rounded text-center"
+                            autoFocus
+                          />
+                        ) : (
+                          <button
+                            onClick={() => handlePriceClick(product, 'price_e')}
+                            className="w-full px-2 py-1 text-sm bg-gray-50 hover:bg-gray-100 rounded font-medium text-gray-800"
+                          >
+                            {product.price_e?.toFixed(2) || '0.00'}
+                          </button>
+                        )}
                       </td>
                       <td className="px-3 py-2 border border-gray-200">
                         <span className={`font-bold text-sm ${
