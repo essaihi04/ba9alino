@@ -1831,7 +1831,7 @@ export default function ProductsPage() {
       {/* العائلات (Catégories) */}
       <div className="flex-none bg-white border-b px-4 py-1">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 overflow-hidden">
+          <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
             <span className="text-xs font-bold text-gray-700 whitespace-nowrap">العائلات:</span>
             <button
               onClick={() => setSelectedCategory(null)}
@@ -1853,7 +1853,7 @@ export default function ProductsPage() {
             >
               بدون ({products.filter(p => !p.category_id).length})
             </button>
-            {categories.slice(0, 5).map((category) => {
+            {categories.map((category) => {
               const productCount = products.filter(p => p.category_id === category.id).length
               return (
                 <button
@@ -1870,9 +1870,6 @@ export default function ProductsPage() {
                 </button>
               )
             })}
-            {categories.length > 5 && (
-              <span className="text-xs text-gray-500">+{categories.length - 5} أخرى</span>
-            )}
           </div>
           {selectedCategory && selectedCategory !== 'no-family' && (
             <button
