@@ -835,7 +835,7 @@ export default function ProductsPage() {
     }
   }
 
-  const handlePriceClick = (product: Product, field: 'price_a' | 'price_b' | 'price_c' | 'price_d' | 'price_e') => {
+  const handlePriceClick = (product: Product, field: 'name_ar' | 'price_a' | 'price_b' | 'price_c' | 'price_d' | 'price_e') => {
     const currentValue = product[field]
     setEditingPrice({ productId: product.id, field, value: currentValue ? currentValue.toString() : '' })
   }
@@ -844,27 +844,29 @@ export default function ProductsPage() {
     if (!editingPrice) return
     const { productId, field, value } = editingPrice
     
-    // Don't save if value is empty
-    if (value === '' || value === null || value === undefined) {
+    // Don't save if value is empty for name field
+    if (field === 'name_ar' && (!value || value.trim() === '')) {
       setEditingPrice(null)
       return
     }
     
     try {
-      const newPrice = parseFloat(value) || 0
+      // For name_ar, use string value; for prices, use numeric
+      const newValue = field === 'name_ar' ? value.trim() : (parseFloat(value) || 0)
+      
       const { error } = await supabase
         .from('products')
-        .update({ [field]: newPrice })
+        .update({ [field]: newValue })
         .eq('id', productId)
       
       if (error) throw error
       
       // Update local state
-      setProducts(products.map(p => p.id === productId ? { ...p, [field]: newPrice } : p))
+      setProducts(products.map(p => p.id === productId ? { ...p, [field]: newValue } : p))
       
       if (moveToNext) {
-        // Move to next price field (A→B→C→D→E)
-        const fields: ('price_a' | 'price_b' | 'price_c' | 'price_d' | 'price_e')[] = ['price_a', 'price_b', 'price_c', 'price_d', 'price_e']
+        // For name_ar, move to price_a next
+        const fields: ('name_ar' | 'price_a' | 'price_b' | 'price_c' | 'price_d' | 'price_e')[] = ['name_ar', 'price_a', 'price_b', 'price_c', 'price_d', 'price_e']
         const currentIndex = fields.indexOf(field)
         const nextField = fields[currentIndex + 1]
         
@@ -879,13 +881,13 @@ export default function ProductsPage() {
         setEditingPrice(null)
       }
     } catch (error) {
-      console.error('Error updating price:', error)
-      alert('❌ حدث خطأ أثناء تحديث السعر')
+      console.error('Error updating:', error)
+      alert('❌ حدث خطأ أثناء التحديث')
       setEditingPrice(null)
     }
   }
 
-  const handlePriceKeyDown = (e: React.KeyboardEvent, product: Product, field: 'price_a' | 'price_b' | 'price_c' | 'price_d' | 'price_e') => {
+  const handlePriceKeyDown = (e: React.KeyboardEvent, product: Product, field: 'name_ar' | 'price_a' | 'price_b' | 'price_c' | 'price_d' | 'price_e') => {
     if (e.key === 'Enter') {
       e.preventDefault()
       handlePriceSave(true) // true = move to next cell
@@ -1966,9 +1968,9 @@ export default function ProductsPage() {
                 </div>
               </div>
             )}
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-[calc(100vh-300px)] overflow-y-auto">
             <table className="w-full border border-gray-200 border-collapse">
-              <thead className="bg-gray-100 text-black">
+              <thead className="bg-gray-100 text-black sticky top-0 z-10">
                 <tr>
                   <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">
                     <input
@@ -2027,17 +2029,30 @@ export default function ProductsPage() {
                         </div>
                       </td>
                       <td className="px-3 py-2 border border-gray-200">
-                        <button
-                          onClick={() => openEditModal(product)}
-                          className="text-right w-full"
-                        >
-                          <p className="font-bold text-sm text-gray-800 hover:text-purple-700 underline-offset-4 hover:underline">
-                            {product.name_ar}
-                          </p>
-                          {product.sku && (
-                            <p className="text-xs text-gray-500">SKU: {product.sku}</p>
-                          )}
-                        </button>
+                        {editingPrice?.productId === product.id && editingPrice?.field === 'name_ar' ? (
+                          <input
+                            type="text"
+                            value={editingPrice.value}
+                            onChange={(e) => setEditingPrice({ ...editingPrice, value: e.target.value })}
+                            onBlur={() => handlePriceSave(false)}
+                            onKeyDown={(e) => handlePriceKeyDown(e, product, 'name_ar')}
+                            className="w-full px-2 py-1 text-sm border border-purple-500 rounded text-right"
+                            autoFocus
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handlePriceClick(product, 'name_ar')}
+                            className="text-right w-full"
+                          >
+                            <p className="font-bold text-sm text-gray-800 hover:text-purple-700 underline-offset-4 hover:underline">
+                              {product.name_ar}
+                            </p>
+                            {product.sku && (
+                              <p className="text-xs text-gray-500">SKU: {product.sku}</p>
+                            )}
+                          </button>
+                        )}
                       </td>
                       <td className="px-2 py-1 border border-gray-200 text-center w-24">
                         {editingPrice?.productId === product.id && editingPrice?.field === 'price_a' ? (
