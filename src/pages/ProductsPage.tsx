@@ -1821,20 +1821,10 @@ export default function ProductsPage() {
       </div>
 
       {/* العائلات (Catégories) */}
-      <div className="flex-none bg-white border-b px-4 py-2">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-bold text-gray-800">العائلات</h3>
-          {selectedCategory && selectedCategory !== 'no-family' && (
-            <button
-              onClick={() => setSelectedCategory(null)}
-              className="text-xs text-blue-600 hover:text-blue-800"
-            >
-              إلغاء التصفية
-            </button>
-          )}
-        </div>
-        <div className="max-h-16 overflow-y-auto">
-          <div className="flex flex-wrap gap-1">
+      <div className="flex-none bg-white border-b px-4 py-1">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 overflow-hidden">
+            <span className="text-xs font-bold text-gray-700 whitespace-nowrap">العائلات:</span>
             <button
               onClick={() => setSelectedCategory(null)}
               className={`px-2 py-0.5 rounded transition-colors text-xs whitespace-nowrap ${
@@ -1855,14 +1845,14 @@ export default function ProductsPage() {
             >
               بدون ({products.filter(p => !p.category_id).length})
             </button>
-            {categories.map((category) => {
+            {categories.slice(0, 5).map((category) => {
               const productCount = products.filter(p => p.category_id === category.id).length
               return (
                 <button
                   key={category.id}
                   onClick={() => setSelectedCategory(category.id)}
                   title={category.name_ar}
-                  className={`px-2 py-0.5 rounded transition-colors text-xs whitespace-nowrap max-w-[120px] truncate ${
+                  className={`px-2 py-0.5 rounded transition-colors text-xs whitespace-nowrap max-w-[100px] truncate ${
                     selectedCategory === category.id
                       ? 'bg-purple-600 text-white'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -1872,7 +1862,18 @@ export default function ProductsPage() {
                 </button>
               )
             })}
+            {categories.length > 5 && (
+              <span className="text-xs text-gray-500">+{categories.length - 5} أخرى</span>
+            )}
           </div>
+          {selectedCategory && selectedCategory !== 'no-family' && (
+            <button
+              onClick={() => setSelectedCategory(null)}
+              className="text-xs text-blue-600 hover:text-blue-800 whitespace-nowrap mr-2"
+            >
+              إلغاء التصفية
+            </button>
+          )}
         </div>
       </div>
 
