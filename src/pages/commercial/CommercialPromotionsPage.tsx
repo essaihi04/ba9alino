@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { ArrowLeft, ShoppingCart, Plus, Minus, Package, Flame } from 'lucide-react'
+import { ShoppingCart, Plus, Minus, Package, Flame } from 'lucide-react'
+import CommercialLayout from '../../components/commercial/CommercialLayout'
 
 interface Promotion {
   id: string
@@ -138,33 +139,23 @@ export default function CommercialPromotionsPage() {
   const cartCount = cart.reduce((sum, i) => sum + i.quantity, 0)
 
   return (
-    <div className="min-h-screen bg-gray-50" dir="rtl">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white p-4 shadow-lg sticky top-0 z-20">
-        <div className="flex items-center gap-3">
+    <CommercialLayout
+      title="العروض الحصرية"
+      subtitle={`${promoProducts.length} منتج بعرض خاص`}
+      headerRight={
+        cartCount > 0 ? (
           <button
-            onClick={() => navigate('/commercial/dashboard')}
-            className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+            onClick={() => setShowCart(true)}
+            className="relative bg-white/20 p-2 rounded-xl active:bg-white/30"
           >
-            <ArrowLeft size={24} />
+            <ShoppingCart size={20} />
+            <span className="absolute -top-1 -left-1 bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">
+              {cartCount}
+            </span>
           </button>
-          <div className="flex-1">
-            <h1 className="text-xl font-bold">العروض الحصرية 🔥</h1>
-            <p className="text-emerald-100 text-sm">{promoProducts.length} منتج بعرض خاص</p>
-          </div>
-          {cartCount > 0 && (
-            <button
-              onClick={() => setShowCart(true)}
-              className="relative bg-white/20 hover:bg-white/30 p-2 rounded-full"
-            >
-              <ShoppingCart size={24} />
-              <span className="absolute -top-1 -left-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
-                {cartCount}
-              </span>
-            </button>
-          )}
-        </div>
-      </div>
+        ) : undefined
+      }
+    >
 
       {/* Product List */}
       <div className="pb-32">
@@ -312,6 +303,6 @@ export default function CommercialPromotionsPage() {
           </div>
         </div>
       )}
-    </div>
+    </CommercialLayout>
   )
 }

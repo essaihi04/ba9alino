@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { ArrowLeft, TrendingUp, DollarSign, ShoppingCart, Users, Calendar } from 'lucide-react'
+import { TrendingUp, DollarSign, ShoppingCart, Users, Calendar } from 'lucide-react'
+import CommercialLayout from '../../components/commercial/CommercialLayout'
 
 interface PerformanceStats {
   totalOrders: number
@@ -110,27 +111,13 @@ export default function CommercialPerformancePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50" dir="rtl">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 text-white p-4 shadow-lg sticky top-0 z-10">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigate('/commercial/dashboard')}
-            className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-          >
-            <ArrowLeft size={24} />
-          </button>
-          <div className="flex-1">
-            <h1 className="text-xl font-bold">أدائي التجاري</h1>
-            <p className="text-indigo-100 text-sm">{commercialName}</p>
-          </div>
-        </div>
-      </div>
-
+    <CommercialLayout title="أدائي" subtitle={commercialName}>
       {loading ? (
-        <div className="text-center py-12 text-gray-500">جاري التحميل...</div>
+        <div className="flex items-center justify-center h-40">
+          <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+        </div>
       ) : (
-        <div className="p-4 space-y-4">
+        <div className="space-y-3">
           {/* Overall Stats */}
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl p-4 shadow-lg">
@@ -230,6 +217,6 @@ export default function CommercialPerformancePage() {
           </div>
         </div>
       )}
-    </div>
+    </CommercialLayout>
   )
 }

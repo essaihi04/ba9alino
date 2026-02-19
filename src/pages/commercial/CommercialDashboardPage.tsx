@@ -1,19 +1,16 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
+import CommercialLayout, { CommercialSecondaryNav } from '../../components/commercial/CommercialLayout'
 import { 
   ShoppingCart, 
   Users, 
-  Package, 
   DollarSign, 
-  LogOut,
-  Plus,
-  TrendingUp,
   Clock,
   MapPin,
   Camera,
-  BarChart3,
-  Gift
+  Gift,
+  ChevronLeft
 } from 'lucide-react'
 
 interface DashboardStats {
@@ -157,209 +154,122 @@ export default function CommercialDashboardPage() {
     }
   }
 
-  const handleLogout = () => {
-    localStorage.removeItem('commercial_id')
-    localStorage.removeItem('commercial_name')
-    localStorage.removeItem('commercial_role')
-    navigate('/login')
-  }
-
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-500">جاري التحميل...</div>
-      </div>
+      <CommercialLayout title={`مرحبا، ${commercialName}`} subtitle="لوحة التحكم التجارية">
+        <div className="flex items-center justify-center h-40">
+          <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      </CommercialLayout>
     )
   }
 
+  const statusBadge = (status: string) => {
+    const map: Record<string, string> = {
+      pending: 'bg-yellow-100 text-yellow-700',
+      confirmed: 'bg-green-100 text-green-700',
+      rejected: 'bg-red-100 text-red-700',
+      completed: 'bg-blue-100 text-blue-700',
+    }
+    const labels: Record<string, string> = {
+      pending: 'معلق', confirmed: 'مؤكد', rejected: 'مرفوض', completed: 'مكتمل',
+    }
+    return <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${map[status] || ''}`}>{labels[status] || status}</span>
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50" dir="rtl">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 shadow-lg">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-2xl font-bold">مرحبا، {commercialName}</h1>
-            <p className="text-blue-100 text-sm">لوحة التحكم التجارية</p>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="bg-white/20 hover:bg-white/30 p-3 rounded-lg transition-colors"
-          >
-            <LogOut size={20} />
-          </button>
-        </div>
-      </div>
+    <CommercialLayout title={`مرحبا، ${commercialName}`} subtitle="لوحة التحكم التجارية">
+      <div className="space-y-3">
 
-      {/* Stats Cards */}
-      <div className="p-4 space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl p-4 shadow-lg">
-            <div className="flex items-center justify-between mb-2">
-              <ShoppingCart size={24} />
-              <span className="text-2xl font-bold">{stats.todayOrders}</span>
-            </div>
-            <p className="text-green-100 text-sm">طلبات اليوم</p>
+        {/* Stats */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white rounded-2xl p-4 shadow-md">
+            <ShoppingCart size={20} className="mb-2 opacity-80" />
+            <p className="text-3xl font-bold">{stats.todayOrders}</p>
+            <p className="text-emerald-100 text-xs mt-1">طلبات اليوم</p>
           </div>
-
-          <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-xl p-4 shadow-lg">
-            <div className="flex items-center justify-between mb-2">
-              <Clock size={24} />
-              <span className="text-2xl font-bold">{stats.pendingOrders}</span>
-            </div>
-            <p className="text-orange-100 text-sm">طلبات معلقة</p>
+          <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-2xl p-4 shadow-md">
+            <Clock size={20} className="mb-2 opacity-80" />
+            <p className="text-3xl font-bold">{stats.pendingOrders}</p>
+            <p className="text-orange-100 text-xs mt-1">طلبات معلقة</p>
           </div>
-
-          <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl p-4 shadow-lg">
-            <div className="flex items-center justify-between mb-2">
-              <DollarSign size={24} />
-              <span className="text-2xl font-bold">{stats.todayRevenue.toFixed(0)}</span>
-            </div>
-            <p className="text-blue-100 text-sm">مبيعات اليوم (MAD)</p>
+          <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl p-4 shadow-md">
+            <DollarSign size={20} className="mb-2 opacity-80" />
+            <p className="text-3xl font-bold">{stats.todayRevenue.toFixed(0)}</p>
+            <p className="text-blue-100 text-xs mt-1">مبيعات اليوم (MAD)</p>
           </div>
-
-          <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-xl p-4 shadow-lg">
-            <div className="flex items-center justify-between mb-2">
-              <Users size={24} />
-              <span className="text-2xl font-bold">{stats.myClients}</span>
-            </div>
-            <p className="text-purple-100 text-sm">عملائي</p>
+          <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-2xl p-4 shadow-md">
+            <Users size={20} className="mb-2 opacity-80" />
+            <p className="text-3xl font-bold">{stats.myClients}</p>
+            <p className="text-purple-100 text-xs mt-1">عملائي</p>
           </div>
         </div>
 
-        {/* Quick Actions */}
-        <div className="bg-white rounded-xl shadow-lg p-4">
-          <h2 className="text-lg font-bold text-gray-800 mb-4">إجراءات سريعة</h2>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => navigate('/commercial/orders/new')}
-              className="bg-green-600 hover:bg-green-700 text-white p-4 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 flex flex-col items-center gap-2"
-            >
-              <Plus size={24} />
-              <span className="text-sm">طلب جديد</span>
-            </button>
+        {/* Secondary nav pills */}
+        <CommercialSecondaryNav />
 
-            <button
-              onClick={() => navigate('/commercial/map')}
-              className="bg-teal-600 hover:bg-teal-700 text-white p-4 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 flex flex-col items-center gap-2"
-            >
-              <MapPin size={24} />
-              <span className="text-sm">خريطة العملاء</span>
-            </button>
-
-            <button
-              onClick={() => navigate('/commercial/payments')}
-              className="bg-amber-600 hover:bg-amber-700 text-white p-4 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 flex flex-col items-center gap-2"
-            >
-              <DollarSign size={24} />
-              <span className="text-sm">التحصيل</span>
-            </button>
-
-            <button
-              onClick={() => navigate('/commercial/clients')}
-              className="bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 flex flex-col items-center gap-2"
-            >
-              <Users size={24} />
-              <span className="text-sm">عملائي</span>
-            </button>
-
-            <button
-              onClick={() => navigate('/commercial/products')}
-              className="bg-purple-600 hover:bg-purple-700 text-white p-4 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 flex flex-col items-center gap-2"
-            >
-              <Package size={24} />
-              <span className="text-sm">المنتجات</span>
-            </button>
-
-            <button
-              onClick={() => navigate('/commercial/promotions')}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white p-4 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 flex flex-col items-center gap-2"
-            >
-              <Gift size={24} />
-              <span className="text-sm">العروض</span>
-            </button>
-
-            <button
-              onClick={() => navigate('/commercial/orders')}
-              className="bg-orange-600 hover:bg-orange-700 text-white p-4 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 flex flex-col items-center gap-2"
-            >
-              <TrendingUp size={24} />
-              <span className="text-sm">طلباتي</span>
-            </button>
-
-            <button
-              onClick={() => navigate('/commercial/performance')}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white p-4 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 flex flex-col items-center gap-2"
-            >
-              <BarChart3 size={24} />
-              <span className="text-sm">أدائي</span>
-            </button>
-
-            <button
-              onClick={() => navigate('/commercial/visits/new')}
-              className="bg-pink-600 hover:bg-pink-700 text-white p-4 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 flex flex-col items-center gap-2"
-            >
-              <Camera size={24} />
-              <span className="text-sm">زيارة جديدة</span>
-            </button>
+        {/* Quick actions */}
+        <div className="bg-white rounded-2xl shadow-sm p-4">
+          <p className="text-sm font-bold text-gray-500 mb-3">إجراءات سريعة</p>
+          <div className="grid grid-cols-4 gap-3">
+            {[
+              { icon: MapPin, label: 'الخريطة', path: '/commercial/map', color: 'bg-teal-50 text-teal-600' },
+              { icon: DollarSign, label: 'التحصيل', path: '/commercial/payments', color: 'bg-amber-50 text-amber-600' },
+              { icon: Gift, label: 'العروض', path: '/commercial/promotions', color: 'bg-pink-50 text-pink-600' },
+              { icon: Camera, label: 'زيارة', path: '/commercial/visits/new', color: 'bg-blue-50 text-blue-600' },
+            ].map((item) => (
+              <button
+                key={item.path}
+                onClick={() => navigate(item.path)}
+                className={`flex flex-col items-center gap-1.5 p-3 rounded-xl ${item.color} active:scale-95 transition-transform`}
+              >
+                <item.icon size={22} />
+                <span className="text-[10px] font-semibold">{item.label}</span>
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Recent Orders */}
-        <div className="bg-white rounded-xl shadow-lg p-4">
-          <h2 className="text-lg font-bold text-gray-800 mb-4">آخر الطلبات</h2>
+        {/* Recent orders */}
+        <div className="bg-white rounded-2xl shadow-sm p-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-bold text-gray-700">آخر الطلبات</p>
+            <button onClick={() => navigate('/commercial/orders')} className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
+              عرض الكل <ChevronLeft size={14} />
+            </button>
+          </div>
           {recentOrders.length === 0 ? (
-            <div className="text-center text-gray-500 py-8">لا توجد طلبات بعد</div>
+            <div className="text-center text-gray-400 py-8 text-sm">لا توجد طلبات بعد</div>
           ) : (
-            <div className="space-y-3">
-              {recentOrders.map((order) => (
-                <button
-                  key={order.id}
-                  onClick={() => navigate('/commercial/orders')}
-                  className="w-full text-right p-3 border border-gray-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
+            <div className="space-y-2">
+              {recentOrders.map((order) => {
+                const clientName = (() => {
+                  if (!order.clients) return 'عميل'
+                  if (Array.isArray(order.clients)) return order.clients[0]?.company_name_ar || 'عميل'
+                  return order.clients.company_name_ar || 'عميل'
+                })()
+                return (
+                  <button
+                    key={order.id}
+                    onClick={() => navigate('/commercial/orders')}
+                    className="w-full flex items-center justify-between p-3 bg-gray-50 rounded-xl active:bg-gray-100 transition-colors"
+                  >
+                    <div className="text-right">
                       <p className="text-sm font-bold text-gray-800">{order.order_number}</p>
-                      <p className="text-xs text-gray-500">
-                        {(() => {
-                          const clients = order.clients
-                          if (!clients) return 'عميل'
-                          if (Array.isArray(clients)) {
-                            return clients[0]?.company_name_ar || 'عميل'
-                          }
-                          return clients.company_name_ar || 'عميل'
-                        })()}
-                      </p>
+                      <p className="text-xs text-gray-500">{clientName}</p>
                     </div>
-                    <div className="text-left">
-                      <p className="text-sm font-bold text-green-600">
-                        {Number(order.total_amount || 0).toFixed(2)} MAD
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {new Date(order.created_at).toLocaleString('ar-DZ')}
-                      </p>
+                    <div className="flex flex-col items-end gap-1">
+                      <p className="text-sm font-bold text-emerald-600">{Number(order.total_amount || 0).toFixed(2)} MAD</p>
+                      {statusBadge(order.status)}
                     </div>
-                  </div>
-                  <div className="mt-2 text-xs font-semibold">
-                    {order.status === 'pending' && (
-                      <span className="text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded">قيد الانتظار</span>
-                    )}
-                    {order.status === 'confirmed' && (
-                      <span className="text-green-700 bg-green-100 px-2 py-0.5 rounded">مؤكد</span>
-                    )}
-                    {order.status === 'rejected' && (
-                      <span className="text-red-700 bg-red-100 px-2 py-0.5 rounded">مرفوض</span>
-                    )}
-                    {order.status === 'completed' && (
-                      <span className="text-blue-700 bg-blue-100 px-2 py-0.5 rounded">مكتمل</span>
-                    )}
-                  </div>
-                </button>
-              ))}
+                  </button>
+                )
+              })}
             </div>
           )}
         </div>
+
       </div>
-    </div>
+    </CommercialLayout>
   )
 }

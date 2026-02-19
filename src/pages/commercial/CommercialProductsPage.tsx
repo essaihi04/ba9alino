@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { Search, Package, ArrowLeft } from 'lucide-react'
+import { Search, Package } from 'lucide-react'
+import CommercialLayout from '../../components/commercial/CommercialLayout'
 import { getCategoryLabelArabic } from '../../utils/categoryLabels'
 
 const PAGE_SIZE = 60
@@ -217,40 +218,22 @@ export default function CommercialProductsPage() {
     )
 
   return (
-    <div className="min-h-screen bg-gray-50" dir="rtl">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white p-4 shadow-lg sticky top-0 z-10">
-        <div className="flex items-center gap-4 mb-4">
-          <button
-            onClick={() => navigate('/commercial/dashboard')}
-            className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-          >
-            <ArrowLeft size={24} />
-          </button>
-          <div>
-            <h1 className="text-xl font-bold">المنتجات</h1>
-            <p className="text-purple-100 text-sm">عرض المنتجات والأسعار</p>
-          </div>
-          <button
-            onClick={() => navigate('/commercial/orders/new')}
-            className="mr-auto bg-white text-purple-700 px-4 py-2 rounded-lg font-bold hover:bg-purple-50 transition-colors"
-          >
-            إنشاء طلب
-          </button>
-        </div>
-
+    <CommercialLayout
+      title="المنتجات"
+      subtitle="عرض المنتجات والأسعار"
+    >
+      <div className="space-y-3">
         {/* Search */}
         <div className="relative">
-          <Search className="absolute right-3 top-3 text-gray-400" size={20} />
+          <Search className="absolute right-3 top-3.5 text-gray-400" size={18} />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pr-10 pl-4 py-3 rounded-lg text-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-300"
+            className="w-full bg-white pr-10 pl-4 py-3 rounded-xl border border-gray-200 text-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-300"
             placeholder="ابحث عن منتج..."
           />
         </div>
-      </div>
 
       {/* Categories Filter - max 3 rows, scrollable */}
       <div className="bg-white p-3 shadow-sm overflow-y-auto" style={{ maxHeight: '140px' }}>
@@ -391,6 +374,7 @@ export default function CommercialProductsPage() {
           </>
         )}
       </div>
-    </div>
+      </div>
+    </CommercialLayout>
   )
 }

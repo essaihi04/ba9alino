@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { ArrowLeft, DollarSign, CheckCircle } from 'lucide-react'
+import { DollarSign, CheckCircle } from 'lucide-react'
+import CommercialLayout from '../../components/commercial/CommercialLayout'
 
 interface Client {
   id: string
@@ -180,24 +181,10 @@ export default function CommercialPaymentsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50" dir="rtl">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-green-600 to-green-700 text-white p-4 shadow-lg sticky top-0 z-10">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigate('/commercial/dashboard')}
-            className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-          >
-            <ArrowLeft size={24} />
-          </button>
-          <div className="flex-1">
-            <h1 className="text-xl font-bold">تحصيل المدفوعات</h1>
-            <p className="text-green-100 text-sm">
-              {selectedClient ? selectedClient.company_name_ar : 'اختر العميل'}
-            </p>
-          </div>
-        </div>
-      </div>
+    <CommercialLayout
+      title="تحصيل المدفوعات"
+      subtitle={selectedClient ? selectedClient.company_name_ar : 'اختر العميل'}
+    >
 
       {/* Client Selection */}
       {!selectedClient ? (
@@ -373,6 +360,6 @@ export default function CommercialPaymentsPage() {
           </div>
         </div>
       )}
-    </div>
+    </CommercialLayout>
   )
 }

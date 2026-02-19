@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { getCategoryLabelArabic } from '../../utils/categoryLabels'
-import { Search, Users, ArrowLeft, Plus, Phone, MapPin, Image as ImageIcon, MapPinOff } from 'lucide-react'
+import { Search, Plus, Phone, MapPin, Image as ImageIcon, MapPinOff } from 'lucide-react'
+import CommercialLayout from '../../components/commercial/CommercialLayout'
 
 const SHOP_PHOTO_BUCKET = import.meta.env.VITE_SHOP_PHOTO_BUCKET || 'magasin'
 
@@ -203,43 +204,32 @@ export default function CommercialClientsPage() {
   )
 
   return (
-    <div className="min-h-screen bg-gray-50" dir="rtl">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 shadow-lg sticky top-0 z-10">
-        <div className="flex items-center gap-4 mb-4">
-          <button
-            onClick={() => navigate('/commercial/dashboard')}
-            className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-          >
-            <ArrowLeft size={24} />
-          </button>
-          <div className="flex-1">
-            <h1 className="text-xl font-bold">عملائي</h1>
-            <p className="text-blue-100 text-sm">{clients.length} عميل</p>
-          </div>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="bg-white text-blue-600 p-3 rounded-lg font-bold hover:bg-blue-50 transition-colors"
-          >
-            <Plus size={20} />
-          </button>
-        </div>
-
+    <CommercialLayout
+      title="عملائي"
+      subtitle={`${clients.length} عميل`}
+      headerRight={
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="bg-white/20 p-2 rounded-xl active:bg-white/30 transition-colors"
+        >
+          <Plus size={20} />
+        </button>
+      }
+    >
+      <div className="space-y-3">
         {/* Search */}
         <div className="relative">
-          <Search className="absolute right-3 top-3 text-gray-400" size={20} />
+          <Search className="absolute right-3 top-3.5 text-gray-400" size={18} />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pr-10 pl-4 py-3 rounded-lg text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-300"
+            className="w-full bg-white pr-10 pl-4 py-3 rounded-xl border border-gray-200 text-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-300"
             placeholder="ابحث عن عميل..."
           />
         </div>
-      </div>
-
-      {/* Clients List */}
-      <div className="p-4 space-y-3">
+        {/* Clients List */}
+        <div className="space-y-2">
         {loading ? (
           <div className="text-center py-12 text-gray-500">
             جاري التحميل...
@@ -507,6 +497,7 @@ export default function CommercialClientsPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </CommercialLayout>
   )
 }

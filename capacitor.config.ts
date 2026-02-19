@@ -5,6 +5,10 @@ const config: CapacitorConfig = {
   appName: 'Ba9alino',
   webDir: 'dist',
   bundledWebRuntime: false,
+  server: {
+    url: 'http://87.106.1.128',
+    cleartext: true,
+  },
 }
 
 export default config

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { ArrowLeft, Plus, Clock, CheckCircle, XCircle, AlertCircle, Package, Edit2, X, Save, Trash2 } from 'lucide-react'
+import { Plus, Clock, CheckCircle, XCircle, AlertCircle, Package, Edit2, X, Save, Trash2 } from 'lucide-react'
+import CommercialLayout from '../../components/commercial/CommercialLayout'
 
 interface Order {
   id: string
@@ -295,30 +296,21 @@ export default function CommercialOrdersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50" dir="rtl">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-orange-600 to-orange-700 text-white p-4 shadow-lg sticky top-0 z-10">
-        <div className="flex items-center gap-4 mb-4">
-          <button
-            onClick={() => navigate('/commercial/dashboard')}
-            className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-          >
-            <ArrowLeft size={24} />
-          </button>
-          <div className="flex-1">
-            <h1 className="text-xl font-bold">طلباتي</h1>
-            <p className="text-orange-100 text-sm">{orders.length} طلب</p>
-          </div>
-          <button
-            onClick={() => navigate('/commercial/orders/new')}
-            className="bg-white text-orange-600 p-3 rounded-lg font-bold hover:bg-orange-50 transition-colors"
-          >
-            <Plus size={20} />
-          </button>
-        </div>
-
+    <CommercialLayout
+      title="طلباتي"
+      subtitle={`${orders.length} طلب`}
+      headerRight={
+        <button
+          onClick={() => navigate('/commercial/orders/new')}
+          className="bg-white/20 p-2 rounded-xl active:bg-white/30 transition-colors"
+        >
+          <Plus size={20} />
+        </button>
+      }
+    >
+      <div className="space-y-3">
         {/* Filter Tabs */}
-        <div className="flex gap-2 overflow-x-auto">
+        <div className="flex gap-2 overflow-x-auto pb-1">
           <button
             onClick={() => setFilter('all')}
             className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
@@ -360,10 +352,8 @@ export default function CommercialOrdersPage() {
             مرفوض ({orders.filter(o => o.status === 'rejected').length})
           </button>
         </div>
-      </div>
-
-      {/* Orders List */}
-      <div className="p-4 space-y-3">
+        {/* Orders List */}
+        <div className="space-y-3">
         {loading ? (
           <div className="text-center py-12 text-gray-500">
             جاري التحميل...
@@ -654,6 +644,7 @@ export default function CommercialOrdersPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </CommercialLayout>
   )
 }
