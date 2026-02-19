@@ -38,7 +38,7 @@ jobs:
         key: ${{ secrets.VPS_SSH_KEY }}
         port: 22
         source: "dist/"
-        target: /root/ba9alino/
+        target: /var/www/ba9alino/
         strip_components: 0
 
     - name: Configure nginx & reload on VPS
@@ -49,20 +49,14 @@ jobs:
         key: ${{ secrets.VPS_SSH_KEY }}
         port: 22
         script: |
+          setenforce 0 2>/dev/null || true
+          sed -i 's/SELINUX=enforcing/SELINUX=disabled/' /etc/selinux/config 2>/dev/null || true
+          mkdir -p /var/www/ba9alino/dist
+          chown -R nginx:nginx /var/www/ba9alino
+          chmod -R 755 /var/www/ba9alino
           mkdir -p /etc/nginx/conf.d
-          cat > /etc/nginx/conf.d/ba9alino.conf << 'EOF'
-          server {
-              listen 80 default_server;
-              listen [::]:80 default_server;
-              root /root/ba9alino/dist;
-              index index.html;
-              server_name _;
-              location / {
-                  try_files $uri $uri/ /index.html;
-              }
-          }
-          EOF
-          sed -i '/server {/,/^}/d' /etc/nginx/nginx.conf || true
+          printf 'server {\n    listen 80 default_server;\n    listen [::]:80 default_server;\n    root /var/www/ba9alino/dist;\n    index index.html;\n    server_name _;\n    location / {\n        try_files $uri $uri/ /index.html;\n    }\n}\n' > /etc/nginx/conf.d/ba9alino.conf
+          sed -i '/^    server {/,/^    }/d' /etc/nginx/nginx.conf || true
           nginx -t && nginx -s reload
           echo "✅ VPS deployment done"
 
