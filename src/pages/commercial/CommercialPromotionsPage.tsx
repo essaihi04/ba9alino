@@ -1,8 +1,15 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { ShoppingCart, Plus, Minus, Package, Flame } from 'lucide-react'
+import { ShoppingCart, Plus, Minus, Package, Flame, Users, ChevronDown, X } from 'lucide-react'
 import CommercialLayout from '../../components/commercial/CommercialLayout'
+
+interface Client {
+  id: string
+  company_name_ar: string
+  subscription_tier: string
+  is_active: boolean
+}
 
 interface Promotion {
   id: string
@@ -44,14 +51,19 @@ export default function CommercialPromotionsPage() {
   const navigate = useNavigate()
   const [promotions, setPromotions] = useState<Promotion[]>([])
   const [products, setProducts] = useState<Product[]>([])
+  const [clients, setClients] = useState<Client[]>([])
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [loading, setLoading] = useState(true)
   const [cart, setCart] = useState<CartItem[]>([])
   const [showCart, setShowCart] = useState(false)
+  const [showClientDropdown, setShowClientDropdown] = useState(false)
+  const [clientSearch, setClientSearch] = useState('')
+  const clientDropdownRef = useRef<HTMLDivElement>(null)
 
   const subscriptionTier = useMemo(() => {
-    // Get the commercial's client tier from localStorage or default to E
-    return localStorage.getItem('commercial_tier') || 'E'
-  }, [])
+    // Use selected client's tier or default to E
+    return selectedClient?.subscription_tier || 'E'
+  }, [selectedClient])
 
   useEffect(() => {
     const commercialId = localStorage.getItem('commercial_id')
@@ -60,7 +72,34 @@ export default function CommercialPromotionsPage() {
       return
     }
     fetchData()
+    loadClients()
   }, [navigate])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (clientDropdownRef.current && !clientDropdownRef.current.contains(e.target as Node)) {
+        setShowClientDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const loadClients = async () => {
+    try {
+      const commercialId = localStorage.getItem('commercial_id')
+      const { data, error } = await supabase
+        .from('clients')
+        .select('id, company_name_ar, subscription_tier, is_active')
+        .eq('commercial_id', commercialId)
+        .eq('is_active', true)
+        .order('company_name_ar')
+      if (error) throw error
+      setClients((data || []) as Client[])
+    } catch (error) {
+      console.error('Error loading clients:', error)
+    }
+  }
 
   const fetchData = async () => {
     try {
@@ -174,6 +213,10 @@ export default function CommercialPromotionsPage() {
   const cartTotal = cart.reduce((sum, i) => sum + i.promoPrice * i.quantity, 0)
   const cartCount = cart.reduce((sum, i) => sum + i.quantity, 0)
 
+  const filteredClients = clients.filter(c => 
+    c.company_name_ar.toLowerCase().includes(clientSearch.toLowerCase())
+  )
+
   return (
     <CommercialLayout
       title="العروض الحصرية"
@@ -192,6 +235,79 @@ export default function CommercialPromotionsPage() {
         ) : undefined
       }
     >
+      {/* Client Selector */}
+      <div className="bg-white rounded-xl shadow-sm p-4 mb-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Users size={18} className="text-indigo-600" />
+          <span className="text-sm font-medium text-gray-700">العميل</span>
+        </div>
+        <div ref={clientDropdownRef} className="relative">
+          <button
+            type="button"
+            onClick={() => setShowClientDropdown(!showClientDropdown)}
+            className="w-full flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg bg-white hover:border-indigo-400 transition text-right"
+          >
+            {selectedClient ? (
+              <>
+                <span className="flex-1 text-gray-800 text-sm">{selectedClient.company_name_ar}</span>
+                <button 
+                  type="button" 
+                  onClick={(e) => { e.stopPropagation(); setSelectedClient(null); }} 
+                  className="text-gray-400 hover:text-red-500"
+                >
+                  <X size={14} />
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="flex-1 text-gray-400 text-sm">اختر العميل...</span>
+                <ChevronDown size={16} className="text-gray-400" />
+              </>
+            )}
+          </button>
+
+          {showClientDropdown && (
+            <div className="absolute z-50 top-full mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-xl">
+              <div className="p-2 border-b border-gray-100">
+                <input
+                  type="text"
+                  value={clientSearch}
+                  onChange={(e) => setClientSearch(e.target.value)}
+                  placeholder="ابحث عن عميل..."
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-indigo-400"
+                  autoFocus
+                />
+              </div>
+              <div className="max-h-48 overflow-y-auto">
+                {filteredClients.length === 0 ? (
+                  <p className="text-center text-gray-400 text-sm py-4">لا توجد عملاء</p>
+                ) : (
+                  filteredClients.map(client => (
+                    <button
+                      key={client.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedClient(client)
+                        setShowClientDropdown(false)
+                        setClientSearch('')
+                      }}
+                      className={`w-full flex items-center gap-2 px-3 py-2 hover:bg-indigo-50 transition text-right ${
+                        selectedClient?.id === client.id ? 'bg-indigo-50' : ''
+                      }`}
+                    >
+                      <span className="flex-1 text-sm text-gray-800">{client.company_name_ar}</span>
+                      <span className="text-xs text-gray-400">{client.subscription_tier}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+        {!selectedClient && (
+          <p className="text-xs text-amber-600 mt-2">يرجى اختيار العميل لتفعيل إضافة المنتجات للسلة</p>
+        )}
+      </div>
 
       {/* Product List */}
       <div className="pb-32">
@@ -266,7 +382,7 @@ export default function CommercialPromotionsPage() {
                     ) : (
                       <button
                         onClick={() => addToCart(product)}
-                        disabled={getBasePrice(product) === 0}
+                        disabled={!selectedClient || getBasePrice(product) === 0}
                         className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl font-bold text-sm disabled:bg-gray-300 disabled:cursor-not-allowed"
                       >
                         أضف للسلة
