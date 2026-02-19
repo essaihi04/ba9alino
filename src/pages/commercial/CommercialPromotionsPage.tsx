@@ -64,21 +64,37 @@ export default function CommercialPromotionsPage() {
   const fetchData = async () => {
     try {
       setLoading(true)
-      console.log('Fetching promotions...')
-      const [promoRes, productRes] = await Promise.all([
+      const [promoRes, productsRes, variantsRes] = await Promise.all([
         supabase.from('promotions').select('*').eq('is_active', true).order('created_at', { ascending: false }),
-        supabase.from('products').select('id, name_ar, image_url, price_a, price_b, price_c, price_d, price_e, stock, sku').eq('is_active', true).order('name_ar')
+        supabase.from('products').select('id, name_ar, image_url, sku, stock, is_active_for_commercial').eq('is_active', true).order('name_ar'),
+        supabase.from('product_variants').select('product_id, price_a, price_b, price_c, price_d, price_e, stock').eq('is_active', true)
       ])
-      console.log('Promo response:', promoRes)
-      console.log('Products response:', productRes)
-      if (promoRes.error) {
-        console.error('Promo error:', promoRes.error)
+      if (promoRes.error) console.error('Promo error:', promoRes.error)
+      if (productsRes.error) console.error('Products error:', productsRes.error)
+      if (variantsRes.error) console.error('Variants error:', variantsRes.error)
+
+      const variantMap = new Map<string, any>()
+      for (const v of (variantsRes.data || [])) {
+        if (!variantMap.has(v.product_id)) variantMap.set(v.product_id, v)
       }
-      if (productRes.error) {
-        console.error('Product error:', productRes.error)
-      }
+
+      const enriched = (productsRes.data || [])
+        .filter((p: any) => p.is_active_for_commercial !== false)
+        .map((p: any) => {
+          const v = variantMap.get(p.id)
+          return {
+            ...p,
+            price_a: v?.price_a ?? 0,
+            price_b: v?.price_b ?? 0,
+            price_c: v?.price_c ?? 0,
+            price_d: v?.price_d ?? 0,
+            price_e: v?.price_e ?? 0,
+            stock: v?.stock ?? p.stock ?? 0,
+          }
+        })
+
       setPromotions((promoRes.data || []) as Promotion[])
-      setProducts((productRes.data || []) as Product[])
+      setProducts(enriched as Product[])
     } catch (error) {
       console.error('Error loading data:', error)
     } finally {
