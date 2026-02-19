@@ -64,10 +64,19 @@ export default function CommercialPromotionsPage() {
   const fetchData = async () => {
     try {
       setLoading(true)
+      console.log('Fetching promotions...')
       const [promoRes, productRes] = await Promise.all([
         supabase.from('promotions').select('*').eq('is_active', true).order('created_at', { ascending: false }),
         supabase.from('products').select('id, name_ar, image_url, price_a, price_b, price_c, price_d, price_e, stock, sku').eq('is_active', true).order('name_ar')
       ])
+      console.log('Promo response:', promoRes)
+      console.log('Products response:', productRes)
+      if (promoRes.error) {
+        console.error('Promo error:', promoRes.error)
+      }
+      if (productRes.error) {
+        console.error('Product error:', productRes.error)
+      }
       setPromotions((promoRes.data || []) as Promotion[])
       setProducts((productRes.data || []) as Product[])
     } catch (error) {
