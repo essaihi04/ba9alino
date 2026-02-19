@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Search, Plus, Trash2, Edit2 } from 'lucide-react'
+import { useEffect, useMemo, useState, useRef } from 'react'
+import { Search, Plus, Trash2, Edit2, Package, X, ChevronDown } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 interface Promotion {
@@ -20,6 +20,14 @@ interface Promotion {
 }
 
 interface ProductOption {
+  id: string
+  name_ar: string
+  image_url?: string | null
+  sku?: string | null
+  category_id?: string | null
+}
+
+interface Category {
   id: string
   name_ar: string
 }
@@ -54,9 +62,147 @@ const formatDate = (value?: string | null) => {
   return new Date(value).toISOString().split('T')[0]
 }
 
+function ProductPicker({
+  value,
+  onChange,
+  products,
+  categories,
+  placeholder,
+}: {
+  value: string
+  onChange: (id: string) => void
+  products: ProductOption[]
+  categories: Category[]
+  placeholder: string
+}) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const [catFilter, setCatFilter] = useState('')
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const filtered = products.filter(p => {
+    const matchSearch = !search || p.name_ar.toLowerCase().includes(search.toLowerCase()) || (p.sku || '').toLowerCase().includes(search.toLowerCase())
+    const matchCat = !catFilter || p.category_id === catFilter
+    return matchSearch && matchCat
+  })
+
+  const selected = products.find(p => p.id === value)
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg bg-white hover:border-indigo-400 transition text-right"
+      >
+        {selected ? (
+          <>
+            {selected.image_url ? (
+              <img src={selected.image_url} className="w-8 h-8 rounded object-contain bg-gray-50 flex-shrink-0" />
+            ) : (
+              <div className="w-8 h-8 rounded bg-gray-100 flex items-center justify-center flex-shrink-0">
+                <Package size={14} className="text-gray-400" />
+              </div>
+            )}
+            <span className="flex-1 text-gray-800 text-sm truncate">{selected.name_ar}</span>
+            <button type="button" onClick={e => { e.stopPropagation(); onChange('') }} className="text-gray-400 hover:text-red-500">
+              <X size={14} />
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="flex-1 text-gray-400 text-sm">{placeholder}</span>
+            <ChevronDown size={16} className="text-gray-400" />
+          </>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute z-50 top-full mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-xl">
+          <div className="p-2 border-b border-gray-100 space-y-2">
+            <div className="relative">
+              <Search size={14} className="absolute right-2 top-2.5 text-gray-400" />
+              <input
+                autoFocus
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="ابحث..."
+                className="w-full pr-7 pl-2 py-1.5 text-sm border border-gray-200 rounded-lg outline-none focus:border-indigo-400"
+              />
+            </div>
+            {categories.length > 0 && (
+              <div className="flex gap-1 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setCatFilter('')}
+                  className={`px-2 py-0.5 rounded-full text-xs font-medium transition ${
+                    !catFilter ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  الكل
+                </button>
+                {categories.map(c => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setCatFilter(c.id)}
+                    className={`px-2 py-0.5 rounded-full text-xs font-medium transition ${
+                      catFilter === c.id ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {c.name_ar}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="max-h-56 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="text-center text-gray-400 text-sm py-4">لا توجد نتائج</p>
+            ) : (
+              filtered.map(p => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => { onChange(p.id); setOpen(false); setSearch('') }}
+                  className={`w-full flex items-center gap-2 px-3 py-2 hover:bg-indigo-50 transition text-right ${
+                    value === p.id ? 'bg-indigo-50' : ''
+                  }`}
+                >
+                  {p.image_url ? (
+                    <img src={p.image_url} className="w-9 h-9 rounded object-contain bg-gray-50 flex-shrink-0" />
+                  ) : (
+                    <div className="w-9 h-9 rounded bg-gray-100 flex items-center justify-center flex-shrink-0">
+                      <Package size={16} className="text-gray-300" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-800 truncate">{p.name_ar}</p>
+                    {p.sku && <p className="text-xs text-gray-400">{p.sku}</p>}
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function PromotionsPage() {
   const [promotions, setPromotions] = useState<Promotion[]>([])
   const [products, setProducts] = useState<ProductOption[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [showModal, setShowModal] = useState(false)
@@ -83,14 +229,13 @@ export default function PromotionsPage() {
 
   const fetchProducts = async () => {
     try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('id, name_ar')
-        .eq('is_active', true)
-        .order('name_ar')
-
-      if (error) throw error
-      setProducts((data || []) as ProductOption[])
+      const [prodRes, catRes] = await Promise.all([
+        supabase.from('products').select('id, name_ar, image_url, sku, category_id').eq('is_active', true).order('name_ar'),
+        supabase.from('product_categories').select('id, name_ar').eq('is_active', true).order('name_ar'),
+      ])
+      if (prodRes.error) throw prodRes.error
+      setProducts((prodRes.data || []) as ProductOption[])
+      setCategories((catRes.data || []) as Category[])
     } catch (error) {
       console.error('Error loading products:', error)
     }
@@ -389,18 +534,13 @@ export default function PromotionsPage() {
               {formData.scope === 'product' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">المنتج المستهدف</label>
-                  <select
+                  <ProductPicker
                     value={formData.product_id}
-                    onChange={(e) => setFormData({ ...formData, product_id: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  >
-                    <option value="">اختر المنتج</option>
-                    {products.map((product) => (
-                      <option key={product.id} value={product.id}>
-                        {product.name_ar}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(id) => setFormData({ ...formData, product_id: id })}
+                    products={products}
+                    categories={categories}
+                    placeholder="اختر المنتج المستهدف..."
+                  />
                 </div>
               )}
 
@@ -456,21 +596,16 @@ export default function PromotionsPage() {
               )}
 
               {formData.type === 'gift' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">منتج الهدية</label>
-                    <select
+                    <ProductPicker
                       value={formData.gift_product_id}
-                      onChange={(e) => setFormData({ ...formData, gift_product_id: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    >
-                      <option value="">اختر منتج الهدية</option>
-                      {products.map((product) => (
-                        <option key={product.id} value={product.id}>
-                          {product.name_ar}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(id) => setFormData({ ...formData, gift_product_id: id })}
+                      products={products}
+                      categories={categories}
+                      placeholder="اختر منتج الهدية..."
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">كمية الهدية</label>
