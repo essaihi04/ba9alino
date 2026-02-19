@@ -31,8 +31,8 @@ export default function CommercialLoginPage() {
         })
 
         if (!virtualErr && virtualData) {
-          const row = Array.isArray(virtualData) ? virtualData[0] : null
-          if (row) {
+          const row = Array.isArray(virtualData) ? virtualData[0] : (virtualData as any)
+          if (row && (row.role || row.id)) {
             const role = String((row as any)?.role || '').toLowerCase()
             const displayName = String((row as any)?.name || username)
             const id = String((row as any)?.id || '')
