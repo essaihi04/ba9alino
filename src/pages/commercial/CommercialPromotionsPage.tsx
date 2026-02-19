@@ -95,19 +95,28 @@ export default function CommercialPromotionsPage() {
     return product.price_e
   }
 
-  // Build a map: product_id -> best promo
+  // Build a map: product_id -> best promo (discount or gift)
   const promoMap = useMemo(() => {
     const map = new Map<string, { promo: Promotion; discountedPrice: number; label: string }>()
     promotions.forEach((promo) => {
-      if (promo.type !== 'discount' || !promo.discount_percent) return
       const applyToProduct = (pid: string) => {
         const product = products.find(p => p.id === pid)
         if (!product) return
         const base = getBasePrice(product)
-        const discounted = base * (1 - (promo.discount_percent! / 100))
+        let discounted = base
+        let label = ''
+        if (promo.type === 'discount' && promo.discount_percent) {
+          discounted = base * (1 - promo.discount_percent / 100)
+          label = `-${promo.discount_percent}%`
+        } else if (promo.type === 'gift') {
+          discounted = base
+          label = promo.title || 'هدية'
+        } else {
+          return
+        }
         const existing = map.get(pid)
         if (!existing || discounted < existing.discountedPrice) {
-          map.set(pid, { promo, discountedPrice: discounted, label: `${promo.discount_percent}%` })
+          map.set(pid, { promo, discountedPrice: discounted, label })
         }
       }
       if (promo.scope === 'global') {
