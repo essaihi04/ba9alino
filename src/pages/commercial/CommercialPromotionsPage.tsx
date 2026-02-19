@@ -31,6 +31,7 @@ interface Product {
   price_e: number
   stock: number
   sku: string | null
+  unit_type: string | null
 }
 
 interface CartItem extends Product {
@@ -67,7 +68,7 @@ export default function CommercialPromotionsPage() {
       const [promoRes, productsRes, variantsRes] = await Promise.all([
         supabase.from('promotions').select('*').eq('is_active', true).order('created_at', { ascending: false }),
         supabase.from('products').select('id, name_ar, image_url, sku, stock, is_active_for_commercial').eq('is_active', true).order('name_ar'),
-        supabase.from('product_variants').select('product_id, price_a, price_b, price_c, price_d, price_e, stock').eq('is_active', true)
+        supabase.from('product_variants').select('product_id, price_a, price_b, price_c, price_d, price_e, stock, unit_type').eq('is_active', true)
       ])
       if (promoRes.error) console.error('Promo error:', promoRes.error)
       if (productsRes.error) console.error('Products error:', productsRes.error)
@@ -90,6 +91,7 @@ export default function CommercialPromotionsPage() {
             price_d: v?.price_d ?? 0,
             price_e: v?.price_e ?? 0,
             stock: v?.stock ?? p.stock ?? 0,
+            unit_type: v?.unit_type ?? null,
           }
         })
 
@@ -227,7 +229,7 @@ export default function CommercialPromotionsPage() {
                     <div className="flex items-center gap-1 mb-1">
                       <Flame size={14} className="text-orange-500" />
                       <span className="text-xs font-bold text-orange-500">
-                        بالروميز {promoPrice.toFixed(2)} د.م.ل صاك
+                        بالروميز {promoPrice.toFixed(2)} د.م{product.unit_type ? ` / ${product.unit_type}` : ''}
                       </span>
                     </div>
 
@@ -264,7 +266,7 @@ export default function CommercialPromotionsPage() {
                     ) : (
                       <button
                         onClick={() => addToCart(product)}
-                        disabled={product.stock === 0}
+                        disabled={getBasePrice(product) === 0}
                         className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl font-bold text-sm disabled:bg-gray-300 disabled:cursor-not-allowed"
                       >
                         أضف للسلة
