@@ -23,7 +23,51 @@ export default function CommercialLoginPage() {
         return
       }
 
-      // Resolve email from user_accounts
+      // --- Try virtual login first (accounts created via virtual_create_account) ---
+      try {
+        const { data: virtualData, error: virtualErr } = await supabase.rpc('virtual_login', {
+          p_name: username.toLowerCase(),
+          p_password: password,
+        })
+
+        if (!virtualErr && virtualData) {
+          const row = Array.isArray(virtualData) ? virtualData[0] : null
+          if (row) {
+            const role = String((row as any)?.role || '').toLowerCase()
+            const displayName = String((row as any)?.name || username)
+            const id = String((row as any)?.id || '')
+
+            if (role === 'commercial') {
+              localStorage.setItem('commercial_id', id)
+              localStorage.setItem('commercial_name', displayName)
+              localStorage.setItem('commercial_role', 'commercial')
+
+              // Fetch allowed price tiers if employee_id linked
+              const { data: empData } = await supabase
+                .from('employees')
+                .select('allowed_price_tiers')
+                .eq('id', id)
+                .maybeSingle()
+              if (empData?.allowed_price_tiers && empData.allowed_price_tiers.length > 0) {
+                localStorage.setItem('commercial_allowed_price_tiers', JSON.stringify(empData.allowed_price_tiers))
+              } else {
+                localStorage.removeItem('commercial_allowed_price_tiers')
+              }
+
+              navigate('/commercial/dashboard')
+              return
+            } else if (role) {
+              setError('هذا الحساب ليس حساباً تجارياً')
+              setLoading(false)
+              return
+            }
+          }
+        }
+      } catch (_) {
+        // virtual_login not available, fall through to user_accounts
+      }
+
+      // --- Fallback: user_accounts table (Supabase Auth accounts) ---
       const { data: ua, error: uaErr } = await supabase
         .from('user_accounts')
         .select('email, role, employee_id, full_name, is_active')
@@ -32,7 +76,7 @@ export default function CommercialLoginPage() {
         .maybeSingle()
 
       if (uaErr || !ua || !ua.email) {
-        setError('رقم الهاتف أو كلمة المرور غير صحيحة')
+        setError('اسم المستخدم أو كلمة المرور غير صحيحة')
         setLoading(false)
         return
       }
@@ -49,7 +93,7 @@ export default function CommercialLoginPage() {
       })
 
       if (signInErr || !signInData.user) {
-        setError('رقم الهاتف أو كلمة المرور غير صحيحة')
+        setError('اسم المستخدم أو كلمة المرور غير صحيحة')
         setLoading(false)
         return
       }
@@ -57,7 +101,6 @@ export default function CommercialLoginPage() {
       if (ua.employee_id) {
         localStorage.setItem('commercial_id', ua.employee_id)
 
-        // Fetch allowed price tiers from employee record
         const { data: empData } = await supabase
           .from('employees')
           .select('allowed_price_tiers')
