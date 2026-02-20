@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { getCategoryLabelArabic } from '../../utils/categoryLabels'
 import { ArrowLeft, Plus, Minus, ShoppingCart, User, Check, Package } from 'lucide-react'
@@ -84,9 +84,11 @@ interface NewClientForm {
 
 export default function CommercialNewOrderPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const inputPad = useInputPad()
   const [searchParams] = useSearchParams()
   const preselectedClientId = searchParams.get('client')
+  const preloadedCart = location.state?.preloadedCart as CartItem[] || null
 
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
@@ -130,6 +132,17 @@ export default function CommercialNewOrderPage() {
       if (client) setSelectedClient(client)
     }
   }, [preselectedClientId, clients])
+
+  useEffect(() => {
+    if (preloadedCart && preloadedCart.length > 0) {
+      setCart(preloadedCart)
+      // If cart has items and no client selected, try to find the client from first item's promo info
+      if (!selectedClient && clients.length > 0) {
+        // For now, just show the cart with items
+        setShowCartSummary(true)
+      }
+    }
+  }, [preloadedCart, selectedClient, clients])
 
   const loadingRef = useRef(false)
 
