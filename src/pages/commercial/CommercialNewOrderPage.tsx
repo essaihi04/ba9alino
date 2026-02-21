@@ -649,31 +649,6 @@ export default function CommercialNewOrderPage() {
                   {selectedClient ? selectedClient.company_name_ar : 'اختر العميل'}
                 </p>
               </div>
-
-              <div className="space-y-2">
-                <label className="block text-sm font-medium">صورة المتجر</label>
-                <div className="flex items-center gap-3">
-                  <label className="flex-1 flex items-center justify-center gap-2 px-3 py-2 border-2 border-dashed rounded-lg cursor-pointer hover:bg-gray-50">
-                    <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoChange} />
-                    <ImageIcon size={18} className="text-gray-500" />
-                    <span className="text-sm font-medium text-gray-600">اختر صورة</span>
-                  </label>
-                  {uploadingPhoto && <span className="text-xs text-blue-600">جاري الرفع...</span>}
-                </div>
-                {photoError && <p className="text-xs text-red-500">{photoError}</p>}
-                {clientForm.shop_photo_url && (
-                  <div className="relative border rounded-lg overflow-hidden">
-                    <img src={clientForm.shop_photo_url} alt="صورة المتجر" className="w-full h-32 object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => setClientForm({ ...clientForm, shop_photo_url: '' })}
-                      className="absolute top-1 left-1 bg-white/80 text-red-600 text-xs px-2 py-0.5 rounded"
-                    >
-                      إزالة
-                    </button>
-                  </div>
-                )}
-              </div>
             </div>
             {selectedClient && (
               <div className="bg-blue-600 text-white px-3 py-1 rounded-full text-sm font-medium">
