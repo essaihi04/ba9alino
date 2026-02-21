@@ -1,7 +1,47 @@
+  const handlePhotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setUploadingPhoto(true)
+    setPhotoError(null)
+    try {
+      if (!SHOP_PHOTO_BUCKET) throw new Error('SHOP_PHOTO_BUCKET not configured')
+      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+      const uniqueId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`
+      const filePath = `shops/${uniqueId}-${file.name}`
+
+      const { error: uploadError } = await supabase.storage
+        .from(SHOP_PHOTO_BUCKET)
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: file.type || `image/${fileExt}`,
+        })
+
+      if (uploadError) throw uploadError
+
+      const { data: publicUrlData } = supabase.storage
+        .from(SHOP_PHOTO_BUCKET)
+        .getPublicUrl(filePath)
+
+      if (!publicUrlData?.publicUrl) throw new Error('No public URL returned')
+
+      setClientForm((prev) => ({ ...prev, shop_photo_url: publicUrlData.publicUrl }))
+    } catch (error: any) {
+      console.error('Error uploading shop photo:', error)
+      if (error?.message === 'SHOP_PHOTO_BUCKET not configured') {
+        setPhotoError('لم يتم ضبط حاوية صور المتاجر. حدِّد VITE_SHOP_PHOTO_BUCKET.')
+      } else {
+        setPhotoError('تعذر رفع الصورة، حاول مرة أخرى')
+      }
+    } finally {
+      setUploadingPhoto(false)
+    }
+  }
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { ArrowLeft, Plus, Minus, ShoppingCart, User, Check, Package, Navigation, MapPin } from 'lucide-react'
+import { ArrowLeft, Plus, Minus, ShoppingCart, User, Check, Package, Navigation, MapPin, Image as ImageIcon } from 'lucide-react'
 import { useInputPad } from '../../components/useInputPad'
 
 const PAGE_SIZE = 60
@@ -81,6 +121,7 @@ interface NewClientForm {
   credit_limit: string
   gps_lat: string
   gps_lng: string
+  shop_photo_url: string
 }
 
 export default function CommercialNewOrderPage() {
@@ -91,6 +132,7 @@ export default function CommercialNewOrderPage() {
   
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
+  const [clients, setClients] = useState<Client[]>([])
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [cart, setCart] = useState<CartItem[]>([])
   const [promotions, setPromotions] = useState<Promotion[]>([])
@@ -112,9 +154,36 @@ export default function CommercialNewOrderPage() {
     subscription_tier: 'E',
     credit_limit: '',
     gps_lat: '',
-    gps_lng: ''
+    gps_lng: '',
+    shop_photo_url: ''
   })
   const [locating, setLocating] = useState(false)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [photoError, setPhotoError] = useState<string | null>(null)
+  const SHOP_PHOTO_BUCKET = import.meta.env.VITE_SHOP_PHOTO_BUCKET
+
+  const handleLocate = () => {
+    if (!navigator.geolocation) {
+      alert('🌍 جهازك لا يدعم تحديد الموقع')
+      return
+    }
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setClientForm((prev) => ({
+          ...prev,
+          gps_lat: position.coords.latitude.toFixed(6),
+          gps_lng: position.coords.longitude.toFixed(6),
+        }))
+        setLocating(false)
+      },
+      () => {
+        alert('❌ تعذر الحصول على الموقع الحالي')
+        setLocating(false)
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    )
+  }
 
   useEffect(() => {
     const commercialId = localStorage.getItem('commercial_id')
@@ -127,11 +196,11 @@ export default function CommercialNewOrderPage() {
   }, [navigate])
 
   useEffect(() => {
-    if (preselectedClientId && selectedClient) {
-      const client = selectedClient
+    if (preselectedClientId && clients.length > 0) {
+      const client = clients.find((c) => c.id === preselectedClientId)
       if (client) setSelectedClient(client)
     }
-  }, [preselectedClientId, selectedClient])
+  }, [preselectedClientId, clients])
 
   useEffect(() => {
     // Check sessionStorage for preloaded cart (more reliable than state)
@@ -155,8 +224,8 @@ export default function CommercialNewOrderPage() {
     if (savedClient) {
       try {
         const clientData = JSON.parse(savedClient)
-        if (clientData && selectedClient) {
-          const client = selectedClient
+        if (clientData && clients.length > 0) {
+          const client = clients.find((c) => c.id === clientData.id)
           if (client) setSelectedClient(client)
           // Clear sessionStorage after loading
           sessionStorage.removeItem('preloadedClient')
@@ -165,7 +234,7 @@ export default function CommercialNewOrderPage() {
         console.error('Error parsing preloaded client:', error)
       }
     }
-  }, [selectedClient])
+  }, [clients])
 
   const loadingRef = useRef(false)
 
@@ -424,6 +493,9 @@ export default function CommercialNewOrderPage() {
           city: clientForm.city || null,
           subscription_tier: clientForm.subscription_tier,
           credit_limit: clientForm.credit_limit ? parseFloat(clientForm.credit_limit) : 0,
+          gps_lat: clientForm.gps_lat ? parseFloat(clientForm.gps_lat) : null,
+          gps_lng: clientForm.gps_lng ? parseFloat(clientForm.gps_lng) : null,
+          shop_photo_url: clientForm.shop_photo_url || null,
           created_by: commercialId
         })
         .select()
@@ -444,7 +516,8 @@ export default function CommercialNewOrderPage() {
         subscription_tier: 'E',
         credit_limit: '',
         gps_lat: '',
-        gps_lng: ''
+        gps_lng: '',
+        shop_photo_url: ''
       })
       await loadData(commercialId)
     } catch (error) {
@@ -575,6 +648,31 @@ export default function CommercialNewOrderPage() {
                 <p className="font-bold text-gray-800">
                   {selectedClient ? selectedClient.company_name_ar : 'اختر العميل'}
                 </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-medium">صورة المتجر</label>
+                <div className="flex items-center gap-3">
+                  <label className="flex-1 flex items-center justify-center gap-2 px-3 py-2 border-2 border-dashed rounded-lg cursor-pointer hover:bg-gray-50">
+                    <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoChange} />
+                    <ImageIcon size={18} className="text-gray-500" />
+                    <span className="text-sm font-medium text-gray-600">اختر صورة</span>
+                  </label>
+                  {uploadingPhoto && <span className="text-xs text-blue-600">جاري الرفع...</span>}
+                </div>
+                {photoError && <p className="text-xs text-red-500">{photoError}</p>}
+                {clientForm.shop_photo_url && (
+                  <div className="relative border rounded-lg overflow-hidden">
+                    <img src={clientForm.shop_photo_url} alt="صورة المتجر" className="w-full h-32 object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setClientForm({ ...clientForm, shop_photo_url: '' })}
+                      className="absolute top-1 left-1 bg-white/80 text-red-600 text-xs px-2 py-0.5 rounded"
+                    >
+                      إزالة
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
             {selectedClient && (
@@ -1167,6 +1265,55 @@ export default function CommercialNewOrderPage() {
                 >
                   {clientForm.credit_limit || '0.00'}
                 </button>
+              </div>
+
+              <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold text-gray-800">موقع المتجر</p>
+                    <p className="text-xs text-gray-500">استخدم GPS أو أدخل الإحداثيات يدوياً</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleLocate}
+                    disabled={locating}
+                    className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-semibold border border-blue-200 text-blue-600 hover:bg-blue-50 disabled:opacity-60"
+                  >
+                    <Navigation size={16} />
+                    {locating ? 'جاري التحديد...' : 'تحديد الموقع'}
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-gray-500">خط العرض (Latitude)</label>
+                    <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                      <MapPin size={14} className="text-gray-400" />
+                      <input
+                        type="text"
+                        value={clientForm.gps_lat}
+                        onChange={(e) => setClientForm({ ...clientForm, gps_lat: e.target.value })}
+                        className="flex-1 outline-none"
+                        placeholder="35.123456"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">خط الطول (Longitude)</label>
+                    <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                      <MapPin size={14} className="text-gray-400" />
+                      <input
+                        type="text"
+                        value={clientForm.gps_lng}
+                        onChange={(e) => setClientForm({ ...clientForm, gps_lng: e.target.value })}
+                        className="flex-1 outline-none"
+                        placeholder="-6.789012"
+                      />
+                    </div>
+                  </div>
+                </div>
+                {(clientForm.gps_lat && clientForm.gps_lng) && (
+                  <p className="text-xs text-green-600">✅ تم حفظ الإحداثيات ({clientForm.gps_lat}, {clientForm.gps_lng})</p>
+                )}
               </div>
 
               <div className="flex gap-3 pt-4">
