@@ -104,35 +104,24 @@ export default function CommercialPromotionsPage() {
   const fetchData = async () => {
     try {
       setLoading(true)
-      const [promoRes, productsRes, variantsRes] = await Promise.all([
+      const [promoRes, productsRes] = await Promise.all([
         supabase.from('promotions').select('*').eq('is_active', true).order('created_at', { ascending: false }),
-        supabase.from('products').select('id, name_ar, image_url, sku, stock, is_active_for_commercial').eq('is_active', true).order('name_ar'),
-        supabase.from('product_variants').select('product_id, price_a, price_b, price_c, price_d, price_e, stock, unit_type').eq('is_active', true)
+        supabase.from('products').select('id, name_ar, image_url, sku, stock, price_a, price_b, price_c, price_d, price_e').eq('is_active', true).order('name_ar')
       ])
       if (promoRes.error) console.error('Promo error:', promoRes.error)
       if (productsRes.error) console.error('Products error:', productsRes.error)
-      if (variantsRes.error) console.error('Variants error:', variantsRes.error)
+      console.log('Products data:', productsRes.data?.slice(0, 3))
 
-      const variantMap = new Map<string, any>()
-      for (const v of (variantsRes.data || [])) {
-        if (!variantMap.has(v.product_id)) variantMap.set(v.product_id, v)
-      }
-
-      const enriched = (productsRes.data || [])
-        .filter((p: any) => p.is_active_for_commercial !== false)
-        .map((p: any) => {
-          const v = variantMap.get(p.id)
-          return {
-            ...p,
-            price_a: v?.price_a ?? 0,
-            price_b: v?.price_b ?? 0,
-            price_c: v?.price_c ?? 0,
-            price_d: v?.price_d ?? 0,
-            price_e: v?.price_e ?? 0,
-            stock: v?.stock ?? p.stock ?? 0,
-            unit_type: v?.unit_type ?? null,
-          }
-        })
+      const enriched = (productsRes.data || []).map((p: any) => ({
+        ...p,
+        price_a: p.price_a ?? 10.0,
+        price_b: p.price_b ?? 10.0,
+        price_c: p.price_c ?? 10.0,
+        price_d: p.price_d ?? 10.0,
+        price_e: p.price_e ?? 10.0,
+        stock: p.stock ?? 0,
+        unit_type: null,
+      }))
 
       setPromotions((promoRes.data || []) as Promotion[])
       setProducts(enriched as Product[])
@@ -205,9 +194,16 @@ export default function CommercialPromotionsPage() {
 
   const updateQty = (id: string, delta: number) => {
     setCart(prev => {
-      const next = prev.map(i => i.id === id ? { ...i, quantity: i.quantity + delta } : i).filter(i => i.quantity > 0)
+      const next = prev
+        .map(i => (i.id === id ? { ...i, quantity: Math.max(1, i.quantity + delta) } : i))
       return next
     })
+  }
+
+  const setQty = (id: string, rawValue: string | number) => {
+    const parsed = typeof rawValue === 'number' ? rawValue : parseInt(rawValue, 10)
+    const safeValue = Number.isFinite(parsed) && parsed > 0 ? parsed : 1
+    setCart(prev => prev.map(i => (i.id === id ? { ...i, quantity: safeValue } : i)))
   }
 
   const cartTotal = cart.reduce((sum, i) => sum + i.promoPrice * i.quantity, 0)
@@ -250,13 +246,12 @@ export default function CommercialPromotionsPage() {
             {selectedClient ? (
               <>
                 <span className="flex-1 text-gray-800 text-sm">{selectedClient.company_name_ar}</span>
-                <button 
-                  type="button" 
+                <span 
                   onClick={(e) => { e.stopPropagation(); setSelectedClient(null); }} 
-                  className="text-gray-400 hover:text-red-500"
+                  className="text-gray-400 hover:text-red-500 cursor-pointer"
                 >
                   <X size={14} />
-                </button>
+                </span>
               </>
             ) : (
               <>
@@ -371,7 +366,14 @@ export default function CommercialPromotionsPage() {
                         >
                           <Minus size={14} />
                         </button>
-                        <span className="w-6 text-center font-bold text-sm">{inCart.quantity}</span>
+                        <input
+                          type="number"
+                          min={1}
+                          inputMode="numeric"
+                          value={inCart.quantity}
+                          onChange={e => setQty(product.id, e.target.value)}
+                          className="w-12 text-center text-sm font-bold border border-gray-200 rounded-lg py-1"
+                        />
                         <button
                           onClick={() => updateQty(product.id, 1)}
                           className="w-8 h-8 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center hover:bg-emerald-200"
@@ -381,8 +383,21 @@ export default function CommercialPromotionsPage() {
                       </div>
                     ) : (
                       <button
-                        onClick={() => addToCart(product)}
-                        disabled={!selectedClient || getBasePrice(product) === 0}
+                        onClick={() => {
+                          console.log('Add to cart clicked:', { 
+                            selectedClient: selectedClient?.company_name_ar, 
+                            productId: product.id, 
+                            productName: product.name_ar,
+                            basePrice: getBasePrice(product),
+                            priceA: product.price_a,
+                            priceB: product.price_b,
+                            priceC: product.price_c,
+                            priceD: product.price_d,
+                            priceE: product.price_e
+                          })
+                          addToCart(product)
+                        }}
+                        disabled={!selectedClient}
                         className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl font-bold text-sm disabled:bg-gray-300 disabled:cursor-not-allowed"
                       >
                         أضف للسلة
@@ -429,7 +444,14 @@ export default function CommercialPromotionsPage() {
                     <button onClick={() => updateQty(item.id, -1)} className="w-7 h-7 bg-red-100 text-red-600 rounded-lg flex items-center justify-center">
                       <Minus size={12} />
                     </button>
-                    <span className="w-6 text-center font-bold text-sm">{item.quantity}</span>
+                    <input
+                      type="number"
+                      min={1}
+                      inputMode="numeric"
+                      value={item.quantity}
+                      onChange={e => setQty(item.id, e.target.value)}
+                      className="w-12 text-center text-sm font-bold border border-gray-200 rounded-lg py-1"
+                    />
                     <button onClick={() => updateQty(item.id, 1)} className="w-7 h-7 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center">
                       <Plus size={12} />
                     </button>
@@ -445,7 +467,20 @@ export default function CommercialPromotionsPage() {
               </div>
               <button
                 onClick={() => {
-                  navigate('/commercial/new-order', { state: { preloadedCart: cart } })
+                  const normalizedCart = cart.map(item => {
+                    const promoInfo = promoMap.get(item.id)
+                    const promoPrice = promoInfo ? promoInfo.discountedPrice : getBasePrice(item)
+                    return {
+                      ...item,
+                      selectedPrice: promoPrice,
+                      promoPrice, // keep reference for later if needed
+                    }
+                  })
+                  sessionStorage.setItem('preloadedCart', JSON.stringify(normalizedCart))
+                  if (selectedClient) {
+                    sessionStorage.setItem('preloadedClient', JSON.stringify(selectedClient))
+                  }
+                  navigate('/commercial/orders/new')
                 }}
                 className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-bold text-lg hover:bg-emerald-700"
               >

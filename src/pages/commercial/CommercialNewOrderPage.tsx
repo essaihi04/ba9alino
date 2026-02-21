@@ -1,8 +1,7 @@
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
-import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
-import { getCategoryLabelArabic } from '../../utils/categoryLabels'
-import { ArrowLeft, Plus, Minus, ShoppingCart, User, Check, Package } from 'lucide-react'
+import { ArrowLeft, Plus, Minus, ShoppingCart, User, Check, Package, Navigation, MapPin } from 'lucide-react'
 import { useInputPad } from '../../components/useInputPad'
 
 const PAGE_SIZE = 60
@@ -80,19 +79,18 @@ interface NewClientForm {
   city: string
   subscription_tier: string
   credit_limit: string
+  gps_lat: string
+  gps_lng: string
 }
 
 export default function CommercialNewOrderPage() {
   const navigate = useNavigate()
-  const location = useLocation()
   const inputPad = useInputPad()
   const [searchParams] = useSearchParams()
   const preselectedClientId = searchParams.get('client')
-  const preloadedCart = location.state?.preloadedCart as CartItem[] || null
-
+  
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
-  const [clients, setClients] = useState<Client[]>([])
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [cart, setCart] = useState<CartItem[]>([])
   const [promotions, setPromotions] = useState<Promotion[]>([])
@@ -101,7 +99,6 @@ export default function CommercialNewOrderPage() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [showClientModal, setShowClientModal] = useState(false)
   const [showCreateClientModal, setShowCreateClientModal] = useState(false)
-  const [allowedTiers, setAllowedTiers] = useState<string[]>([])
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
   const [showCartSummary, setShowCartSummary] = useState(false)
   const [clientForm, setClientForm] = useState<NewClientForm>({
@@ -113,8 +110,11 @@ export default function CommercialNewOrderPage() {
     address: '',
     city: '',
     subscription_tier: 'E',
-    credit_limit: ''
+    credit_limit: '',
+    gps_lat: '',
+    gps_lng: ''
   })
+  const [locating, setLocating] = useState(false)
 
   useEffect(() => {
     const commercialId = localStorage.getItem('commercial_id')
@@ -127,22 +127,45 @@ export default function CommercialNewOrderPage() {
   }, [navigate])
 
   useEffect(() => {
-    if (preselectedClientId && clients.length > 0) {
-      const client = clients.find(c => c.id === preselectedClientId)
+    if (preselectedClientId && selectedClient) {
+      const client = selectedClient
       if (client) setSelectedClient(client)
     }
-  }, [preselectedClientId, clients])
+  }, [preselectedClientId, selectedClient])
 
   useEffect(() => {
-    if (preloadedCart && preloadedCart.length > 0) {
-      setCart(preloadedCart)
-      // If cart has items and no client selected, try to find the client from first item's promo info
-      if (!selectedClient && clients.length > 0) {
-        // For now, just show the cart with items
-        setShowCartSummary(true)
+    // Check sessionStorage for preloaded cart (more reliable than state)
+    const savedCart = sessionStorage.getItem('preloadedCart')
+    const savedClient = sessionStorage.getItem('preloadedClient')
+    
+    if (savedCart) {
+      try {
+        const cartData = JSON.parse(savedCart)
+        if (cartData && cartData.length > 0) {
+          setCart(cartData)
+          setShowCartSummary(true)
+          // Clear sessionStorage after loading
+          sessionStorage.removeItem('preloadedCart')
+        }
+      } catch (error) {
+        console.error('Error parsing preloaded cart:', error)
       }
     }
-  }, [preloadedCart, selectedClient, clients])
+    
+    if (savedClient) {
+      try {
+        const clientData = JSON.parse(savedClient)
+        if (clientData && selectedClient) {
+          const client = selectedClient
+          if (client) setSelectedClient(client)
+          // Clear sessionStorage after loading
+          sessionStorage.removeItem('preloadedClient')
+        }
+      } catch (error) {
+        console.error('Error parsing preloaded client:', error)
+      }
+    }
+  }, [selectedClient])
 
   const loadingRef = useRef(false)
 
@@ -163,50 +186,6 @@ export default function CommercialNewOrderPage() {
     loadingRef.current = true
     setLoading(true)
     try {
-      // 0) Fetch employee's allowed_price_tiers
-      const commercialName = localStorage.getItem('commercial_name') || ''
-      let tiers: string[] = []
-
-      // Fetch all employees that have allowed_price_tiers configured
-      const { data: empsWithTiers } = await supabase
-        .from('employees')
-        .select('id, name, phone, allowed_price_tiers')
-        .not('allowed_price_tiers', 'is', null)
-
-      if (empsWithTiers && empsWithTiers.length > 0) {
-        let match = empsWithTiers.find(e => e.id === commercialId)
-        if (!match) match = empsWithTiers.find(e => e.name === commercialName)
-        if (!match) match = empsWithTiers.find(e =>
-          e.name?.toLowerCase().includes(commercialName.toLowerCase()) ||
-          commercialName.toLowerCase().includes(e.name?.toLowerCase() || '')
-        )
-        if (!match) {
-          const { data: { user } } = await supabase.auth.getUser()
-          if (user?.email) {
-            const { data: ua } = await supabase
-              .from('user_accounts')
-              .select('username')
-              .eq('email', user.email)
-              .maybeSingle()
-            if (ua?.username) {
-              match = empsWithTiers.find(e => e.phone === ua.username)
-            }
-          }
-        }
-        if (match?.allowed_price_tiers && match.allowed_price_tiers.length > 0) {
-          tiers = match.allowed_price_tiers
-          console.log('[TIERS] matched employee:', match.name, tiers)
-        }
-      }
-
-      setAllowedTiers(tiers)
-      if (tiers.length > 0) {
-        localStorage.setItem('commercial_allowed_price_tiers', JSON.stringify(tiers))
-      } else {
-        localStorage.removeItem('commercial_allowed_price_tiers')
-      }
-      console.log('[TIERS] final:', tiers)
-
       // 1) Fetch products, variants, categories, clients, promotions ALL in parallel
       const fetchAllPages = async (table: string, select: string, filters?: { col: string, val: any }[]) => {
         let allData: any[] = []
@@ -301,7 +280,7 @@ export default function CommercialNewOrderPage() {
 
   const addToCart = (product: Product) => {
     if (!selectedClient) {
-      alert('الرجاء اختيار العميل أولاً')
+      alert('يرجى اختيار العميل أولاً')
       return
     }
 
@@ -327,11 +306,17 @@ export default function CommercialNewOrderPage() {
   const updateQuantity = (productId: string, delta: number) => {
     setCart(cart.map(item => {
       if (item.id === productId) {
-        const newQuantity = item.quantity + delta
-        return newQuantity > 0 ? { ...item, quantity: newQuantity } : item
+        const newQuantity = Math.max(1, item.quantity + delta)
+        return { ...item, quantity: newQuantity }
       }
       return item
-    }).filter(item => item.quantity > 0))
+    }))
+  }
+
+  const setQuantity = (productId: string, rawValue: string | number) => {
+    const parsed = typeof rawValue === 'number' ? rawValue : parseInt(rawValue, 10)
+    const safeValue = Number.isFinite(parsed) ? Math.max(1, parsed) : 1
+    setCart(cart.map(item => (item.id === productId ? { ...item, quantity: safeValue } : item)))
   }
 
   const calculateSubtotal = () => {
@@ -457,7 +442,9 @@ export default function CommercialNewOrderPage() {
         address: '',
         city: '',
         subscription_tier: 'E',
-        credit_limit: ''
+        credit_limit: '',
+        gps_lat: '',
+        gps_lng: ''
       })
       await loadData(commercialId)
     } catch (error) {
@@ -695,7 +682,12 @@ export default function CommercialNewOrderPage() {
                     {/* Gift Product Image */}
                     <div className="w-16 h-16 bg-white rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
                       {promo.type === 'gift' && giftProduct?.image_url ? (
-                        <img src={giftProduct.image_url} alt={giftProduct.name_ar} className="w-full h-full object-contain p-1" />
+                        <img
+                          src={giftProduct.image_url}
+                          alt={giftProduct.name_ar}
+                          className="w-full h-full object-contain p-1"
+                          loading="lazy"
+                        />
                       ) : promo.type === 'gift' ? (
                         <Package size={32} className="text-orange-300" />
                       ) : (
@@ -905,7 +897,14 @@ export default function CommercialNewOrderPage() {
                   >
                     <Minus size={14} />
                   </button>
-                  <span className="w-8 text-center font-bold text-sm">{item.quantity}</span>
+                  <input
+                    type="number"
+                    min={1}
+                    inputMode="numeric"
+                    value={item.quantity}
+                    onChange={e => setQuantity(item.id, e.target.value)}
+                    className="w-12 text-center font-bold text-sm border border-gray-200 rounded-lg py-1"
+                  />
                   <button
                     onClick={() => updateQuantity(item.id, 1)}
                     className="w-7 h-7 bg-green-100 text-green-600 rounded hover:bg-green-200 flex items-center justify-center text-sm font-bold"
@@ -1019,7 +1018,10 @@ export default function CommercialNewOrderPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">اسم الشركة (English)</label>
+                <label className="block text-sm font-medium mb-1">
+                  اسم الشركة (English)
+                  <span className="text-xs text-gray-400 mr-2">اختياري</span>
+                </label>
                 <input
                   type="text"
                   value={clientForm.company_name_en}
@@ -1030,10 +1032,12 @@ export default function CommercialNewOrderPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">اسم جهة الاتصال *</label>
+                <label className="block text-sm font-medium mb-1">
+                  اسم جهة الاتصال
+                  <span className="text-xs text-gray-400 mr-2">اختياري</span>
+                </label>
                 <input
                   type="text"
-                  required
                   value={clientForm.contact_person_name}
                   onChange={(e) => setClientForm({ ...clientForm, contact_person_name: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1061,7 +1065,10 @@ export default function CommercialNewOrderPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">البريد الإلكتروني</label>
+                <label className="block text-sm font-medium mb-1">
+                  البريد الإلكتروني
+                  <span className="text-xs text-gray-400 mr-2">اختياري</span>
+                </label>
                 <button
                   type="button"
                   onClick={() =>
@@ -1080,7 +1087,10 @@ export default function CommercialNewOrderPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">العنوان</label>
+                <label className="block text-sm font-medium mb-1">
+                  العنوان
+                  <span className="text-xs text-gray-400 mr-2">اختياري</span>
+                </label>
                 <button
                   type="button"
                   onClick={() =>
@@ -1098,7 +1108,10 @@ export default function CommercialNewOrderPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">المدينة</label>
+                <label className="block text-sm font-medium mb-1">
+                  المدينة
+                  <span className="text-xs text-gray-400 mr-2">اختياري</span>
+                </label>
                 <button
                   type="button"
                   onClick={() =>
@@ -1116,7 +1129,10 @@ export default function CommercialNewOrderPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">فئة الاشتراك</label>
+                <label className="block text-sm font-medium mb-1">
+                  فئة الاشتراك
+                  <span className="text-xs text-gray-400 mr-2">افتراضي = E</span>
+                </label>
                 <select
                   value={clientForm.subscription_tier}
                   onChange={(e) => setClientForm({ ...clientForm, subscription_tier: e.target.value })}
@@ -1131,7 +1147,10 @@ export default function CommercialNewOrderPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">حد الائتمان</label>
+                <label className="block text-sm font-medium mb-1">
+                  حد الائتمان
+                  <span className="text-xs text-gray-400 mr-2">اختياري</span>
+                </label>
                 <button
                   type="button"
                   onClick={() =>
