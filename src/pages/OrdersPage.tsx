@@ -98,8 +98,12 @@ interface ProductVariant {
 export default function OrdersPage() {
   const navigate = useNavigate()
   const inputPad = useInputPad()
+  const ORDERS_PER_PAGE = 30
+  const ORDERS_CACHE_KEY = 'orders_page_cache'
+  const ORDERS_CACHE_TTL_MS = 2 * 60 * 1000
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [filterPayment, setFilterPayment] = useState<string>('all')
@@ -166,7 +170,7 @@ export default function OrdersPage() {
     // Listen for payment updates from invoices page
     const handlePaymentUpdate = (event: CustomEvent) => {
       // Refresh orders to get updated payment status
-      fetchOrders()
+      fetchOrders(true)
     }
     
     window.addEventListener('payment-updated', handlePaymentUpdate as EventListener)
@@ -175,6 +179,10 @@ export default function OrdersPage() {
       window.removeEventListener('payment-updated', handlePaymentUpdate as EventListener)
     }
   }, [])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, filterStatus, filterPayment, dateRange.start, dateRange.end])
 
   useEffect(() => {
     fetchClients()
@@ -218,49 +226,106 @@ export default function OrdersPage() {
     }
   }, [showCreateModal])
 
-  const fetchOrders = async () => {
+  const isAbortError = (error: unknown) => {
+    const err = error as { name?: string; message?: string; details?: string }
+    const name = String(err?.name || '')
+    const message = String(err?.message || '')
+    const details = String(err?.details || '')
+    return (
+      name === 'AbortError' ||
+      message.includes('AbortError') ||
+      message.includes('signal is aborted') ||
+      details.includes('signal is aborted')
+    )
+  }
+
+  const fetchOrders = async (forceRefresh = false) => {
     try {
       setLoading(true)
-      // Enhanced query with employee and client joins
-      const { data, error } = await supabase
+
+      if (!forceRefresh) {
+        try {
+          const rawCache = sessionStorage.getItem(ORDERS_CACHE_KEY)
+          if (rawCache) {
+            const parsed = JSON.parse(rawCache) as { ts?: number; orders?: Order[] }
+            const isValid =
+              typeof parsed?.ts === 'number' &&
+              Date.now() - parsed.ts < ORDERS_CACHE_TTL_MS &&
+              Array.isArray(parsed?.orders)
+
+            if (isValid) {
+              setOrders(parsed.orders || [])
+              return
+            }
+          }
+        } catch (cacheError) {
+          console.warn('Orders cache parse error, ignoring cache:', cacheError)
+        }
+      }
+
+      const baseSelect = `
+        *,
+        client:client_id (
+          id,
+          company_name_ar,
+          company_name_en,
+          address,
+          city,
+          contact_person_phone,
+          subscription_tier
+        ),
+        warehouse:warehouse_id (
+          id,
+          name,
+          address,
+          is_active
+        )
+      `
+
+      const withEmployeeSelect = `
+        ${baseSelect},
+        employee:created_by (
+          id,
+          name,
+          phone,
+          role,
+          status
+        )
+      `
+
+      let { data, error } = await supabase
         .from('orders')
-        .select(`
-          *,
-          client:client_id (
-            id,
-            company_name_ar,
-            company_name_en,
-            address,
-            city,
-            contact_person_phone,
-            subscription_tier
-          ),
-          employee:created_by (
-            id,
-            name,
-            phone,
-            role,
-            status
-          ),
-          warehouse:warehouse_id (
-            id,
-            name,
-            address,
-            is_active
-          )
-        `)
+        .select(withEmployeeSelect)
         .order('order_date', { ascending: false })
 
+      // Fallback: some databases don't have a usable FK relation for created_by -> employees
       if (error) {
-        console.error('Orders query failed:', error)
-        throw error
+        console.warn('Orders query with employee join failed, retrying without employee join:', error)
+        const retry = await supabase
+          .from('orders')
+          .select(baseSelect)
+          .order('order_date', { ascending: false })
+        data = retry.data
+        error = retry.error
       }
+
+      if (error) throw error
       
       console.log('Orders fetched successfully:', data?.length || 0, 'orders')
       console.log('Sample order with employee:', data?.[0])
       setOrders(data || [])
+      try {
+        sessionStorage.setItem(
+          ORDERS_CACHE_KEY,
+          JSON.stringify({ ts: Date.now(), orders: data || [] })
+        )
+      } catch (cacheWriteError) {
+        console.warn('Orders cache write error:', cacheWriteError)
+      }
     } catch (error) {
-      console.error('Error fetching orders:', error)
+      if (!isAbortError(error)) {
+        console.error('Error fetching orders:', error)
+      }
     } finally {
       setLoading(false)
     }
@@ -298,7 +363,9 @@ export default function OrdersPage() {
       if (error) throw error
       setCategories((data || []) as Category[])
     } catch (error) {
-      console.error('Error fetching categories:', error)
+      if (!isAbortError(error)) {
+        console.error('Error fetching categories:', error)
+      }
       setCategories([])
     }
   }
@@ -1178,7 +1245,7 @@ export default function OrdersPage() {
       setProductSearchTerm('')
       
       // Refresh orders
-      fetchOrders()
+      fetchOrders(true)
       
       alert('تم إنشاء الطلب بنجاح')
       
@@ -1231,7 +1298,7 @@ export default function OrdersPage() {
         setNewStatus('')
       }
       
-      fetchOrders()
+      fetchOrders(true)
     } catch (error: any) {
       console.error('Error updating order status:', error)
       alert(`حدث خطأ أثناء تحديث الحالة: ${error?.message || 'خطأ غير معروف'}`)
@@ -1356,7 +1423,7 @@ export default function OrdersPage() {
       }
 
       setShowPaymentModal(false)
-      fetchOrders()
+      fetchOrders(true)
       
       // Reset payment and cheque data
       setPaymentData({
@@ -1523,6 +1590,13 @@ export default function OrdersPage() {
 
     return filtered
   }, [orders, searchTerm, filterStatus, filterPayment, dateRange])
+
+  const totalOrderPages = Math.max(1, Math.ceil(filteredOrders.length / ORDERS_PER_PAGE))
+  const safeOrderPage = Math.min(currentPage, totalOrderPages)
+  const paginatedOrders = useMemo(() => {
+    const start = (safeOrderPage - 1) * ORDERS_PER_PAGE
+    return filteredOrders.slice(start, start + ORDERS_PER_PAGE)
+  }, [filteredOrders, safeOrderPage, ORDERS_PER_PAGE])
 
   const stats = useMemo(() => {
     const total = orders.length
@@ -1730,18 +1804,18 @@ export default function OrdersPage() {
             <tbody className="divide-y">
               {loading ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center">
+                  <td colSpan={11} className="px-4 py-8 text-center">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
                   </td>
                 </tr>
               ) : filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
                     لا توجد طلبات
                   </td>
                 </tr>
               ) : (
-                filteredOrders.map((order) => (
+                paginatedOrders.map((order) => (
                   <tr key={order.id} className="hover:bg-gray-50">
                     <td className="px-3 py-4">
                       <p className="font-medium">#{order.order_number}</p>
@@ -1881,6 +1955,46 @@ export default function OrdersPage() {
             </tbody>
           </table>
         </div>
+        {filteredOrders.length > ORDERS_PER_PAGE && (
+          <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-t">
+            <div className="text-sm text-gray-600">
+              عرض {((safeOrderPage - 1) * ORDERS_PER_PAGE) + 1} - {Math.min(safeOrderPage * ORDERS_PER_PAGE, filteredOrders.length)} من {filteredOrders.length} طلب
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setCurrentPage(1)}
+                disabled={safeOrderPage <= 1}
+                className="px-2 py-1 rounded text-xs font-bold bg-gray-200 hover:bg-gray-300 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                الأولى
+              </button>
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={safeOrderPage <= 1}
+                className="px-2 py-1 rounded text-xs font-bold bg-gray-200 hover:bg-gray-300 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                السابق
+              </button>
+              <span className="px-2 text-xs text-gray-600">
+                {safeOrderPage} / {totalOrderPages}
+              </span>
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(totalOrderPages, p + 1))}
+                disabled={safeOrderPage >= totalOrderPages}
+                className="px-2 py-1 rounded text-xs font-bold bg-gray-200 hover:bg-gray-300 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                التالي
+              </button>
+              <button
+                onClick={() => setCurrentPage(totalOrderPages)}
+                disabled={safeOrderPage >= totalOrderPages}
+                className="px-2 py-1 rounded text-xs font-bold bg-gray-200 hover:bg-gray-300 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                الأخيرة
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Order Details Modal */}

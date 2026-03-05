@@ -67,6 +67,13 @@ interface Category {
   description_en?: string
 }
 
+interface ProductsCacheEntry {
+  ts: number
+  products: Product[]
+}
+
+let productsMemoryCache: ProductsCacheEntry | null = null
+
 export default function ProductsPage() {
   const inputPad = useInputPad()
   const [products, setProducts] = useState<Product[]>([])
@@ -117,10 +124,13 @@ export default function ProductsPage() {
   const barcodeInputRef = useRef<HTMLInputElement | null>(null)
 
   // Pagination
-  const PRODUCTS_PER_PAGE = 50
+  const PRODUCTS_PER_PAGE = 30
+  const PRODUCTS_CACHE_KEY = 'products_page_cache'
+  const PRODUCTS_CACHE_TTL_MS = 2 * 60 * 1000
   const [currentPage, setCurrentPage] = useState(1)
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const lastLoadRef = useRef<number>(0)
+  const productsCacheDisabledRef = useRef(false)
 
   // Import Excel progress
   const [importProgress, setImportProgress] = useState<{ current: number; total: number; added: number; duplicates: number; noBarcode: number; noName: number; errors: number } | null>(null)
@@ -187,10 +197,86 @@ export default function ProductsPage() {
     return () => clearTimeout(timeout)
   }, [barcodeInput, showAddModal])
 
-  const loadProducts = async () => {
+  const isAbortError = (error: unknown) => {
+    const err = error as { name?: string; message?: string; details?: string }
+    const name = String(err?.name || '')
+    const message = String(err?.message || '')
+    const details = String(err?.details || '')
+    return (
+      name === 'AbortError' ||
+      message.includes('AbortError') ||
+      message.includes('signal is aborted') ||
+      details.includes('signal is aborted')
+    )
+  }
+
+  const writeProductsCache = (productsToCache: Product[]) => {
+    productsMemoryCache = { ts: Date.now(), products: productsToCache }
+
+    if (productsCacheDisabledRef.current) return
+
+    try {
+      const payload = JSON.stringify(productsMemoryCache)
+
+      // Prevent quota overflow in browsers with strict sessionStorage limits.
+      if (payload.length > 2_500_000) {
+        productsCacheDisabledRef.current = true
+        sessionStorage.removeItem(PRODUCTS_CACHE_KEY)
+        return
+      }
+
+      sessionStorage.setItem(PRODUCTS_CACHE_KEY, payload)
+    } catch (error) {
+      const domErr = error as DOMException
+      const isQuotaError =
+        domErr?.name === 'QuotaExceededError' ||
+        domErr?.name === 'NS_ERROR_DOM_QUOTA_REACHED'
+
+      if (isQuotaError) {
+        productsCacheDisabledRef.current = true
+        try {
+          sessionStorage.removeItem(PRODUCTS_CACHE_KEY)
+        } catch {
+        }
+      }
+    }
+  }
+
+  const loadProducts = async (forceRefresh = false) => {
     setLoading(true)
     try {
-      console.time('⏱️ Products loadProducts total')
+      const startedAt = performance.now()
+
+      if (!forceRefresh) {
+        if (
+          productsMemoryCache &&
+          Date.now() - productsMemoryCache.ts < PRODUCTS_CACHE_TTL_MS
+        ) {
+          setProducts(productsMemoryCache.products || [])
+          lastLoadRef.current = Date.now()
+          return
+        }
+
+        try {
+          const rawCache = sessionStorage.getItem(PRODUCTS_CACHE_KEY)
+          if (rawCache) {
+            const parsed = JSON.parse(rawCache) as { ts?: number; products?: Product[] }
+            const isValid =
+              typeof parsed?.ts === 'number' &&
+              Date.now() - parsed.ts < PRODUCTS_CACHE_TTL_MS &&
+              Array.isArray(parsed?.products)
+
+            if (isValid) {
+              setProducts(parsed.products || [])
+              productsMemoryCache = { ts: parsed.ts as number, products: parsed.products || [] }
+              lastLoadRef.current = Date.now()
+              return
+            }
+          }
+        } catch (cacheError) {
+          console.warn('Products cache parse error, ignoring cache:', cacheError)
+        }
+      }
 
       // Helper: batch .in() queries in PARALLEL — keep batch small to avoid URL length limit
       const BATCH_IN_SIZE = 300
@@ -215,7 +301,7 @@ export default function ProductsPage() {
       }
 
       // Paginate to fetch ALL products (sequential — safe with Supabase)
-      console.time('⏱️ fetch products')
+      const fetchProductsStartedAt = performance.now()
       let allData: any[] = []
       let from = 0
       const pageSize = 1000
@@ -232,12 +318,12 @@ export default function ProductsPage() {
         if (page.length < pageSize) break
         from += pageSize
       }
-      console.timeEnd('⏱️ fetch products')
+      console.log('⏱️ fetch products:', (performance.now() - fetchProductsStartedAt).toFixed(2), 'ms')
       console.log('Produits récupérés:', allData.length, 'produits')
 
       if (allData.length > 0) {
         const productIds = allData.map(p => p.id)
-        console.time('⏱️ fetch variants')
+        const fetchVariantsStartedAt = performance.now()
         const variants = await batchInParallel(
           'product_variants',
           'product_id, primary_variant_id, unit_type, quantity_contained, stock',
@@ -245,7 +331,7 @@ export default function ProductsPage() {
           productIds,
           (q: any) => q.eq('is_active', true)
         )
-        console.timeEnd('⏱️ fetch variants')
+        console.log('⏱️ fetch variants:', (performance.now() - fetchVariantsStartedAt).toFixed(2), 'ms')
 
         const byProduct = new Map<string, any[]>()
         variants.forEach(v => {
@@ -280,13 +366,18 @@ export default function ProductsPage() {
         })
 
         setProducts(enriched)
+        writeProductsCache(enriched)
       } else {
         setProducts([])
+        productsMemoryCache = { ts: Date.now(), products: [] }
+        sessionStorage.removeItem(PRODUCTS_CACHE_KEY)
       }
       lastLoadRef.current = Date.now()
-      console.timeEnd('⏱️ Products loadProducts total')
+      console.log('⏱️ Products loadProducts total:', (performance.now() - startedAt).toFixed(2), 'ms')
     } catch (error) {
-      console.error('Error loading products:', error)
+      if (!isAbortError(error)) {
+        console.error('Error loading products:', error)
+      }
     } finally {
       setLoading(false)
     }
@@ -349,7 +440,9 @@ export default function ProductsPage() {
       if (error) throw error
       setCategories((data || []) as Category[])
     } catch (error) {
-      console.error('Error loading categories:', error)
+      if (!isAbortError(error)) {
+        console.error('Error loading categories:', error)
+      }
     }
   }
 
@@ -742,7 +835,7 @@ export default function ProductsPage() {
         .in('id', ids)
 
       if (error) throw error
-      await loadProducts()
+      await loadProducts(true)
       await loadCategories()
       clearSelection()
       setBulkTargetCategoryId('')
@@ -787,7 +880,7 @@ export default function ProductsPage() {
         if (error) throw error
       }
 
-      await loadProducts()
+      await loadProducts(true)
       clearSelection()
       alert('✅ تم حذف/أرشفة المنتجات')
     } catch (e) {
@@ -828,7 +921,7 @@ export default function ProductsPage() {
         .update({ price_a: parseFloat(editPrice) })
         .eq('id', selectedProduct.id)
 
-      await loadProducts()
+      await loadProducts(true)
       setShowEditModal(false)
       setSelectedProduct(null)
       setEditPrice('')
@@ -922,7 +1015,7 @@ export default function ProductsPage() {
         })
         .eq('id', selectedProduct.id)
 
-      await loadProducts()
+      await loadProducts(true)
       setShowStockModal(false)
       setSelectedProduct(null)
       setStockQuantity('')
@@ -1145,7 +1238,7 @@ export default function ProductsPage() {
         }
       }
 
-      await loadProducts()
+      await loadProducts(true)
       setFormData({
         name_ar: '',
         sku: '',
@@ -1557,7 +1650,7 @@ export default function ProductsPage() {
       setBarcodeLookupResult(null)
       
       alert('✅ تم إضافة المنتج بنجاح')
-      await loadProducts()
+      await loadProducts(true)
     } catch (error) {
       console.error('Error adding product:', error)
       alert(`❌ حدث خطأ: ${error instanceof Error ? error.message : 'Erreur inconnue'}`)
@@ -1694,7 +1787,7 @@ export default function ProductsPage() {
       }
 
       setImportProgress(null)
-      await loadProducts()
+      await loadProducts(true)
       await loadCategories()
 
       let msg = `📊 ملخص الاستيراد:\n`
@@ -1835,45 +1928,27 @@ export default function ProductsPage() {
       {/* العائلات (Catégories) */}
       <div className="flex-none bg-white border-b px-4 py-1">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+          <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-gray-700 whitespace-nowrap">العائلات:</span>
-            <button
-              onClick={() => setSelectedCategory(null)}
-              className={`px-2 py-0.5 rounded transition-colors text-xs ${
-                !selectedCategory
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+            <select
+              value={selectedCategory ?? '__all__'}
+              onChange={(e) => {
+                const value = e.target.value
+                setSelectedCategory(value === '__all__' ? null : value)
+              }}
+              className="text-xs border border-gray-300 rounded px-2 py-1 min-w-[220px] bg-white focus:border-purple-500 focus:outline-none"
             >
-              جميع ({products.length})
-            </button>
-            <button
-              onClick={() => setSelectedCategory('no-family')}
-              className={`px-2 py-0.5 rounded transition-colors text-xs ${
-                selectedCategory === 'no-family'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              بدون ({products.filter(p => !p.category_id).length})
-            </button>
-            {categories.map((category) => {
-              const productCount = products.filter(p => p.category_id === category.id).length
-              return (
-                <button
-                  key={category.id}
-                  onClick={() => setSelectedCategory(category.id)}
-                  title={category.name_ar}
-                  className={`px-2 py-0.5 rounded transition-colors text-xs ${
-                    selectedCategory === category.id
-                      ? 'bg-purple-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {category.name_ar} ({productCount})
-                </button>
-              )
-            })}
+              <option value="__all__">جميع ({products.length})</option>
+              <option value="no-family">بدون ({products.filter(p => !p.category_id).length})</option>
+              {categories.map((category) => {
+                const productCount = products.filter(p => p.category_id === category.id).length
+                return (
+                  <option key={category.id} value={category.id}>
+                    {category.name_ar} ({productCount})
+                  </option>
+                )
+              })}
+            </select>
           </div>
           {selectedCategory && selectedCategory !== 'no-family' && (
             <button
@@ -1902,7 +1977,7 @@ export default function ProductsPage() {
           <button
             onClick={() => {
               console.log('Manual refresh triggered')
-              loadProducts()
+              loadProducts(true)
             }}
             className="bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1 text-sm"
             title="تحديث البيانات"

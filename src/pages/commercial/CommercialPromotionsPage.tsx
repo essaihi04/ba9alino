@@ -141,6 +141,10 @@ export default function CommercialPromotionsPage() {
     return product.price_e
   }
 
+  const getPromoTypeLabel = (type: Promotion['type']) => {
+    return type === 'discount' ? 'خصم' : 'هدية'
+  }
+
   // Build a map: product_id -> best promo (discount or gift)
   const promoMap = useMemo(() => {
     const map = new Map<string, { promo: Promotion; discountedPrice: number; label: string }>()
@@ -343,6 +347,9 @@ export default function CommercialPromotionsPage() {
                         بالروميز {promoPrice.toFixed(2)} د.م{product.unit_type ? ` / ${product.unit_type}` : ''}
                       </span>
                     </div>
+                    <p className="text-[11px] text-indigo-600 font-semibold mb-1">
+                      نوع العرض: {getPromoTypeLabel(promoInfo.promo.type)}
+                    </p>
 
                     {/* Normal price */}
                     <p className="text-lg font-bold text-gray-800">{basePrice.toFixed(2)} د.م</p>

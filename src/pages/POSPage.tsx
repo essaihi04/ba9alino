@@ -177,6 +177,8 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
   const CASH_SESSION_KEY = isEmployeeMode ? 'employee_pos_cash_session_id' : 'pos_cash_session_id'
   const EMPLOYEE_KEY = isEmployeeMode ? 'employee_pos_employee_id' : 'pos_employee_id'
   const WAREHOUSE_KEY = isEmployeeMode ? 'employee_pos_warehouse_id' : 'pos_warehouse_id'
+  const PRODUCTS_CACHE_KEY_PREFIX = isEmployeeMode ? 'employee_pos_products_cache' : 'pos_products_cache'
+  const PRODUCTS_CACHE_TTL_MS = 2 * 60 * 1000
 
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
@@ -274,7 +276,8 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
 
   // Performance: debounced search + limit visible products
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
-  const MAX_VISIBLE_PRODUCTS = 60
+  const [currentPage, setCurrentPage] = useState(1)
+  const MAX_VISIBLE_PRODUCTS = 30
 
   const searchInputRef = useRef<HTMLInputElement>(null)
   const invoicePanelRef = useRef<HTMLDivElement>(null)
@@ -758,16 +761,48 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     }
   }
 
-  const loadProducts = async () => {
+  const loadProducts = async (forceRefresh = false) => {
     try {
       console.time('⏱️ POS loadProducts total')
 
+      const warehouseForStock = cashSession?.warehouse_id || localStorage.getItem(WAREHOUSE_KEY)
+      const cacheKey = `${PRODUCTS_CACHE_KEY_PREFIX}:${warehouseForStock || 'all'}`
+
+      if (!forceRefresh) {
+        try {
+          const rawCache = sessionStorage.getItem(cacheKey)
+          if (rawCache) {
+            const parsed = JSON.parse(rawCache) as { ts?: number; products?: Product[] }
+            const isValid =
+              typeof parsed?.ts === 'number' &&
+              Date.now() - parsed.ts < PRODUCTS_CACHE_TTL_MS &&
+              Array.isArray(parsed?.products)
+
+            if (isValid) {
+              setProducts(parsed.products || [])
+              setPackagingVariantsByPrimaryId({})
+              setPackagingVariantsFlat([])
+              return
+            }
+          }
+        } catch (cacheError) {
+          console.warn('POS products cache parse error, ignoring cache:', cacheError)
+        }
+      }
+
       // Helper: batch .in() queries in PARALLEL — keep batch small to avoid URL length limit
       const BATCH_SIZE = 300
-      const batchInParallel = async (table: string, select: string, column: string, ids: string[], extraFilters?: (q: any) => any) => {
+      const batchInParallel = async (
+        table: string,
+        select: string,
+        column: string,
+        ids: string[],
+        extraFilters?: (q: any) => any,
+        chunkSize = BATCH_SIZE,
+      ) => {
         const chunks: string[][] = []
-        for (let i = 0; i < ids.length; i += BATCH_SIZE) {
-          chunks.push(ids.slice(i, i + BATCH_SIZE))
+        for (let i = 0; i < ids.length; i += chunkSize) {
+          chunks.push(ids.slice(i, i + chunkSize))
         }
         const results = await Promise.all(
           chunks.map(chunk => {
@@ -784,7 +819,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         return allRows
       }
 
-      // Paginate to fetch ALL products — sequential to be safe, fast enough with 1000/page
+      // Paginate to fetch all products (kept in memory), UI displays 30/page
       console.time('⏱️ fetch products')
       let allProducts: any[] = []
       let from = 0
@@ -792,12 +827,14 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       while (true) {
         const { data: page, error: pageError } = await supabase
           .from('products')
-          .select('id, name_ar, sku, category_id, image_url, price_a, price_b, price_c, price_d, price_e')
+          .select('id, name_ar, sku, category_id, image_url, stock, price_a, price_b, price_c, price_d, price_e')
           .eq('is_active', true)
           .order('name_ar')
           .range(from, from + pageSize - 1)
+
         if (pageError) throw pageError
         if (!page || page.length === 0) break
+
         allProducts = allProducts.concat(page)
         if (page.length < pageSize) break
         from += pageSize
@@ -813,25 +850,36 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         return
       }
 
-      // Fetch primary variants AND stock in PARALLEL
-      console.time('⏱️ fetch variants+stock')
-      const [primaryVariants, stockRows] = await Promise.all([
-        batchInParallel(
-          'product_primary_variants',
-          'id, product_id, variant_name, barcode, price_a, price_b, price_c, price_d, price_e, is_active',
-          'product_id',
-          productIds,
-          (q: any) => q.eq('is_active', true)
-        ),
-        batchInParallel(
-          'stock',
-          'product_id, primary_variant_id, quantity_in_stock',
-          'product_id',
-          productIds,
-          cashSession?.warehouse_id ? (q: any) => q.eq('warehouse_id', cashSession.warehouse_id) : undefined
-        )
-      ])
-      console.timeEnd('⏱️ fetch variants+stock')
+      // Fetch variants first, then fetch stock in scoped way (warehouse + variant ids)
+      console.time('⏱️ fetch primary variants')
+      const primaryVariants = await batchInParallel(
+        'product_primary_variants',
+        'id, product_id, variant_name, barcode, price_a, price_b, price_c, price_d, price_e, is_active',
+        'product_id',
+        productIds,
+        (q: any) => q.eq('is_active', true)
+      )
+      console.timeEnd('⏱️ fetch primary variants')
+
+      let stockRows: any[] = []
+      const primaryVariantIds = (primaryVariants || []).map((pv: any) => String(pv.id)).filter(Boolean)
+      if (warehouseForStock && primaryVariantIds.length > 0) {
+        try {
+          console.time('⏱️ fetch stock scoped')
+          stockRows = await batchInParallel(
+            'stock',
+            'product_id, primary_variant_id, quantity_in_stock',
+            'primary_variant_id',
+            primaryVariantIds,
+            (q: any) => q.eq('warehouse_id', warehouseForStock),
+            80,
+          )
+          console.timeEnd('⏱️ fetch stock scoped')
+        } catch (stockError) {
+          console.warn('Stock scoped query failed, fallback to base product stock:', stockError)
+          stockRows = []
+        }
+      }
 
       setPackagingVariantsByPrimaryId({})
       setPackagingVariantsFlat([])
@@ -873,7 +921,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
           price_c: Number(pv.price_c || 0),
           price_d: Number(pv.price_d || 0),
           price_e: Number(pv.price_e || 0),
-          stock: Math.max(0, Number(stockMap.get(stockKey) || 0)),
+          stock: Math.max(0, Number(stockMap.get(stockKey) || base?.stock || 0)),
           barcode: pv.barcode || undefined,
           category_id: base?.category_id,
           image_url: base?.image_url,
@@ -892,13 +940,22 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
           price_c: Number(p.price_c || 0),
           price_d: Number(p.price_d || 0),
           price_e: Number(p.price_e || 0),
-          stock: 0,
+          stock: Math.max(0, Number(p.stock || 0)),
           barcode: p.sku || undefined,
           category_id: p.category_id,
           image_url: p.image_url,
         }))
 
-      setProducts([...enrichedFromPV, ...productsWithoutPV])
+      const nextProducts = [...enrichedFromPV, ...productsWithoutPV]
+      setProducts(nextProducts)
+      try {
+        sessionStorage.setItem(
+          cacheKey,
+          JSON.stringify({ ts: Date.now(), products: nextProducts })
+        )
+      } catch (cacheWriteError) {
+        console.warn('POS products cache write error:', cacheWriteError)
+      }
       console.timeEnd('⏱️ POS loadProducts total')
     } catch (error) {
       console.error('Error loading products:', error)
@@ -1154,10 +1211,35 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     return result
   }, [products, debouncedSearchQuery, selectedCategory])
 
-  // Limit visible products in the grid for DOM performance
+  // 30 products per page for fast rendering
+  const totalPages = useMemo(() => {
+    return Math.max(1, Math.ceil(filteredProducts.length / MAX_VISIBLE_PRODUCTS))
+  }, [filteredProducts.length])
+
   const visibleProducts = useMemo(() => {
-    return filteredProducts.slice(0, MAX_VISIBLE_PRODUCTS)
-  }, [filteredProducts])
+    const safePage = Math.min(Math.max(1, currentPage), totalPages)
+    const start = (safePage - 1) * MAX_VISIBLE_PRODUCTS
+    return filteredProducts.slice(start, start + MAX_VISIBLE_PRODUCTS)
+  }, [filteredProducts, currentPage, totalPages])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [debouncedSearchQuery, selectedCategory])
+
+  const categoryCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    let noCategoryCount = 0
+
+    for (const p of products) {
+      if (!p.category_id || p.category_id === '') {
+        noCategoryCount += 1
+      } else {
+        counts.set(p.category_id, (counts.get(p.category_id) || 0) + 1)
+      }
+    }
+
+    return { counts, noCategoryCount }
+  }, [products])
 
   useEffect(() => {
     if (!searchQuery.trim()) return
@@ -1935,11 +2017,13 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
 
       // Créer la facture directement (sans créer de commande pour les ventes en caisse)
       let invoiceNumber = currentInvoice.invoice_number
+      const resolvedClientName = selectedClient?.company_name_ar || selectedClient?.company_name_en || currentInvoice.client_name || 'عميل عام'
 
       const buildInvoiceInsert = (num: string, includeDiscounts = true) => ({
         invoice_number: num,
         order_id: null, // Pas de commande pour les ventes directes en caisse
         client_id: clientId,
+        client_name: resolvedClientName,
         invoice_date: new Date().toISOString(),
         due_date: new Date().toISOString(),
         subtotal: currentInvoice.subtotal,
@@ -2182,7 +2266,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       setInvoiceNumber('')
       setSelectedClient(null)
       setPaidAmount(0)
-      await loadProducts()
+      await loadProducts(true)
       await refreshCashSessionSummary(cashSession.id)
     } catch (error) {
       console.error('Error:', error)
@@ -2285,12 +2369,12 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       const debtAmount = remaining > 0 ? remaining : 0
 
       printContent = `
-        <div style="direction: rtl; font-family: monospace; color: #000; width: 80mm; margin: 0 auto; padding: 6px; font-size: 12px; line-height: 1.25; font-weight: bold;">
+        <div style="direction: rtl; font-family: monospace; color: #000; width: 80mm; margin: 0 auto; padding: 6px; font-size: 14px; line-height: 1.35; font-weight: bold;">
           <div style="text-align: center; margin-bottom: 6px;">
+            <div style="font-size: 20px; font-weight: bold;">${companyInfo.company_name_ar || companyInfo.company_name || 'BA9ALINO'}</div>
             <div style="font-size: 16px; font-weight: bold;">${companyInfo.company_name_ar || companyInfo.company_name || 'BA9ALINO'}</div>
-            <div style="font-size: 13px; font-weight: bold;">${companyInfo.company_name_ar || companyInfo.company_name || 'BA9ALINO'}</div>
-            ${companyInfo.address_ar ? `<div style=\"font-size: 10px;\">${companyInfo.address_ar}</div>` : ''}
-            ${companyInfo.phone ? `<div style=\"font-size: 10px;\">${companyInfo.phone}</div>` : ''}
+            ${companyInfo.address_ar ? `<div style=\"font-size: 12px;\">${companyInfo.address_ar}</div>` : ''}
+            ${companyInfo.phone ? `<div style=\"font-size: 12px;\">${companyInfo.phone}</div>` : ''}
           </div>
 
           <div style="border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 6px 0; margin: 6px 0;">
@@ -2316,31 +2400,31 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
             </div>
           </div>
 
-          <table style="width: 100%; border-collapse: collapse; font-size: 11px; border: 1px solid #000;">
+          <table style="width: 100%; border-collapse: collapse; font-size: 13px; border: 1px solid #000;">
             <thead>
               <tr style="background: #f9f9f9;">
-                <th style="text-align: right; padding: 3px 2px; border: 1px solid #000;">الكمية</th>
-                <th style="text-align: right; padding: 3px 2px; border: 1px solid #000;">الوحدة</th>
-                <th style="text-align: right; padding: 3px 2px; border: 1px solid #000;">الثمن</th>
-                <th style="text-align: right; padding: 3px 2px; border: 1px solid #000;">الاسم</th>
-                <th style="text-align: left; padding: 3px 2px; border: 1px solid #000;">المجموع</th>
+                <th style="text-align: right; padding: 4px 3px; border: 1px solid #000;">الكمية</th>
+                <th style="text-align: right; padding: 4px 3px; border: 1px solid #000;">الوحدة</th>
+                <th style="text-align: right; padding: 4px 3px; border: 1px solid #000;">الثمن</th>
+                <th style="text-align: right; padding: 4px 3px; border: 1px solid #000;">الاسم</th>
+                <th style="text-align: left; padding: 4px 3px; border: 1px solid #000;">المجموع</th>
               </tr>
             </thead>
             <tbody>
               ${confirmedInvoice.lines.filter(l => !l.deleted).map(line => `
                 <tr>
-                  <td style=\"padding: 3px 2px; text-align: right; white-space: nowrap; border: 1px solid #000;\">${line.quantity}</td>
-                  <td style=\"padding: 3px 2px; text-align: right; white-space: nowrap; border: 1px solid #000;\">وحدة</td>
-                  <td style=\"padding: 3px 2px; text-align: right; white-space: nowrap; border: 1px solid #000;\">${line.unit_price.toFixed(2)}</td>
-                  <td style=\"padding: 3px 2px; text-align: right; border: 1px solid #000;\">${line.product_name_ar}</td>
-                  <td style=\"padding: 3px 2px; text-align: left; white-space: nowrap; border: 1px solid #000;\">${line.total.toFixed(2)}</td>
+                  <td style=\"padding: 4px 3px; text-align: right; white-space: nowrap; border: 1px solid #000;\">${line.quantity}</td>
+                  <td style=\"padding: 4px 3px; text-align: right; white-space: nowrap; border: 1px solid #000;\">وحدة</td>
+                  <td style=\"padding: 4px 3px; text-align: right; white-space: nowrap; border: 1px solid #000;\">${line.unit_price.toFixed(2)}</td>
+                  <td style=\"padding: 4px 3px; text-align: right; border: 1px solid #000;\">${line.product_name_ar}</td>
+                  <td style=\"padding: 4px 3px; text-align: left; white-space: nowrap; border: 1px solid #000;\">${line.total.toFixed(2)}</td>
                 </tr>
               `).join('')}
             </tbody>
           </table>
 
           <div style="border-top: 1px dashed #000; margin-top: 6px; padding-top: 6px;">
-            <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 14px;">
+            <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 18px;">
               <div>المجموع</div>
               <div>${Number(totalWithTva || 0).toFixed(2)} DH</div>
             </div>
@@ -2377,7 +2461,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
             </div>
           </div>
 
-          <div style="text-align: center; margin-top: 10px; border-top: 1px dashed #000; padding-top: 8px; font-size: 10px;">
+          <div style="text-align: center; margin-top: 10px; border-top: 1px dashed #000; padding-top: 8px; font-size: 12px;">
             شكرا لثقتكم بنا
           </div>
         </div>
@@ -2743,42 +2827,28 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         </div>
 
         {/* Catégories */}
-        <div className="mb-2 max-h-24 overflow-y-auto">
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setSelectedCategory(null)}
-              className={`px-2.5 py-1 rounded-lg text-xs whitespace-nowrap transition-colors ${
-                !selectedCategory
-                  ? 'bg-green-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+        <div className="mb-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-gray-700 whitespace-nowrap">العائلات:</span>
+            <select
+              value={selectedCategory ?? '__all__'}
+              onChange={(e) => {
+                const value = e.target.value
+                setSelectedCategory(value === '__all__' ? null : value)
+              }}
+              className="text-xs border border-gray-300 rounded px-2 py-1 min-w-[190px] bg-white focus:border-green-500 focus:outline-none"
             >
-              الكل
-            </button>
-            <button
-              onClick={() => setSelectedCategory('no-category')}
-              className={`px-2.5 py-1 rounded-lg text-xs whitespace-nowrap transition-colors ${
-                selectedCategory === 'no-category'
-                  ? 'bg-green-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              بدون عائلة
-            </button>
-            {categories.map((category) => (
-              <button
-                key={category.id}
-                onClick={() => setSelectedCategory(category.id)}
-                title={category.name_ar}
-                className={`px-2.5 py-1 rounded-lg text-xs whitespace-nowrap transition-colors max-w-[120px] truncate ${
-                  selectedCategory === category.id
-                    ? 'bg-green-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {category.name_ar}
-              </button>
-            ))}
+              <option value="__all__">الكل ({products.length})</option>
+              <option value="no-category">بدون عائلة ({categoryCounts.noCategoryCount})</option>
+              {categories.map((category) => {
+                const productCount = categoryCounts.counts.get(category.id) || 0
+                return (
+                  <option key={category.id} value={category.id}>
+                    {category.name_ar} ({productCount})
+                  </option>
+                )
+              })}
+            </select>
           </div>
         </div>
 
@@ -2786,26 +2856,30 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         <div className="flex-1 overflow-y-auto">
           {filteredProducts.length > MAX_VISIBLE_PRODUCTS && (
             <div className="text-xs text-gray-500 text-center py-1 bg-yellow-50 rounded mb-2">
-              عرض {MAX_VISIBLE_PRODUCTS} من {filteredProducts.length} منتج — استخدم البحث أو اختر عائلة لتصفية النتائج
+              صفحة {currentPage} / {totalPages} — عرض {visibleProducts.length} من {filteredProducts.length} منتج
             </div>
           )}
-          <div className="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-8 gap-1">
-            {visibleProducts.map((product) => {
+          <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+            {visibleProducts.map((product, productIndex) => {
               const unitTypes = getAvailableUnitTypes(product.primary_variant_id)
               return (
                 <button
                   key={`${product.id}-${product.primary_variant_id}`}
                   type="button"
                   onClick={() => addToInvoice(product)}
-                  className="p-1 rounded border bg-white border-gray-200 hover:border-green-500 hover:shadow transition-all text-right"
+                  className="p-1.5 rounded border bg-white border-gray-200 hover:border-green-500 hover:shadow transition-all text-right"
                 >
-                  <div className="w-full h-14 mb-0.5 flex items-center justify-center bg-gray-50 rounded overflow-hidden">
+                  <div className="w-full h-24 mb-1 flex items-center justify-center bg-gray-50 rounded overflow-hidden">
                     {product.image_url ? (
                       <img
                         src={product.image_url}
                         alt={product.name_ar}
                         className="w-full h-full object-contain rounded"
-                        loading="lazy"
+                        width={96}
+                        height={96}
+                        loading={productIndex < 16 ? 'eager' : 'lazy'}
+                        fetchPriority={productIndex < 8 ? 'high' : 'auto'}
+                        decoding="async"
                         onError={(e) => {
                           e.currentTarget.style.display = 'none'
                           e.currentTarget.parentElement?.classList.add('bg-gray-100')
@@ -2817,16 +2891,40 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                       </div>
                     )}
                   </div>
-                  <div className="text-[9px] font-bold text-gray-800 leading-tight line-clamp-1">
+                  <div className="text-[11px] font-bold text-gray-800 leading-tight line-clamp-2 min-h-[30px]">
                     {product.name_ar}
                   </div>
-                  <div className="text-[10px] font-bold text-green-600">
+                  <div className="text-[12px] font-bold text-green-600">
                     {getProductPrice(product).toFixed(2)}
                   </div>
                 </button>
               )
             })}
           </div>
+
+          {filteredProducts.length > MAX_VISIBLE_PRODUCTS && (
+            <div className="mt-3 flex items-center justify-center gap-2 pb-2">
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage <= 1}
+                className="px-3 py-1.5 text-xs rounded border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                السابق
+              </button>
+              <span className="text-xs font-semibold text-gray-700">
+                {currentPage} / {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage >= totalPages}
+                className="px-3 py-1.5 text-xs rounded border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                التالي
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -3185,6 +3283,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
 
                       // Generate new invoice number to avoid conflicts
                       const newInvoiceNumber = generateInvoiceNumber()
+                      const resolvedClientName = selectedClient?.company_name_ar || selectedClient?.company_name_en || currentInvoice.client_name || 'عميل عام'
                       
                       // Save to database first
                       const { data, error } = await supabase
@@ -3192,6 +3291,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                         .insert({
                           invoice_number: newInvoiceNumber,
                           client_id: clientId,
+                          client_name: resolvedClientName,
                           status: 'draft',
                           subtotal: currentInvoice.subtotal,
                           total_amount: currentInvoice.total_amount,

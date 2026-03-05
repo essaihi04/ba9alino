@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { Search, Package } from 'lucide-react'
 import CommercialLayout from '../../components/commercial/CommercialLayout'
-import { getCategoryLabelArabic } from '../../utils/categoryLabels'
 
 const PAGE_SIZE = 60
 
@@ -201,9 +200,6 @@ export default function CommercialProductsPage() {
     setVisibleCount(prev => prev + PAGE_SIZE)
   }, [])
 
-  const shortCategoryLabel = (tier: string) =>
-    getCategoryLabelArabic(tier).split('/')[0].trim() || tier
-
   const activePromotions = promotions.filter((promo) => {
     if (!promo.is_active) return false
     const now = new Date()
@@ -235,35 +231,28 @@ export default function CommercialProductsPage() {
           />
         </div>
 
-      {/* Categories Filter - max 3 rows, scrollable */}
-      <div className="bg-white p-3 shadow-sm overflow-y-auto" style={{ maxHeight: '140px' }}>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setSelectedCategory(null)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-              !selectedCategory
-                ? 'bg-purple-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
+      {/* Categories Filter */}
+      <div className="bg-white p-3 shadow-sm">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">العائلات:</span>
+          <select
+            value={selectedCategory ?? '__all__'}
+            onChange={(e) => {
+              const value = e.target.value
+              setSelectedCategory(value === '__all__' ? null : value)
+            }}
+            className="flex-1 max-w-md px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:border-purple-500 focus:outline-none"
           >
-            الكل ({products.length})
-          </button>
-          {categories.map((category) => {
-            const count = products.filter(p => p.category_id === category.id).length
-            return (
-              <button
-                key={category.id}
-                onClick={() => setSelectedCategory(category.id)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-                  selectedCategory === category.id
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {category.name_ar} ({count})
-              </button>
-            )
-          })}
+            <option value="__all__">الكل ({products.length})</option>
+            {categories.map((category) => {
+              const count = products.filter((p) => p.category_id === category.id).length
+              return (
+                <option key={category.id} value={category.id}>
+                  {category.name_ar} ({count})
+                </option>
+              )
+            })}
+          </select>
         </div>
       </div>
 

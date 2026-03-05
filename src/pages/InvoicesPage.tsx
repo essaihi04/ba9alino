@@ -44,6 +44,10 @@ interface Invoice {
   payment_method?: string | null
   notes?: string
   created_at: string
+  clients?: {
+    company_name_ar?: string | null
+    company_name_en?: string | null
+  }
 }
 
 interface InvoiceItem {
@@ -298,6 +302,10 @@ export default function InvoicesPage() {
         .from('invoices')
         .select(`
           *,
+          clients (
+            company_name_ar,
+            company_name_en
+          ),
           payments (
             amount,
             payment_method,
@@ -379,7 +387,8 @@ export default function InvoicesPage() {
   }
 
   const filteredInvoices = invoices.filter(invoice => {
-    const matchesSearch = (invoice.client_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const clientDisplayName = invoice.client_name || invoice.clients?.company_name_ar || invoice.clients?.company_name_en || ''
+    const matchesSearch = clientDisplayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (invoice.company_name_ar || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (invoice.invoice_number || '').toLowerCase().includes(searchTerm.toLowerCase())
     
@@ -595,21 +604,35 @@ export default function InvoicesPage() {
           </div>
         ) : (
           <div className="overflow-x-auto w-full pb-2">
-            <table className="w-full min-w-max">
+            <table className="w-full table-fixed text-xs">
+              <colgroup>
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '14%' }} />
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '10%' }} />
+                <col style={{ width: '6%' }} />
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '8%' }} />
+                <col style={{ width: '6%' }} />
+                <col style={{ width: '4%' }} />
+              </colgroup>
               <thead className="bg-gradient-to-r from-blue-600 to-blue-700" style={{ color: '#000000' }}>
                 <tr>
-                  <th className="px-6 py-4 text-right font-bold" style={{ color: '#000000' }}>رقم الفاتورة</th>
-                  <th className="px-6 py-4 text-right font-bold" style={{ color: '#000000' }}>العميل</th>
-                  <th className="px-6 py-4 text-right font-bold" style={{ color: '#000000' }}>التاريخ</th>
-                  <th className="px-6 py-4 text-right font-bold" style={{ color: '#000000' }}>البائع</th>
-                  <th className="px-6 py-4 text-right font-bold" style={{ color: '#000000' }}>المخزن</th>
-                  <th className="px-6 py-4 text-right font-bold" style={{ color: '#000000' }}>الكمية</th>
-                  <th className="px-6 py-4 text-right font-bold" style={{ color: '#000000' }}>المجموع</th>
-                  <th className="px-6 py-4 text-right font-bold" style={{ color: '#000000' }}>المدفوع</th>
-                  <th className="px-6 py-4 text-right font-bold" style={{ color: '#000000' }}>الباقي</th>
-                  <th className="px-6 py-4 text-right font-bold" style={{ color: '#000000' }}>نوع الدفع</th>
-                  <th className="px-6 py-4 text-right font-bold" style={{ color: '#000000' }}>الحالة</th>
-                  <th className="px-6 py-4 text-right font-bold" style={{ color: '#000000' }}>إجراءات</th>
+                  <th className="px-2 py-3 text-right font-bold" style={{ color: '#000000' }}>رقم الفاتورة</th>
+                  <th className="px-2 py-3 text-right font-bold" style={{ color: '#000000' }}>العميل</th>
+                  <th className="px-2 py-3 text-right font-bold" style={{ color: '#000000' }}>التاريخ</th>
+                  <th className="px-2 py-3 text-right font-bold" style={{ color: '#000000' }}>البائع</th>
+                  <th className="px-2 py-3 text-right font-bold" style={{ color: '#000000' }}>المخزن</th>
+                  <th className="px-2 py-3 text-right font-bold" style={{ color: '#000000' }}>الكمية</th>
+                  <th className="px-2 py-3 text-right font-bold" style={{ color: '#000000' }}>المجموع</th>
+                  <th className="px-2 py-3 text-right font-bold" style={{ color: '#000000' }}>المدفوع</th>
+                  <th className="px-2 py-3 text-right font-bold" style={{ color: '#000000' }}>الباقي</th>
+                  <th className="px-2 py-3 text-right font-bold" style={{ color: '#000000' }}>نوع الدفع</th>
+                  <th className="px-2 py-3 text-right font-bold" style={{ color: '#000000' }}>الحالة</th>
+                  <th className="px-2 py-3 text-right font-bold" style={{ color: '#000000' }}>إجراءات</th>
                 </tr>
               </thead>
               <tbody>
@@ -618,69 +641,69 @@ export default function InvoicesPage() {
                     key={invoice.id}
                     className="border-b hover:bg-blue-50 transition-colors"
                   >
-                    <td className="px-6 py-4">
-                      <span className="font-bold text-gray-800">
+                    <td className="px-2 py-3">
+                      <span className="font-bold text-gray-800 truncate block">
                         #{invoice.invoice_number || invoice.id.slice(0, 8)}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
-                      <span className="font-semibold text-gray-700">
-                        {invoice.client_name || invoice.company_name_ar || 'عميل عام'}
+                    <td className="px-2 py-3">
+                      <span className="font-semibold text-gray-700 truncate block">
+                        {invoice.client_name || invoice.clients?.company_name_ar || invoice.clients?.company_name_en || invoice.company_name_ar || 'عميل عام'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-gray-600">
+                    <td className="px-2 py-3 text-gray-600 whitespace-nowrap">
                       {new Date(invoice.invoice_date).toLocaleDateString('ar-DZ')}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-2 py-3">
                       <div>
-                        <p className="font-semibold text-gray-700">{invoice.employee?.name || 'غير محدد'}</p>
-                        <p className="text-sm text-gray-500">{invoice.employee?.role || ''}</p>
+                        <p className="font-semibold text-gray-700 truncate">{invoice.employee?.name || 'غير محدد'}</p>
+                        <p className="text-[11px] text-gray-500 truncate">{invoice.employee?.role || ''}</p>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-2 py-3">
                       <div>
-                        <p className="font-semibold text-gray-700">{invoice.warehouse?.name || 'غير محدد'}</p>
-                        <p className="text-sm text-gray-500">{invoice.warehouse?.is_active ? 'نشط' : 'غير نشط'}</p>
+                        <p className="font-semibold text-gray-700 truncate">{invoice.warehouse?.name || 'غير محدد'}</p>
+                        <p className="text-[11px] text-gray-500 truncate">{invoice.warehouse?.is_active ? 'نشط' : 'غير نشط'}</p>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-2 py-3 whitespace-nowrap">
                       <div className="flex items-center gap-1">
                         <span className="font-bold text-blue-600">{getInvoiceTotalQuantity(invoice)}</span>
                         <span className="text-xs text-gray-500">منتج</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-2 py-3 whitespace-nowrap">
                       <span className="font-bold text-gray-800">
                         {(invoice.total_amount || 0).toFixed(2)} MAD
                       </span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-2 py-3 whitespace-nowrap">
                       <span className="font-bold text-green-600">
                         {(invoice.paid_amount || 0).toFixed(2)} MAD
                       </span>
                     </td>
-                    <td className="px-6 py-4">
-                      <span className={`font-bold text-lg ${
+                    <td className="px-2 py-3 whitespace-nowrap">
+                      <span className={`font-bold ${
                         remaining(invoice) > 0 ? 'text-red-600' : 'text-green-600'
                       }`}>
                         {remaining(invoice).toFixed(2)} MAD
                       </span>
                     </td>
-                    <td className="px-6 py-4">
-                      {getPaymentTypeDisplay(invoice.payment_method)}
+                    <td className="px-2 py-3 truncate">
+                      <span className="truncate block">{getPaymentTypeDisplay(invoice.payment_method)}</span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-2 py-3">
                       {getStatusBadge(invoice.payment_status || '')}
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-2 py-3">
                       <button
                         onClick={() => {
-                          // Ouvrir les détails de la facture
-                          window.location.href = `/invoices/${invoice.id}/edit`
+                          navigate(`/invoices/${invoice.id}/edit`)
                         }}
-                        className="bg-blue-100 hover:bg-blue-200 text-blue-700 p-2 rounded-lg transition-colors"
+                        className="bg-blue-100 hover:bg-blue-200 text-blue-700 p-1.5 rounded-lg transition-colors"
+                        title="عرض الفاتورة"
                       >
-                        <Eye size={18} />
+                        <Eye size={16} />
                       </button>
                     </td>
                   </tr>

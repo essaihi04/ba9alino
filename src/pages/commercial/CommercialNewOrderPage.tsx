@@ -124,11 +124,24 @@ interface NewClientForm {
   shop_photo_url: string
 }
 
+interface CommercialNewOrderCacheEntry {
+  ts: number
+  commercialId: string
+  products: Product[]
+  categories: Category[]
+  clients: Client[]
+  promotions: Promotion[]
+}
+
+let commercialNewOrderMemoryCache: CommercialNewOrderCacheEntry | null = null
+
 export default function CommercialNewOrderPage() {
   const navigate = useNavigate()
   const inputPad = useInputPad()
   const [searchParams] = useSearchParams()
   const preselectedClientId = searchParams.get('client')
+  const CACHE_KEY = 'commercial_new_order_cache'
+  const CACHE_TTL_MS = 2 * 60 * 1000
   
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
@@ -160,6 +173,7 @@ export default function CommercialNewOrderPage() {
   const [locating, setLocating] = useState(false)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [photoError, setPhotoError] = useState<string | null>(null)
+  const cacheDisabledRef = useRef(false)
   const SHOP_PHOTO_BUCKET = import.meta.env.VITE_SHOP_PHOTO_BUCKET
 
   const handleLocate = () => {
@@ -238,6 +252,34 @@ export default function CommercialNewOrderPage() {
 
   const loadingRef = useRef(false)
 
+  const applyCachedData = (cache: CommercialNewOrderCacheEntry) => {
+    setProducts(cache.products || [])
+    setCategories(cache.categories || [])
+    setClients(cache.clients || [])
+    setPromotions(cache.promotions || [])
+  }
+
+  const writeCommercialCache = (cache: CommercialNewOrderCacheEntry) => {
+    commercialNewOrderMemoryCache = cache
+    if (cacheDisabledRef.current) return
+
+    try {
+      const payload = JSON.stringify(cache)
+      if (payload.length > 2_500_000) {
+        cacheDisabledRef.current = true
+        sessionStorage.removeItem(CACHE_KEY)
+        return
+      }
+      sessionStorage.setItem(CACHE_KEY, payload)
+    } catch {
+      cacheDisabledRef.current = true
+      try {
+        sessionStorage.removeItem(CACHE_KEY)
+      } catch {
+      }
+    }
+  }
+
   // Reload on tab focus (debounced via loadingRef)
   useEffect(() => {
     const handleVisibility = () => {
@@ -250,11 +292,47 @@ export default function CommercialNewOrderPage() {
     return () => document.removeEventListener('visibilitychange', handleVisibility)
   }, [])
 
-  const loadData = async (commercialId: string) => {
+  const loadData = async (commercialId: string, forceRefresh = false) => {
     if (loadingRef.current) return
     loadingRef.current = true
     setLoading(true)
     try {
+      if (!forceRefresh) {
+        const now = Date.now()
+        if (
+          commercialNewOrderMemoryCache &&
+          commercialNewOrderMemoryCache.commercialId === commercialId &&
+          now - commercialNewOrderMemoryCache.ts < CACHE_TTL_MS
+        ) {
+          applyCachedData(commercialNewOrderMemoryCache)
+          return
+        }
+
+        if (!cacheDisabledRef.current) {
+          try {
+            const raw = sessionStorage.getItem(CACHE_KEY)
+            if (raw) {
+              const parsed = JSON.parse(raw) as CommercialNewOrderCacheEntry
+              const isValid =
+                typeof parsed?.ts === 'number' &&
+                parsed?.commercialId === commercialId &&
+                now - parsed.ts < CACHE_TTL_MS &&
+                Array.isArray(parsed?.products) &&
+                Array.isArray(parsed?.categories) &&
+                Array.isArray(parsed?.clients) &&
+                Array.isArray(parsed?.promotions)
+
+              if (isValid) {
+                commercialNewOrderMemoryCache = parsed
+                applyCachedData(parsed)
+                return
+              }
+            }
+          } catch {
+          }
+        }
+      }
+
       // 1) Fetch products, variants, categories, clients, promotions ALL in parallel
       const fetchAllPages = async (table: string, select: string, filters?: { col: string, val: any }[]) => {
         let allData: any[] = []
@@ -306,10 +384,22 @@ export default function CommercialNewOrderPage() {
         }
       })
 
+      const categoriesData = (catRes.data || []) as Category[]
+      const clientsData = (clientsRes.data || []) as Client[]
+      const promotionsData = (promotionsRes.data || []) as Promotion[]
+
       setProducts(enriched)
-      setCategories((catRes.data || []) as Category[])
-      setClients(clientsRes.data || [])
-      setPromotions((promotionsRes.data || []) as Promotion[])
+      setCategories(categoriesData)
+      setClients(clientsData)
+      setPromotions(promotionsData)
+      writeCommercialCache({
+        ts: Date.now(),
+        commercialId,
+        products: enriched,
+        categories: categoriesData,
+        clients: clientsData,
+        promotions: promotionsData,
+      })
       console.log('NewOrder loaded:', enriched.length, 'products')
     } catch (error) {
       console.error('Error loading data:', error)
@@ -373,7 +463,7 @@ export default function CommercialNewOrderPage() {
   }
 
   const updateQuantity = (productId: string, delta: number) => {
-    setCart(cart.map(item => {
+    setCart(prev => prev.map(item => {
       if (item.id === productId) {
         const newQuantity = Math.max(1, item.quantity + delta)
         return { ...item, quantity: newQuantity }
@@ -385,7 +475,91 @@ export default function CommercialNewOrderPage() {
   const setQuantity = (productId: string, rawValue: string | number) => {
     const parsed = typeof rawValue === 'number' ? rawValue : parseInt(rawValue, 10)
     const safeValue = Number.isFinite(parsed) ? Math.max(1, parsed) : 1
-    setCart(cart.map(item => (item.id === productId ? { ...item, quantity: safeValue } : item)))
+    setCart(prev => prev.map(item => (item.id === productId ? { ...item, quantity: safeValue } : item)))
+  }
+
+  const openQuantityPad = (item: CartItem) => {
+    inputPad.open({
+      title: `الكمية: ${item.name_ar}`,
+      mode: 'number',
+      dir: 'ltr',
+      initialValue: String(item.quantity || 1),
+      min: 1,
+      maxLength: 5,
+      showLanguageToggle: false,
+      onConfirm: (value) => setQuantity(item.id, value),
+    })
+  }
+
+  const applyPromotionToCart = (promo: Promotion, giftProduct: Product | null, targetProduct: Product | null) => {
+    if (!selectedClient) {
+      alert('الرجاء اختيار العميل أولاً')
+      return
+    }
+
+    if (promo.type === 'gift' && giftProduct) {
+      const giftQty = Number(promo.gift_quantity || 1)
+      setCart((prev) => {
+        const existingItem = prev.find((item) => item.id === giftProduct.id)
+        if (existingItem) {
+          return prev.map((item) =>
+            item.id === giftProduct.id
+              ? {
+                  ...item,
+                  quantity: item.quantity + giftQty,
+                  selectedPrice: 0,
+                  is_gift: true,
+                  promotion_id: promo.id,
+                }
+              : item
+          )
+        }
+        return [
+          ...prev,
+          {
+            ...giftProduct,
+            quantity: giftQty,
+            selectedPrice: 0,
+            is_gift: true,
+            promotion_id: promo.id,
+          },
+        ]
+      })
+      alert(`✅ تم إضافة ${giftQty} ${giftProduct.name_ar} كهدية`)
+      return
+    }
+
+    if (promo.type === 'discount') {
+      if (!targetProduct) {
+        alert(`💰 خصم ${promo.discount_percent || 0}% يطبق تلقائياً عند تحقق شروط الطلب`)
+        return
+      }
+
+      if ((targetProduct.stock || 0) <= 0) {
+        alert('❌ المنتج المرتبط بالعرض غير متوفر في المخزون')
+        return
+      }
+
+      const requiredQty = Math.max(1, Number(promo.min_quantity || 1))
+      const unitPrice = getPriceForTier(targetProduct, selectedClient.subscription_tier)
+
+      setCart((prev) => {
+        const existingItem = prev.find((item) => item.id === targetProduct.id)
+        if (existingItem) {
+          const missingQty = Math.max(0, requiredQty - existingItem.quantity)
+          if (missingQty === 0) return prev
+          return prev.map((item) =>
+            item.id === targetProduct.id
+              ? { ...item, quantity: item.quantity + missingQty }
+              : item
+          )
+        }
+
+        return [...prev, { ...targetProduct, quantity: requiredQty, selectedPrice: unitPrice }]
+      })
+
+      alert(`✅ تم إضافة ${requiredQty} من ${targetProduct.name_ar} للاستفادة من العرض`)
+    }
   }
 
   const calculateSubtotal = () => {
@@ -678,35 +852,28 @@ export default function CommercialNewOrderPage() {
         />
       </div>
 
-      {/* Categories Filter - max 3 rows, scrollable */}
-      <div className="bg-white border-b p-3 shadow-sm overflow-y-auto" style={{ maxHeight: '140px' }}>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setSelectedCategory(null)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-              !selectedCategory
-                ? 'bg-green-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
+      {/* Categories Filter */}
+      <div className="bg-white border-b p-3 shadow-sm">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">العائلات:</span>
+          <select
+            value={selectedCategory ?? '__all__'}
+            onChange={(e) => {
+              const value = e.target.value
+              setSelectedCategory(value === '__all__' ? null : value)
+            }}
+            className="flex-1 max-w-md px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:border-green-500 focus:outline-none"
           >
-            الكل ({products.length})
-          </button>
-          {categories.map((category) => {
-            const count = products.filter(p => p.category_id === category.id).length
-            return (
-              <button
-                key={category.id}
-                onClick={() => setSelectedCategory(category.id)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-                  selectedCategory === category.id
-                    ? 'bg-green-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                {category.name_ar} ({count})
-              </button>
-            )
-          })}
+            <option value="__all__">الكل ({products.length})</option>
+            {categories.map((category) => {
+              const count = products.filter((p) => p.category_id === category.id).length
+              return (
+                <option key={category.id} value={category.id}>
+                  {category.name_ar} ({count})
+                </option>
+              )
+            })}
+          </select>
         </div>
       </div>
 
@@ -726,29 +893,7 @@ export default function CommercialNewOrderPage() {
               return (
                 <button
                   key={promo.id}
-                  onClick={() => {
-                    if (promo.type === 'gift' && giftProduct) {
-                      const existingItem = cart.find(item => item.id === giftProduct.id)
-                      if (existingItem) {
-                        setCart(cart.map(item =>
-                          item.id === giftProduct.id
-                            ? { ...item, quantity: item.quantity + (promo.gift_quantity || 1), is_gift: true, promotion_id: promo.id }
-                            : item
-                        ))
-                      } else {
-                        setCart([...cart, { 
-                          ...giftProduct, 
-                          quantity: promo.gift_quantity || 1, 
-                          selectedPrice: 0, 
-                          is_gift: true, 
-                          promotion_id: promo.id 
-                        }])
-                      }
-                      alert(`✅ تم إضافة ${promo.gift_quantity || 1} ${giftProduct.name_ar} كهدية`)
-                    } else if (promo.type === 'discount') {
-                      alert(`💰 خصم ${promo.discount_percent}% عند شراء ${promo.min_quantity} ${promo.unit_type || 'وحدة'}`)
-                    }
-                  }}
+                  onClick={() => applyPromotionToCart(promo, giftProduct, targetProduct)}
                   className="w-full bg-white/20 hover:bg-white/30 p-3 rounded-xl text-right transition-colors"
                 >
                   <div className="flex items-center gap-3">
@@ -869,7 +1014,14 @@ export default function CommercialNewOrderPage() {
                         >
                           <Minus size={16} className="mx-auto" />
                         </button>
-                        <span className="flex-1 text-center font-bold text-sm">{inCart.quantity}</span>
+                        <button
+                          type="button"
+                          onClick={() => openQuantityPad(inCart)}
+                          className="flex-1 text-center font-bold text-sm text-gray-800 hover:text-green-700"
+                          title="تعديل الكمية"
+                        >
+                          {inCart.quantity}
+                        </button>
                         <button
                           onClick={() => updateQuantity(product.id, 1)}
                           className="flex-1 bg-green-100 text-green-600 p-1 rounded hover:bg-green-200 text-sm font-bold"
@@ -970,14 +1122,14 @@ export default function CommercialNewOrderPage() {
                   >
                     <Minus size={14} />
                   </button>
-                  <input
-                    type="number"
-                    min={1}
-                    inputMode="numeric"
-                    value={item.quantity}
-                    onChange={e => setQuantity(item.id, e.target.value)}
-                    className="w-12 text-center font-bold text-sm border border-gray-200 rounded-lg py-1"
-                  />
+                  <button
+                    type="button"
+                    onClick={() => openQuantityPad(item)}
+                    className="w-12 text-center font-bold text-sm border border-gray-200 rounded-lg py-1 hover:bg-gray-50"
+                    title="تعديل الكمية"
+                  >
+                    {item.quantity}
+                  </button>
                   <button
                     onClick={() => updateQuantity(item.id, 1)}
                     className="w-7 h-7 bg-green-100 text-green-600 rounded hover:bg-green-200 flex items-center justify-center text-sm font-bold"
