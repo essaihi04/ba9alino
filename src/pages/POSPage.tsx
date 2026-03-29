@@ -2983,7 +2983,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                     <div className="col-span-5">المنتج</div>
                     <div className="col-span-2 text-center">الثمن</div>
                     <div className="col-span-2 text-center">الكمية</div>
-                    <div className="col-span-2 text-left">المجموع</div>
+                    <div className="col-span-2 text-center">المجموع</div>
                     <div className="col-span-1 text-center">حذف</div>
                   </div>
                   
@@ -3133,7 +3133,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                         </div>
                         
                         {/* Total ligne */}
-                        <div className={`col-span-2 text-left font-bold ${line.deleted ? 'text-gray-500 line-through' : 'text-green-600'}`}>
+                        <div className={`col-span-2 text-center font-bold ${line.deleted ? 'text-gray-500 line-through' : 'text-green-600'}`}>
                           {(line.deleted ? 0 : line.total).toFixed(2)}
                         </div>
                         
