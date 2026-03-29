@@ -1809,10 +1809,10 @@ export default function ProductsPage() {
   return (
     <div className="h-screen flex flex-col overflow-hidden" dir="rtl">
       {/* Header fixe */}
-      <div className="flex-none p-4 bg-gray-50 border-b">
+      <div className="flex-none px-4 py-2 bg-gray-50 border-b">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-            <Package size={20} />
+          <h1 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+            <Package size={18} />
             إدارة المنتجات
           </h1>
         </div>
@@ -1862,73 +1862,77 @@ export default function ProductsPage() {
       )}
 
       {/* Statistiques rapides */}
-      <div className="flex-none grid grid-cols-4 gap-2 px-4 py-2 bg-gray-50 border-b">
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-lg p-2 shadow">
+      <div className="flex-none grid grid-cols-2 md:grid-cols-4 gap-1.5 px-4 py-1.5 bg-gray-50 border-b">
+        <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-lg px-2 py-1.5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-purple-100 text-xs">إجمالي المنتجات</p>
-              <p className="text-lg font-bold">{products.length}</p>
+              <p className="text-base font-bold leading-tight">{products.length}</p>
             </div>
-            <Package size={16} className="text-purple-200" />
+            <Package size={14} className="text-purple-200" />
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-red-500 to-red-600 text-white rounded-lg p-2 shadow">
+        <div className="bg-gradient-to-br from-red-500 to-red-600 text-white rounded-lg px-2 py-1.5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-red-100 text-xs">نفذ المخزون</p>
-              <p className="text-lg font-bold">{outOfStockCount}</p>
+              <p className="text-base font-bold leading-tight">{outOfStockCount}</p>
             </div>
-            <AlertCircle size={16} className="text-red-200" />
+            <AlertCircle size={14} className="text-red-200" />
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-lg p-2 shadow">
+        <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-lg px-2 py-1.5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-orange-100 text-xs">منخفض المخزون</p>
-              <p className="text-lg font-bold">{lowStockCount}</p>
+              <p className="text-base font-bold leading-tight">{lowStockCount}</p>
             </div>
-            <TrendingUp size={16} className="text-orange-200" />
+            <TrendingUp size={14} className="text-orange-200" />
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-lg p-2 shadow">
+        <div className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-lg px-2 py-1.5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-green-100 text-xs">متوفر</p>
-              <p className="text-lg font-bold">{products.length - lowStockCount}</p>
+              <p className="text-base font-bold leading-tight">{products.length - lowStockCount}</p>
             </div>
-            <Package size={16} className="text-green-200" />
+            <Package size={14} className="text-green-200" />
           </div>
         </div>
       </div>
 
-      {/* Boutons d'action */}
-      <div className="flex-none px-4 py-2 bg-gray-50 border-b flex gap-2">
-        <label className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg font-bold text-sm transition-all duration-200 transform hover:scale-105 flex items-center gap-2 cursor-pointer">
-          <Upload size={14} />
-          استيراد Excel
-          <input
-            type="file"
-            accept=".xlsx,.xls"
-            onChange={handleImportExcel}
-            className="hidden"
-          />
-        </label>
-        <button
-          onClick={openAddModal}
-          className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 flex items-center gap-2"
-        >
-          <Plus size={16} />
-          منتج جديد
-        </button>
-      </div>
+      {/* Barre compacte : actions + catégories + recherche */}
+      <div className="flex-none bg-gray-50 border-b px-4 py-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Actions */}
+          <div className="flex items-center gap-1">
+            <label className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded font-bold text-xs transition-all duration-200 flex items-center gap-1 cursor-pointer">
+              <Upload size={12} />
+              استيراد Excel
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleImportExcel}
+                className="hidden"
+              />
+            </label>
+            <button
+              onClick={openAddModal}
+              className="bg-purple-600 hover:bg-purple-700 text-white px-2 py-1 rounded font-bold text-xs transition-all duration-200 flex items-center gap-1"
+            >
+              <Plus size={12} />
+              منتج جديد
+            </button>
+          </div>
 
-      {/* العائلات (Catégories) */}
-      <div className="flex-none bg-white border-b px-4 py-1">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          {/* Séparateur */}
+          <div className="w-px h-4 bg-gray-300"></div>
+
+          {/* Catégories */}
+          <div className="flex items-center gap-1">
             <span className="text-xs font-bold text-gray-700 whitespace-nowrap">العائلات:</span>
             <select
               value={selectedCategory ?? '__all__'}
@@ -1936,7 +1940,7 @@ export default function ProductsPage() {
                 const value = e.target.value
                 setSelectedCategory(value === '__all__' ? null : value)
               }}
-              className="text-xs border border-gray-300 rounded px-2 py-1 min-w-[220px] bg-white focus:border-purple-500 focus:outline-none"
+              className="text-xs border border-gray-300 rounded px-1.5 py-0.5 min-w-[140px] bg-white focus:border-purple-500 focus:outline-none"
             >
               <option value="__all__">جميع ({products.length})</option>
               <option value="no-family">بدون ({products.filter(p => !p.category_id).length})</option>
@@ -1949,40 +1953,43 @@ export default function ProductsPage() {
                 )
               })}
             </select>
+            {selectedCategory && selectedCategory !== 'no-family' && (
+              <button
+                onClick={() => setSelectedCategory(null)}
+                className="text-xs text-blue-600 hover:text-blue-800 whitespace-nowrap"
+              >
+                إلغاء التصفية
+              </button>
+            )}
           </div>
-          {selectedCategory && selectedCategory !== 'no-family' && (
-            <button
-              onClick={() => setSelectedCategory(null)}
-              className="text-xs text-blue-600 hover:text-blue-800 whitespace-nowrap mr-2"
-            >
-              إلغاء التصفية
-            </button>
-          )}
-        </div>
-      </div>
 
-      {/* Recherche - sticky search bar */}
-      <div className="sticky top-0 z-20 flex-none bg-white border-b px-4 py-2 shadow-sm">
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute right-3 top-2 text-gray-400" size={16} />
-            <input
-              type="text"
-              placeholder="ابحث عن منتج..."
-              className="w-full pr-9 pl-4 py-2 border border-gray-200 rounded-lg focus:border-purple-500 focus:outline-none text-sm"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+          {/* Séparateur */}
+          <div className="w-px h-4 bg-gray-300"></div>
+
+          {/* Recherche */}
+          <div className="flex-1 min-w-[200px]">
+            <div className="relative">
+              <Search className="absolute right-2 top-1 text-gray-400" size={12} />
+              <input
+                type="text"
+                placeholder="ابحث عن منتج..."
+                className="w-full pr-6 pl-2 py-1 border border-gray-200 rounded focus:border-purple-500 focus:outline-none text-xs"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
           </div>
+
+          {/* Bouton refresh */}
           <button
             onClick={() => {
               console.log('Manual refresh triggered')
               loadProducts(true)
             }}
-            className="bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1 text-sm"
+            className="bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 transition-colors flex items-center gap-1 text-xs"
             title="تحديث البيانات"
           >
-            <Package size={16} />
+            <Package size={12} />
             تحديث
           </button>
         </div>
@@ -2066,21 +2073,10 @@ export default function ProductsPage() {
                     <input
                       type="checkbox"
                       checked={allFilteredSelected}
-                      onChange={(e) => (e.target.checked ? selectAllFiltered() : clearSelection())}
+                      onChange={(e) => e.target.checked ? selectAllFiltered() : clearSelection()}
                       className="h-4 w-4"
                     />
                   </th>
-                  <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">الصورة</th>
-                  <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">اسم المنتج</th>
-                  <th className="px-3 py-2 text-center font-bold text-sm border border-gray-200 w-24">خاص (A)</th>
-                  <th className="px-3 py-2 text-center font-bold text-sm border border-gray-200 w-24">جملة (B)</th>
-                  <th className="px-3 py-2 text-center font-bold text-sm border border-gray-200 w-24">نصف جملة (C)</th>
-                  <th className="px-3 py-2 text-center font-bold text-sm border border-gray-200 w-24">حانوت (D)</th>
-                  <th className="px-3 py-2 text-center font-bold text-sm border border-gray-200 w-24">تقسيط (E)</th>
-                  <th className="px-3 py-2 text-center font-bold text-sm border border-gray-200 w-16">المخزون</th>
-                  <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">حالة المخزون</th>
-                  <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">القيمة الإجمالية</th>
-                  <th className="px-3 py-2 text-right font-bold text-sm border border-gray-200">إجراءات سريعة</th>
                 </tr>
               </thead>
               <tbody>
@@ -2093,7 +2089,7 @@ export default function ProductsPage() {
                       key={product.id}
                       className="border-b hover:bg-purple-50 transition-colors"
                     >
-                      <td className="px-3 py-2 border border-gray-200">
+                      <td className="p-2">
                         <input
                           type="checkbox"
                           checked={selectedProductIds.has(product.id)}
@@ -2101,187 +2097,39 @@ export default function ProductsPage() {
                           className="h-4 w-4"
                         />
                       </td>
-                      <td className="px-2 py-1 border border-gray-200 w-12">
-                        <div className="w-10 h-10 flex items-center justify-center bg-gray-50 rounded overflow-hidden">
+                      <td className="p-2">
+                        <div className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center">
                           {product.image_url ? (
-                            <img
-                              src={product.image_url}
+                            <img 
+                              src={product.image_url} 
                               alt={product.name_ar}
-                              className="w-full h-full object-contain rounded"
-                              loading="lazy"
-                              onError={(e) => {
-                                e.currentTarget.style.display = 'none'
-                              }}
+                              className="w-full h-full object-cover rounded"
                             />
                           ) : (
-                            <Package size={16} className="text-gray-300" />
+                            <Package size={16} className="text-gray-400" />
                           )}
                         </div>
                       </td>
-                      <td className="px-3 py-2 border border-gray-200">
-                        {editingPrice?.productId === product.id && editingPrice?.field === 'name_ar' ? (
-                          <input
-                            type="text"
-                            value={editingPrice.value}
-                            onChange={(e) => setEditingPrice({ ...editingPrice, value: e.target.value })}
-                            onBlur={() => handlePriceSave(false)}
-                            onKeyDown={(e) => handlePriceKeyDown(e, product, 'name_ar')}
-                            className="w-full px-2 py-1 text-sm border border-purple-500 rounded text-right"
-                            autoFocus
-                          />
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => handlePriceClick(product, 'name_ar')}
-                            className="text-right w-full"
-                          >
-                            <p className="font-bold text-sm text-gray-800 hover:text-purple-700 underline-offset-4 hover:underline">
-                              {product.name_ar}
-                            </p>
-                          </button>
-                        )}
+                      <td className="p-2">
+                        <div className="font-medium text-gray-900 text-sm">{product.name_ar}</div>
                       </td>
-                      <td className="px-2 py-1 border border-gray-200 text-center w-24">
-                        {editingPrice?.productId === product.id && editingPrice?.field === 'price_a' ? (
-                          <input
-                            type="number"
-                            value={editingPrice.value}
-                            onChange={(e) => setEditingPrice({ ...editingPrice, value: e.target.value })}
-                            onBlur={() => handlePriceSave(false)}
-                            onKeyDown={(e) => handlePriceKeyDown(e, product, 'price_a')}
-                            className="w-full px-1 py-1 text-sm border border-purple-500 rounded text-center"
-                            autoFocus
-                          />
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => handlePriceClick(product, 'price_a')}
-                            className="w-full px-2 py-1 text-sm bg-purple-50 hover:bg-purple-100 rounded font-medium text-gray-800"
-                          >
-                            {product.price_a && product.price_a > 0 ? product.price_a.toFixed(2) : ''}
-                          </button>
-                        )}
+                      <td className="p-2 text-gray-600 text-xs">{product.sku}</td>
+                      <td className="p-2 text-gray-600 text-xs font-mono">{product.barcode}</td>
+                      <td className="p-2">
+                        <div className="font-semibold text-green-600 text-sm">{product.price_a.toFixed(2)} DH</div>
                       </td>
-                      <td className="px-2 py-1 border border-gray-200 text-center w-24">
-                        {editingPrice?.productId === product.id && editingPrice?.field === 'price_b' ? (
-                          <input
-                            type="number"
-                            value={editingPrice.value}
-                            onChange={(e) => setEditingPrice({ ...editingPrice, value: e.target.value })}
-                            onBlur={() => handlePriceSave(false)}
-                            onKeyDown={(e) => handlePriceKeyDown(e, product, 'price_b')}
-                            className="w-full px-1 py-1 text-sm border border-purple-500 rounded text-center"
-                            autoFocus
-                          />
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => handlePriceClick(product, 'price_b')}
-                            className="w-full px-2 py-1 text-sm bg-blue-50 hover:bg-blue-100 rounded font-medium text-gray-800"
-                          >
-                            {product.price_b && product.price_b > 0 ? product.price_b.toFixed(2) : ''}
-                          </button>
-                        )}
+                      <td className="p-2">
+                        <div className={`font-semibold text-sm ${product.stock > 10 ? 'text-green-600' : product.stock > 0 ? 'text-orange-500' : 'text-red-500'}`}>
+                          {product.stock}
+                        </div>
                       </td>
-                      <td className="px-2 py-1 border border-gray-200 text-center w-24">
-                        {editingPrice?.productId === product.id && editingPrice?.field === 'price_c' ? (
-                          <input
-                            type="number"
-                            value={editingPrice.value}
-                            onChange={(e) => setEditingPrice({ ...editingPrice, value: e.target.value })}
-                            onBlur={() => handlePriceSave(false)}
-                            onKeyDown={(e) => handlePriceKeyDown(e, product, 'price_c')}
-                            className="w-full px-1 py-1 text-sm border border-purple-500 rounded text-center"
-                            autoFocus
-                          />
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => handlePriceClick(product, 'price_c')}
-                            className="w-full px-2 py-1 text-sm bg-green-50 hover:bg-green-100 rounded font-medium text-gray-800"
-                          >
-                            {product.price_c && product.price_c > 0 ? product.price_c.toFixed(2) : ''}
-                          </button>
-                        )}
-                      </td>
-                      <td className="px-2 py-1 border border-gray-200 text-center w-24">
-                        {editingPrice?.productId === product.id && editingPrice?.field === 'price_d' ? (
-                          <input
-                            type="number"
-                            value={editingPrice.value}
-                            onChange={(e) => setEditingPrice({ ...editingPrice, value: e.target.value })}
-                            onBlur={() => handlePriceSave(false)}
-                            onKeyDown={(e) => handlePriceKeyDown(e, product, 'price_d')}
-                            className="w-full px-1 py-1 text-sm border border-purple-500 rounded text-center"
-                            autoFocus
-                          />
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => handlePriceClick(product, 'price_d')}
-                            className="w-full px-2 py-1 text-sm bg-orange-50 hover:bg-orange-100 rounded font-medium text-gray-800"
-                          >
-                            {product.price_d && product.price_d > 0 ? product.price_d.toFixed(2) : ''}
-                          </button>
-                        )}
-                      </td>
-                      <td className="px-2 py-1 border border-gray-200 text-center w-24">
-                        {editingPrice?.productId === product.id && editingPrice?.field === 'price_e' ? (
-                          <input
-                            type="number"
-                            value={editingPrice.value}
-                            onChange={(e) => setEditingPrice({ ...editingPrice, value: e.target.value })}
-                            onBlur={() => handlePriceSave(false)}
-                            onKeyDown={(e) => handlePriceKeyDown(e, product, 'price_e')}
-                            className="w-full px-1 py-1 text-sm border border-purple-500 rounded text-center"
-                            autoFocus
-                          />
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => handlePriceClick(product, 'price_e')}
-                            className="w-full px-2 py-1 text-sm bg-gray-50 hover:bg-gray-100 rounded font-medium text-gray-800"
-                          >
-                            {product.price_e && product.price_e > 0 ? product.price_e.toFixed(2) : ''}
-                          </button>
-                        )}
-                      </td>
-                      <td className="px-2 py-1 border border-gray-200 text-center w-16">
-                        {editingPrice?.productId === product.id && editingPrice?.field === 'stock' ? (
-                          <input
-                            type="number"
-                            value={editingPrice.value}
-                            onChange={(e) => setEditingPrice({ ...editingPrice, value: e.target.value })}
-                            onBlur={() => handlePriceSave(false)}
-                            onKeyDown={(e) => handlePriceKeyDown(e, product, 'stock')}
-                            className="w-full px-1 py-1 text-sm border border-purple-500 rounded text-center"
-                            autoFocus
-                          />
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => handlePriceClick(product, 'stock')}
-                            className={`w-full px-2 py-1 text-sm rounded font-medium ${
-                              product.stock === 0 ? 'text-red-600 bg-red-50 hover:bg-red-100' : 
-                              product.stock < 10 ? 'text-orange-600 bg-orange-50 hover:bg-orange-100' : 
-                              'text-green-600 bg-green-50 hover:bg-green-100'
-                            }`}
-                          >
-                            {product.stock}
-                          </button>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 border border-gray-200">
+                      <td className="p-2 text-gray-600 text-xs">{product.category_name}</td>
+                      <td className="p-2">
                         <span className={`px-2 py-0.5 rounded-full font-bold text-xs ${stockStatus.color}`}>
                           {stockStatus.text}
                         </span>
                       </td>
-                      <td className="px-3 py-2 border border-gray-200">
-                        <span className="font-bold text-sm text-gray-800">
-                          {totalValue.toFixed(2)} MAD
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 border border-gray-200">
+                      <td className="p-2">
                         <div className="flex items-center gap-2">
                           <div className="flex gap-2">
                             <button

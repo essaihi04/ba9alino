@@ -58,6 +58,7 @@ function createMainWindow() {
     width: 1400,
     height: 900,
     backgroundColor: '#0b1220',
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -65,6 +66,8 @@ function createMainWindow() {
       sandbox: true
     }
   })
+
+  mainWindow.setMenuBarVisibility(false)
 
   mainWindow.on('closed', () => {
     mainWindow = null
@@ -86,8 +89,7 @@ function createMainWindow() {
 
   const resize = () => {
     const bounds = mainWindow.getContentBounds()
-    const toolbarHeight = 56
-    view.setBounds({ x: 0, y: toolbarHeight, width: bounds.width, height: bounds.height - toolbarHeight })
+    view.setBounds({ x: 0, y: 0, width: bounds.width, height: bounds.height })
     view.setAutoResize({ width: true, height: true })
   }
 
