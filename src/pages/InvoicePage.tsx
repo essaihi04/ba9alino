@@ -1042,7 +1042,7 @@ export default function InvoicePage() {
               </h1>
             </div>
             <div className="flex items-center space-x-2">
-              {!isLocked && invoiceId && (
+              {invoiceId && (
                 <button
                   onClick={() => {
                     const posData = {
