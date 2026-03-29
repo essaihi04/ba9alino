@@ -2789,10 +2789,10 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         <div className="flex items-center justify-between mb-3">
           <button
             onClick={() => navigate(isEmployeeMode ? '/employee/dashboard' : '/')}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2"
+            className="p-2 hover:bg-red-100 rounded-lg transition-colors flex items-center gap-2"
           >
-            <ArrowRight size={20} className="text-gray-600" />
-            <span className="text-gray-600">العودة</span>
+            <ArrowRight size={20} className="text-red-600" />
+            <span className="text-red-600">العودة</span>
           </button>
           <div className="relative flex-1">
             <Search className="absolute right-3 top-3 text-gray-400" size={20} />
