@@ -298,21 +298,58 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
   }
 
   useEffect(() => {
-    // Désactivé temporairement car on utilise virtual_accounts IDs comme fallback
-    // Nettoyer les anciennes données potentiellement corrompues en mode employé
-    // if (isEmployeeMode) {
-    //   const storedEmployeeId = localStorage.getItem('employee_id')
-    //   if (storedEmployeeId && storedEmployeeId.startsWith('682df66a')) {
-    //     console.log('Cleaning corrupted employee data from localStorage')
-    //     localStorage.removeItem('employee_id')
-    //     localStorage.removeItem('employee_name')
-    //     localStorage.removeItem('employee_role')
-    //     localStorage.removeItem('employee_phone')
-    //     localStorage.removeItem('virtual_account_id')
-    //     navigate('/login')
-    //     return
-    //   }
-    // }
+    // Check for invoice data from InvoicePage
+    const posInvoiceData = sessionStorage.getItem('posInvoiceData')
+    if (posInvoiceData) {
+      try {
+        const data = JSON.parse(posInvoiceData)
+        console.log('Loading invoice data in POS:', data)
+        
+        // Convert invoice items to cart format
+        const cartItems = data.items.map((item: any) => ({
+          id: item.id,
+          primary_variant_id: item.primary_variant_id,
+          name_ar: item.name_ar,
+          price_a: item.price_a,
+          price_b: item.price_b,
+          price_c: item.price_c,
+          price_d: item.price_d,
+          price_e: item.price_e,
+          stock: item.stock || 999,
+          quantity: item.quantity,
+          customPrice: item.customPrice,
+          selectedPrice: item.customPrice || item.unit_price
+        }))
+        
+        // Create new invoice with loaded items
+        const newInvoice = {
+          id: `temp_${Date.now()}`,
+          client_id: null,
+          client_name: '',
+          client_phone: '',
+          items: cartItems,
+          subtotal: cartItems.reduce((sum: number, item: any) => sum + (item.selectedPrice * item.quantity), 0),
+          total_amount: cartItems.reduce((sum: number, item: any) => sum + (item.selectedPrice * item.quantity), 0),
+          discount_percent: 0,
+          discount_amount: 0,
+          paid_amount: 0,
+          remaining_amount: cartItems.reduce((sum: number, item: any) => sum + (item.selectedPrice * item.quantity), 0),
+          status: 'draft',
+          payment_method: 'cash',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+        
+        setCurrentInvoice(newInvoice)
+        sessionStorage.removeItem('posInvoiceData') // Clean up
+        
+        // Show notification
+        alert(`تم تحميل ${cartItems.length} منتجات من الفاتورة للتعديل`)
+      } catch (error) {
+        console.error('Error loading invoice data:', error)
+        sessionStorage.removeItem('posInvoiceData')
+      }
+    }
 
     if (isEmployeeMode) {
       if (!employeeIdFromAuth) {

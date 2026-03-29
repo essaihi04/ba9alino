@@ -1044,13 +1044,42 @@ export default function InvoicePage() {
             <div className="flex items-center space-x-2">
               {!isLocked && (
                 isEditing ? (
-                  <button
-                    onClick={() => setIsEditing(false)}
-                    className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
-                  >
-                    <Save size={16} />
-                    <span>حفظ</span>
-                  </button>
+                  <>
+                    <button
+                      onClick={() => {
+                        // Navigate to POS with invoice items
+                        const posData = {
+                          invoiceId: editingInvoiceId,
+                          items: invoiceData.items.map(item => ({
+                            id: item.id,
+                            primary_variant_id: item.primary_variant_id,
+                            name_ar: item.name_ar,
+                            price_a: item.unit_price,
+                            price_b: item.unit_price,
+                            price_c: item.unit_price,
+                            price_d: item.unit_price,
+                            price_e: item.unit_price,
+                            quantity: item.quantity,
+                            stock: 999, // Default stock for POS
+                            customPrice: item.unit_price
+                          }))
+                        }
+                        sessionStorage.setItem('posInvoiceData', JSON.stringify(posData))
+                        navigate('/pos')
+                      }}
+                      className="flex items-center space-x-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700"
+                    >
+                      <Edit3 size={16} />
+                      <span>تعديل في الكايس</span>
+                    </button>
+                    <button
+                      onClick={() => setIsEditing(false)}
+                      className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+                    >
+                      <Save size={16} />
+                      <span>حفظ</span>
+                    </button>
+                  </>
                 ) : (
                   <button
                     onClick={() => setIsEditing(true)}
