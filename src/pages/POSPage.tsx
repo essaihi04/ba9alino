@@ -305,46 +305,53 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         const data = JSON.parse(posInvoiceData)
         console.log('Loading invoice data in POS:', data)
         
-        // Convert invoice items to cart format
-        const cartItems = data.items.map((item: any) => ({
+        // Convert invoice items to invoice lines format
+        const invoiceLines = data.items.map((item: any) => ({
           id: item.id,
+          product_id: item.id,
           primary_variant_id: item.primary_variant_id,
-          name_ar: item.name_ar,
-          price_a: item.price_a,
-          price_b: item.price_b,
-          price_c: item.price_c,
-          price_d: item.price_d,
-          price_e: item.price_e,
-          stock: item.stock || 999,
+          product_name_ar: item.name_ar,
           quantity: item.quantity,
+          unit_price: item.customPrice || item.unit_price,
+          total: (item.customPrice || item.unit_price) * item.quantity,
+          unit_type: 'unit',
+          pricing_tier: 'auto',
           customPrice: item.customPrice,
-          selectedPrice: item.customPrice || item.unit_price
+          deleted: false,
+          image_url: item.image_url,
+          is_gift: false,
+          discount_percent: 0,
+          original_unit_price: item.unit_price
         }))
         
-        // Create new invoice with loaded items
+        // Create new invoice with loaded lines
         const newInvoice = {
           id: `temp_${Date.now()}`,
+          invoice_number: `INV-${Date.now()}`,
           client_id: null,
           client_name: '',
-          client_phone: '',
-          items: cartItems,
-          subtotal: cartItems.reduce((sum: number, item: any) => sum + (item.selectedPrice * item.quantity), 0),
-          total_amount: cartItems.reduce((sum: number, item: any) => sum + (item.selectedPrice * item.quantity), 0),
+          status: 'draft' as const,
+          lines: invoiceLines,
+          subtotal: invoiceLines.reduce((sum: number, line: any) => sum + line.total, 0),
+          total_amount: invoiceLines.reduce((sum: number, line: any) => sum + line.total, 0),
           discount_percent: 0,
           discount_amount: 0,
           paid_amount: 0,
-          remaining_amount: cartItems.reduce((sum: number, item: any) => sum + (item.selectedPrice * item.quantity), 0),
-          status: 'draft',
-          payment_method: 'cash',
+          remaining_amount: invoiceLines.reduce((sum: number, line: any) => sum + line.total, 0),
           created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          validated_at: undefined,
+          enable_tva: false,
+          tva_rate: undefined,
+          total_with_tva: undefined,
+          tva_amount: undefined,
+          payment_method: 'cash'
         }
         
         setCurrentInvoice(newInvoice)
         sessionStorage.removeItem('posInvoiceData') // Clean up
         
         // Show notification
-        alert(`تم تحميل ${cartItems.length} منتجات من الفاتورة للتعديل`)
+        alert(`تم تحميل ${invoiceLines.length} منتجات من الفاتورة للتعديل`)
       } catch (error) {
         console.error('Error loading invoice data:', error)
         sessionStorage.removeItem('posInvoiceData')
@@ -2356,8 +2363,8 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                   <td style="border: 1px solid black; padding: 8px; text-align: center;">${line.quantity}</td>
                   <td style="border: 1px solid black; padding: 8px; text-align: center;">وحدة</td>
                   <td style="border: 1px solid black; padding: 8px; text-align: right;">${line.product_name_ar}</td>
-                  <td style="border: 1px solid black; padding: 8px; text-align: left;">${line.unit_price.toFixed(2)} MAD</td>
-                  <td style="border: 1px solid black; padding: 8px; text-align: left; font-weight: bold;">${line.total.toFixed(2)} MAD</td>
+                  <td style="border: 1px solid black; padding: 8px; text-align: left;">${(line.unit_price || 0).toFixed(2)} MAD</td>
+                  <td style="border: 1px solid black; padding: 8px; text-align: left; font-weight: bold;">${(line.total || 0).toFixed(2)} MAD</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -2452,9 +2459,9 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                 <tr>
                   <td style=\"padding: 4px 3px; text-align: right; white-space: nowrap; border: 1px solid #000;\">${line.quantity}</td>
                   <td style=\"padding: 4px 3px; text-align: right; white-space: nowrap; border: 1px solid #000;\">وحدة</td>
-                  <td style=\"padding: 4px 3px; text-align: right; white-space: nowrap; border: 1px solid #000;\">${line.unit_price.toFixed(2)}</td>
+                  <td style=\"padding: 4px 3px; text-align: right; white-space: nowrap; border: 1px solid #000;\">${(line.unit_price || 0).toFixed(2)}</td>
                   <td style=\"padding: 4px 3px; text-align: right; border: 1px solid #000;\">${line.product_name_ar}</td>
-                  <td style=\"padding: 4px 3px; text-align: left; white-space: nowrap; border: 1px solid #000;\">${line.total.toFixed(2)}</td>
+                  <td style=\"padding: 4px 3px; text-align: left; white-space: nowrap; border: 1px solid #000;\">${(line.total || 0).toFixed(2)}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -2523,7 +2530,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
             ${confirmedInvoice.lines.filter(l => !l.deleted).map((line, index) => `
               <div style="margin-bottom: 8px; padding: 5px; border-bottom: 1px dotted black;">
                 <div style="color: black; font-weight: bold;">${index + 1}. ${line.product_name_ar}</div>
-                <div style="color: black; font-size: 12px;">الكمية: ${line.quantity} | الثمن: ${line.unit_price.toFixed(2)} MAD | الإجمالي: ${line.total.toFixed(2)} MAD</div>
+                <div style="color: black; font-size: 12px;">الكمية: ${line.quantity} | الثمن: ${(line.unit_price || 0).toFixed(2)} MAD | الإجمالي: ${(line.total || 0).toFixed(2)} MAD</div>
               </div>
             `).join('')}
           </div>
@@ -3121,7 +3128,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                           type="button"
                           disabled={!!line.deleted}
                         >
-                          {line.deleted ? '0.00' : line.unit_price.toFixed(2)}
+                          {line.deleted ? '0.00' : (line.unit_price || 0).toFixed(2)}
                         </button>
                         
                         {/* Quantité avec boutons */}
@@ -3171,7 +3178,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                         
                         {/* Total ligne */}
                         <div className={`col-span-2 text-center font-bold ${line.deleted ? 'text-gray-500 line-through' : 'text-green-600'}`}>
-                          {(line.deleted ? 0 : line.total).toFixed(2)}
+                          {(line.deleted ? 0 : (line.total || 0)).toFixed(2)}
                         </div>
                         
                         {/* Bouton supprimer */}
@@ -3956,8 +3963,8 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                         <td className="border border-gray-800 py-3 px-4 text-center text-gray-700">{line.quantity}</td>
                         <td className="border border-gray-800 py-3 px-4 text-center text-gray-700">وحدة</td>
                         <td className="border border-gray-800 py-3 px-4 text-right font-medium text-gray-800">{line.product_name_ar}</td>
-                        <td className="border border-gray-800 py-3 px-4 text-left text-gray-700">{line.unit_price.toFixed(2)} MAD</td>
-                        <td className="border border-gray-800 py-3 px-4 text-left font-bold text-gray-800">{line.total.toFixed(2)} MAD</td>
+                        <td className="border border-gray-800 py-3 px-4 text-left text-gray-700">{(line.unit_price || 0).toFixed(2)} MAD</td>
+                        <td className="border border-gray-800 py-3 px-4 text-left font-bold text-gray-800">{(line.total || 0).toFixed(2)} MAD</td>
                       </tr>
                     ))}
                   </tbody>
@@ -4133,8 +4140,8 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                           <td className="py-3 px-4 text-center text-gray-700">{line.quantity}</td>
                           <td className="py-3 px-4 text-center text-gray-700">وحدة</td>
                           <td className="py-3 px-4 font-medium text-gray-800">{line.product_name_ar}</td>
-                          <td className="py-3 px-4 text-left text-gray-700">{line.unit_price.toFixed(2)} MAD</td>
-                          <td className="py-3 px-4 text-left font-semibold text-gray-800">{line.total.toFixed(2)} MAD</td>
+                          <td className="py-3 px-4 text-left text-gray-700">{(line.unit_price || 0).toFixed(2)} MAD</td>
+                          <td className="py-3 px-4 text-left font-semibold text-gray-800">{(line.total || 0).toFixed(2)} MAD</td>
                         </tr>
                       ))}
                     </tbody>
