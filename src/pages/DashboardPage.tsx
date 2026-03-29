@@ -425,10 +425,10 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-4" dir="rtl">
+    <div className="space-y-3" dir="rtl">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-          <TrendingUp className="text-white" size={28} />
+          <TrendingUp className="text-white" size={24} />
           لوحة التحكم
         </h1>
         <div className="text-xs md:text-sm text-white">
@@ -442,21 +442,21 @@ export default function DashboardPage() {
       </div>
 
       {/* 5 indicateurs clés en grandes cartes */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2">
         {cards.map((card, index) => {
           const Icon = card.icon
           return (
             <div
               key={index}
-              className={`bg-gradient-to-br ${card.color} text-white rounded-xl p-4 shadow-lg`}
+              className={`bg-gradient-to-br ${card.color} text-white rounded-xl p-3 shadow-lg`}
             >
               <div className="flex items-center justify-between">
                 <div className="flex-1">
-                  <p className="text-white/80 text-sm mb-1">{card.title}</p>
-                  <p className="text-2xl font-bold">{card.value}</p>
+                  <p className="text-white/80 text-xs mb-1">{card.title}</p>
+                  <p className="text-lg font-bold">{card.value}</p>
                 </div>
-                <div className="bg-white/15 p-2 rounded-lg">
-                  <Icon size={28} className="text-white" />
+                <div className="bg-white/15 p-1.5 rounded-lg">
+                  <Icon size={20} className="text-white" />
                 </div>
               </div>
             </div>
@@ -465,42 +465,42 @@ export default function DashboardPage() {
       </div>
 
       {/* Actions rapides */}
-      <div className="bg-white rounded-xl shadow-lg p-4">
-        <h2 className="text-lg font-bold text-gray-800 mb-3">إجراءات سريعة</h2>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="bg-white rounded-xl shadow-lg p-3">
+        <h2 className="text-lg font-bold text-gray-800 mb-2">إجراءات سريعة</h2>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
           <button
             onClick={() => window.location.href = '/pos'}
-            className="bg-green-100 hover:bg-green-200 text-green-700 p-3 rounded-lg font-bold transition-all duration-200 flex flex-col items-center gap-1"
+            className="bg-green-100 hover:bg-green-200 text-green-700 p-2 rounded-lg font-bold transition-all duration-200 flex flex-col items-center gap-1"
           >
-            <ShoppingCart size={24} />
+            <ShoppingCart size={20} />
             فتح الكايس
           </button>
           <button
             onClick={() => window.location.href = '/invoices'}
-            className="bg-blue-100 hover:bg-blue-200 text-blue-700 p-3 rounded-lg font-bold transition-all duration-200 flex flex-col items-center gap-1"
+            className="bg-blue-100 hover:bg-blue-200 text-blue-700 p-2 rounded-lg font-bold transition-all duration-200 flex flex-col items-center gap-1"
           >
-            <Package size={24} />
+            <Package size={20} />
             المبيعات
           </button>
           <button
             onClick={() => window.location.href = '/orders'}
-            className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 p-3 rounded-lg font-bold transition-all duration-200 flex flex-col items-center gap-1"
+            className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 p-2 rounded-lg font-bold transition-all duration-200 flex flex-col items-center gap-1"
           >
-            <FileText size={24} />
+            <FileText size={20} />
             الطلبات
           </button>
           <button
             onClick={() => window.location.href = '/credits'}
-            className="bg-red-100 hover:bg-red-200 text-red-700 p-3 rounded-lg font-bold transition-all duration-200 flex flex-col items-center gap-1"
+            className="bg-red-100 hover:bg-red-200 text-red-700 p-2 rounded-lg font-bold transition-all duration-200 flex flex-col items-center gap-1"
           >
-            <DollarSign size={24} />
+            <DollarSign size={20} />
             متابعة الديون
           </button>
           <button
             onClick={() => window.location.href = '/products'}
-            className="bg-purple-100 hover:bg-purple-200 text-purple-700 p-3 rounded-lg font-bold transition-all duration-200 flex flex-col items-center gap-1"
+            className="bg-purple-100 hover:bg-purple-200 text-purple-700 p-2 rounded-lg font-bold transition-all duration-200 flex flex-col items-center gap-1"
           >
-            <Package size={24} />
+            <Package size={20} />
             المنتجات
           </button>
         </div>
@@ -508,12 +508,12 @@ export default function DashboardPage() {
 
       {/* Alertes importantes */}
       {stats.lowStockProducts > 0 && (
-        <div className="bg-orange-50 border-2 border-orange-200 rounded-xl p-4">
+        <div className="bg-orange-50 border-2 border-orange-200 rounded-xl p-3">
           <div className="flex items-center gap-3">
-            <AlertCircle className="text-orange-600" size={24} />
+            <AlertCircle className="text-orange-600" size={20} />
             <div>
               <p className="font-bold text-orange-800">تنبيه المخزون</p>
-              <p className="text-orange-700">
+              <p className="text-orange-700 text-sm">
                 لديك {stats.lowStockProducts} منتجات منخفضة المخزون (أقل من 10 وحدات)
               </p>
             </div>
@@ -522,12 +522,12 @@ export default function DashboardPage() {
       )}
 
       {stats.totalCredits > 0 && (
-        <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4">
+        <div className="bg-red-50 border-2 border-red-200 rounded-xl p-3">
           <div className="flex items-center gap-3">
-            <DollarSign className="text-red-600" size={24} />
+            <DollarSign className="text-red-600" size={20} />
             <div>
               <p className="font-bold text-red-800">الديون المستحقة</p>
-              <p className="text-red-700">
+              <p className="text-red-700 text-sm">
                 المبلغ الإجمالي غير المسدد: {stats.totalCredits.toFixed(2)} MAD
               </p>
             </div>
@@ -536,16 +536,16 @@ export default function DashboardPage() {
       )}
 
       {stats.overdueClients.length > 0 && (
-        <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4">
+        <div className="bg-red-50 border-2 border-red-200 rounded-xl p-3">
           <div className="flex items-start gap-3">
-            <AlertCircle className="text-red-600 mt-1" size={24} />
+            <AlertCircle className="text-red-600 mt-1" size={20} />
             <div className="flex-1">
-              <p className="font-bold text-red-800">⚠️ عملاء متأخرون في السداد (أكثر من 30 يوم)</p>
+              <p className="font-bold text-red-800 text-sm">⚠️ عملاء متأخرون في السداد (أكثر من 30 يوم)</p>
               <div className="mt-2 space-y-1">
                 {stats.overdueClients.map((client, index) => (
                   <div key={index} className="flex justify-between items-center text-red-700">
-                    <span className="font-medium">{client.name}</span>
-                    <span className="text-sm">
+                    <span className="font-medium text-sm">{client.name}</span>
+                    <span className="text-xs">
                       {client.debt.toFixed(2)} MAD • {client.daysOverdue} يوم
                     </span>
                   </div>
@@ -560,18 +560,18 @@ export default function DashboardPage() {
       )}
 
       {stats.supplierPaymentReminders.length > 0 && (
-        <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4">
+        <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-3">
           <div className="flex items-start gap-3">
-            <AlertCircle className="text-blue-600 mt-1" size={24} />
+            <AlertCircle className="text-blue-600 mt-1" size={20} />
             <div className="flex-1">
-              <p className="font-bold text-blue-800">⏰ تذكير: شيكات/ديون الموردين المستحقة</p>
+              <p className="font-bold text-blue-800 text-sm">⏰ تذكير: شيكات/ديون الموردين المستحقة</p>
               <div className="mt-2 space-y-2">
                 {stats.supplierPaymentReminders.map((r, index) => (
-                  <div key={index} className="bg-blue-100 rounded-lg p-3 border border-blue-200">
+                  <div key={index} className="bg-blue-100 rounded-lg p-2 border border-blue-200">
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
-                        <p className="font-semibold text-blue-900">{r.supplierName}</p>
-                        <p className="text-sm text-blue-700">{r.purchaseNumber}</p>
+                        <p className="font-semibold text-blue-900 text-sm">{r.supplierName}</p>
+                        <p className="text-xs text-blue-700">{r.purchaseNumber}</p>
                         <p className="text-xs text-blue-600">
                           {r.paymentType === 'check' ? 'شيك' : 'دين'} • {new Date(r.dueDate).toLocaleDateString('ar-MA')}
                           {r.daysOverdue > 0 ? ` • متأخر ${r.daysOverdue} يوم` : ''}
@@ -595,18 +595,18 @@ export default function DashboardPage() {
       )}
 
       {stats.chequesCount > 0 && (
-        <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-4">
+        <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-3">
           <div className="flex items-start gap-3">
-            <Calendar className="text-amber-600 mt-1" size={24} />
+            <Calendar className="text-amber-600 mt-1" size={20} />
             <div className="flex-1">
-              <p className="font-bold text-amber-800">شيكات (الفواتير المدفوعة بشيك)</p>
+              <p className="font-bold text-amber-800 text-sm">شيكات (الفواتير المدفوعة بشيك)</p>
               <div className="mt-2 space-y-2">
                 {stats.chequesList.map((cheque, index) => (
-                  <div key={index} className="bg-amber-100 rounded-lg p-3 border border-amber-200">
+                  <div key={index} className="bg-amber-100 rounded-lg p-2 border border-amber-200">
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
-                        <p className="font-semibold text-amber-900">{cheque.clientName}</p>
-                        <p className="text-sm text-amber-700">فاتورة #{cheque.invoiceNumber}</p>
+                        <p className="font-semibold text-amber-900 text-sm">{cheque.clientName}</p>
+                        <p className="text-xs text-amber-700">فاتورة #{cheque.invoiceNumber}</p>
                         <p className="text-xs text-amber-600">
                           شيك #{cheque.checkNumber} - {cheque.checkBank}
                         </p>
@@ -617,9 +617,9 @@ export default function DashboardPage() {
                         )}
                       </div>
                       <div className="text-left">
-                        <p className="text-sm text-amber-700">المبلغ: {cheque.totalAmount.toFixed(2)} MAD</p>
-                        <p className="text-sm text-green-700">المدفوع: {cheque.paidAmount.toFixed(2)} MAD</p>
-                        <p className="text-sm font-bold text-red-700">المتبقي: {cheque.remainingAmount.toFixed(2)} MAD</p>
+                        <p className="text-xs text-amber-700">المبلغ: {cheque.totalAmount.toFixed(2)} MAD</p>
+                        <p className="text-xs text-green-700">المدفوع: {cheque.paidAmount.toFixed(2)} MAD</p>
+                        <p className="text-xs font-bold text-red-700">المتبقي: {cheque.remainingAmount.toFixed(2)} MAD</p>
                       </div>
                     </div>
                   </div>
