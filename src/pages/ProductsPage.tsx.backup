@@ -92,7 +92,6 @@ export default function ProductsPage() {
   const [editingPrice, setEditingPrice] = useState<{ productId: string; field: string; value: string } | null>(null)
   const [editPrice, setEditPrice] = useState('')
   const [stockQuantity, setStockQuantity] = useState('')
-  const [isSavingProduct, setIsSavingProduct] = useState(false)
   const [formData, setFormData] = useState({
     name_ar: '',
     sku: '',
@@ -973,8 +972,7 @@ export default function ProductsPage() {
       if (moveToNext) {
         // Navigation order: name_ar -> stock -> price_a -> price_b -> price_c -> price_d -> price_e
         const fields: ('name_ar' | 'stock' | 'price_a' | 'price_b' | 'price_c' | 'price_d' | 'price_e')[] = ['name_ar', 'stock', 'price_a', 'price_b', 'price_c', 'price_d', 'price_e']
-        const typedField = field as 'name_ar' | 'stock' | 'price_a' | 'price_b' | 'price_c' | 'price_d' | 'price_e'
-        const currentIndex = fields.indexOf(typedField)
+        const currentIndex = fields.indexOf(field)
         const nextField = fields[currentIndex + 1]
         
         if (nextField) {
@@ -1020,41 +1018,18 @@ export default function ProductsPage() {
     e.preventDefault()
     if (!selectedProduct) return
 
-    setIsSavingProduct(true)
     try {
       const packagingManagedByPurchases = true
-      const activePrimary = primaryVariants.filter(v => v.is_active !== false)
-      const normalizedPrimary = activePrimary.length > 0
-        ? (() => {
-            const hasDefault = activePrimary.some(v => v.is_default)
-            if (hasDefault) return activePrimary
-            const copy = [...activePrimary]
-            copy[0] = { ...copy[0], is_default: true }
-            return copy
-          })()
-        : [{
-            variant_name: 'افتراضي',
-            barcode: String(formData.sku || '').trim() || generateBarcode(),
-            price_a: parsePrice(formData.price_a),
-            price_b: parsePrice(formData.price_b),
-            price_c: parsePrice(formData.price_c),
-            price_d: parsePrice(formData.price_d),
-            price_e: parsePrice(formData.price_e),
-            is_active: true,
-            is_default: true,
-          } as ProductPrimaryVariant]
-
-      const defaultPrimaryVariant = normalizedPrimary.find(v => v.is_default) || normalizedPrimary[0]
       const productData: any = {
         name_ar: formData.name_ar,
         sku: formData.sku,
         category_id: formData.category_id || null,
         cost_price: parsePrice(formData.cost_price),
-        price_a: defaultPrimaryVariant?.price_a ?? parsePrice(formData.price_a),
-        price_b: defaultPrimaryVariant?.price_b ?? parsePrice(formData.price_b),
-        price_c: defaultPrimaryVariant?.price_c ?? parsePrice(formData.price_c),
-        price_d: defaultPrimaryVariant?.price_d ?? parsePrice(formData.price_d),
-        price_e: defaultPrimaryVariant?.price_e ?? parsePrice(formData.price_e),
+        price_a: parsePrice(formData.price_a),
+        price_b: parsePrice(formData.price_b),
+        price_c: parsePrice(formData.price_c),
+        price_d: parsePrice(formData.price_d),
+        price_e: parsePrice(formData.price_e),
         stock: parseQuantity(formData.quantity_in_stock),
         image_url: formData.image_url || null,
       }
@@ -1087,7 +1062,7 @@ export default function ProductsPage() {
           .eq('product_id', selectedProduct.id)
 
         const existingIds = (existingPrimary || []).map((v: any) => v.id)
-        const currentIds = normalizedPrimary.filter(v => v.id).map(v => v.id)
+        const currentIds = primaryVariants.filter(v => v.id).map(v => v.id)
 
         const toDelete = existingIds.filter((id: string) => !currentIds.includes(id))
         if (toDelete.length > 0) {
@@ -1096,6 +1071,27 @@ export default function ProductsPage() {
             .update({ is_active: false, is_default: false })
             .in('id', toDelete)
         }
+
+        const activePrimary = primaryVariants.filter(v => v.is_active !== false)
+        const normalizedPrimary = activePrimary.length > 0
+          ? (() => {
+              const hasDefault = activePrimary.some(v => v.is_default)
+              if (hasDefault) return activePrimary
+              const copy = [...activePrimary]
+              copy[0] = { ...copy[0], is_default: true }
+              return copy
+            })()
+          : [{
+              variant_name: 'افتراضي',
+              barcode: String(formData.sku || '').trim() || generateBarcode(),
+              price_a: parsePrice(formData.price_a),
+              price_b: parsePrice(formData.price_b),
+              price_c: parsePrice(formData.price_c),
+              price_d: parsePrice(formData.price_d),
+              price_e: parsePrice(formData.price_e),
+              is_active: true,
+              is_default: true,
+            } as ProductPrimaryVariant]
 
         for (const pv of normalizedPrimary.filter(v => v.id)) {
           await supabase
@@ -1248,13 +1244,10 @@ export default function ProductsPage() {
       setVariants([])
       setPrimaryVariants([])
       setImagePreview('')
-      setShowEditProductModal(false)
       alert('✅ تم تحديث المنتج بنجاح')
     } catch (error) {
       console.error('Error updating product:', error)
       alert(`❌ حدث خطأ: ${error instanceof Error ? error.message : 'Erreur inconnue'}`)
-    } finally {
-      setIsSavingProduct(false)
     }
   }
 
@@ -1264,7 +1257,6 @@ export default function ProductsPage() {
       name_ar: product.name_ar,
       sku: product.sku,
       category_id: product.category_id || '',
-      category_name: '',
       cost_price: product.cost_price?.toString() || '',
       price_a: product.price_a.toString(),
       price_b: product.price_b.toString(),
@@ -1381,18 +1373,6 @@ export default function ProductsPage() {
       const withDefault = [...normalizedVariants]
       withDefault[0] = { ...withDefault[0], is_default: true }
       normalizedVariants = withDefault
-    }
-
-    const defaultPrimaryVariant = normalizedPrimary.find(v => v.is_default) || normalizedPrimary[0]
-    if (defaultPrimaryVariant) {
-      setFormData(prev => ({
-        ...prev,
-        price_a: String(defaultPrimaryVariant.price_a ?? product.price_a ?? 0),
-        price_b: String(defaultPrimaryVariant.price_b ?? product.price_b ?? 0),
-        price_c: String(defaultPrimaryVariant.price_c ?? product.price_c ?? 0),
-        price_d: String(defaultPrimaryVariant.price_d ?? product.price_d ?? 0),
-        price_e: String(defaultPrimaryVariant.price_e ?? product.price_e ?? 0),
-      }))
     }
 
     setPrimaryVariants(normalizedPrimary)
@@ -2600,32 +2580,22 @@ export default function ProductsPage() {
       )}
 
       {showEditProductModal && (
-        <div className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 ${isSavingProduct ? 'pointer-events-none' : ''}`} onClick={() => { if (!isSavingProduct) { setShowEditProductModal(false); setVariants([]); setPrimaryVariants([]); } }}>
-          <div className={`bg-white rounded-xl p-6 w-full max-w-6xl max-h-[90vh] overflow-y-auto ${isSavingProduct ? 'opacity-75' : ''} relative`} onClick={(e) => e.stopPropagation()}>
-            {isSavingProduct && (
-              <div className="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center z-10 rounded-xl">
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
-                  <p className="text-purple-700 font-bold">جاري حفظ التعديلات...</p>
-                </div>
-              </div>
-            )}
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => { setShowEditProductModal(false); setVariants([]); setPrimaryVariants([]); }}>
+          <div className="bg-white rounded-xl p-6 w-full max-w-6xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-xl font-bold mb-6">تعديل المنتج</h3>
             
             <form onSubmit={handleEditProduct} className="space-y-4">
               <div className="sticky top-0 z-20 bg-white py-3 border-b border-gray-200 flex gap-3">
                 <button
                   type="submit"
-                  className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg font-bold disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={isSavingProduct}
+                  className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg font-bold"
                 >
                   حفظ التعديلات
                 </button>
                 <button
                   type="button"
                   onClick={() => { setShowEditProductModal(false); setVariants([]); setPrimaryVariants([]); }}
-                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 rounded-lg font-bold disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={isSavingProduct}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 rounded-lg font-bold"
                 >
                   إلغاء
                 </button>
