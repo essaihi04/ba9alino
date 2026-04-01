@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './store/auth'
+import AutoInputPad from './components/AutoInputPad'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import POSPage from './pages/POSPage'
@@ -61,6 +62,7 @@ function App() {
 
   return (
     <Router>
+      <AutoInputPad />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         
