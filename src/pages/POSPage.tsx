@@ -204,8 +204,11 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     contact_person_email: '',
     contact_person_phone: '',
     address: '',
+    city: '',
+    country: '',
     subscription_tier: 'E',
   })
+  const [clientSearchQuery, setClientSearchQuery] = useState('')
   const [paymentStatus, setPaymentStatus] = useState<'paid' | 'partial' | 'credit'>('paid')
   const [paidAmount, setPaidAmount] = useState(0)
   const [drafts, setDrafts] = useState<Draft[]>([])
@@ -1067,6 +1070,22 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     }
   }
 
+  // Filtrer les clients selon la recherche
+  const filteredClients = useMemo(() => {
+    if (!clientSearchQuery.trim()) return clients
+    
+    const query = clientSearchQuery.toLowerCase()
+    return clients.filter(client => 
+      (client.company_name_ar && client.company_name_ar.toLowerCase().includes(query)) ||
+      (client.company_name_en && client.company_name_en.toLowerCase().includes(query)) ||
+      (client.name_ar && client.name_ar.toLowerCase().includes(query)) ||
+      (client.name && client.name.toLowerCase().includes(query)) ||
+      (client.contact_person_name && client.contact_person_name.toLowerCase().includes(query)) ||
+      (client.contact_person_email && client.contact_person_email.toLowerCase().includes(query)) ||
+      (client.contact_person_phone && client.contact_person_phone.includes(query))
+    )
+  }, [clients, clientSearchQuery])
+
   const handleSelectClient = (client: any) => {
     setSelectedClient(client)
 
@@ -1081,6 +1100,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     })
 
     setShowClientModal(false)
+    setClientSearchQuery('') // Réinitialiser la recherche
   }
 
   const loadOnHoldInvoices = async () => {
@@ -3007,7 +3027,10 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
 
             {/* العميل */}
             <button
-              onClick={() => setShowClientModal(true)}
+              onClick={() => {
+                setClientSearchQuery('') // Réinitialiser la recherche à l'ouverture
+                setShowClientModal(true)
+              }}
               className="mb-3 p-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-green-500 transition-colors text-right text-sm w-full"
             >
               <p className="text-xs text-gray-500">العميل</p>
@@ -3419,21 +3442,51 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                 إضافة عميل جديد
               </button>
             </div>
+            
+            {/* Barre de recherche client */}
+            <div className="mb-4">
+              <div className="relative">
+                <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <input
+                  type="text"
+                  placeholder="البحث عن عميل..."
+                  value={clientSearchQuery}
+                  onChange={(e) => setClientSearchQuery(e.target.value)}
+                  className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-lg focus:border-green-500 focus:outline-none text-right"
+                  dir="rtl"
+                />
+                {clientSearchQuery && (
+                  <button
+                    onClick={() => setClientSearchQuery('')}
+                    className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+            </div>
+            
             <div className="space-y-2">
-              {clients.map(client => (
-                <button
-                  key={client.id}
-                  onClick={() => handleSelectClient(client)}
-                  className="w-full text-right p-3 hover:bg-green-100 rounded-lg transition-colors text-gray-800 font-medium border-2 border-gray-200"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="flex-1 truncate">{client.company_name_ar || client.company_name_en || client.name_ar || client.name || 'عميل بدون اسم'}</span>
-                    {client.subscription_tier && (
-                      <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700 border">{getCategoryLabelArabic(client.subscription_tier)}</span>
-                    )}
-                  </div>
-                </button>
-              ))}
+              {filteredClients.length === 0 ? (
+                <div className="text-center text-gray-500 py-8">
+                  {clientSearchQuery ? 'لا توجد نتائج للبحث' : 'لا توجد عملاء'}
+                </div>
+              ) : (
+                filteredClients.map(client => (
+                  <button
+                    key={client.id}
+                    onClick={() => handleSelectClient(client)}
+                    className="w-full text-right p-3 hover:bg-green-100 rounded-lg transition-colors text-gray-800 font-medium border-2 border-gray-200"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex-1 truncate">{client.company_name_ar || client.company_name_en || client.name_ar || client.name || 'عميل بدون اسم'}</span>
+                      {client.subscription_tier && (
+                        <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700 border">{getCategoryLabelArabic(client.subscription_tier)}</span>
+                      )}
+                    </div>
+                  </button>
+                ))
+              )}
             </div>
           </div>
         </div>
