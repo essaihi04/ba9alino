@@ -111,6 +111,8 @@ interface Invoice {
   invoice_number: string
   client_id: string | null
   client_name: string
+  order_id?: string | null
+  order_number?: string | null
   status: 'draft' | 'on_hold' | 'paid' | 'partial' | 'credit'
   lines: InvoiceLine[]
   subtotal: number
@@ -309,48 +311,67 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         console.log('Loading invoice data in POS:', data)
         
         // Convert invoice items to invoice lines format
-        const invoiceLines = data.items.map((item: any) => ({
-          id: item.id,
-          product_id: item.id,
-          primary_variant_id: item.primary_variant_id,
-          product_name_ar: item.name_ar,
-          quantity: item.quantity,
-          unit_price: item.customPrice || item.unit_price,
-          total: (item.customPrice || item.unit_price) * item.quantity,
-          unit_type: 'unit',
-          pricing_tier: 'auto',
-          customPrice: item.customPrice,
-          deleted: false,
-          image_url: item.image_url,
-          is_gift: false,
-          discount_percent: 0,
-          original_unit_price: item.unit_price
-        }))
+        const invoiceLines = data.items.map((item: any) => {
+          const unitPrice = Number(item.customPrice ?? item.unit_price ?? item.unitPrice ?? 0)
+          const quantity = Number(item.quantity || 0)
+          const productName =
+            item.name_ar ||
+            item.product_name_ar ||
+            item.product_name ||
+            item.description_ar ||
+            item.description ||
+            item.product?.name_ar ||
+            item.products?.name_ar ||
+            'Produit sans nom'
+          const lineTotal = Number(item.total ?? unitPrice * quantity)
+          console.log('📦 Item:', productName, 'Prix:', unitPrice, 'Qté:', quantity)
+          
+          return {
+            id: item.id,
+            product_id: item.product_id || item.id,
+            primary_variant_id: item.primary_variant_id,
+            product_name_ar: productName,
+            quantity: quantity,
+            unit_price: unitPrice,
+            total: lineTotal,
+            unit_type: 'unit',
+            pricing_tier: 'auto',
+            customPrice: unitPrice,
+            deleted: false,
+            image_url: item.image_url,
+            is_gift: false,
+            discount_percent: 0,
+            original_unit_price: unitPrice
+          }
+        })
         
         // Create new invoice with loaded lines
         const newInvoice = {
-          id: `temp_${Date.now()}`,
-          invoice_number: `INV-${Date.now()}`,
-          client_id: null,
-          client_name: '',
+          id: data.invoiceId || `temp_${Date.now()}`,
+          invoice_number: data.invoice_number || `INV-${Date.now()}`,
+          client_id: data.client_id || null,
+          client_name: data.client_name || '',
+          order_id: data.order_id || null,
+          order_number: data.order_number || null,
           status: 'draft' as const,
           lines: invoiceLines,
           subtotal: invoiceLines.reduce((sum: number, line: any) => sum + line.total, 0),
           total_amount: invoiceLines.reduce((sum: number, line: any) => sum + line.total, 0),
-          discount_percent: 0,
-          discount_amount: 0,
-          paid_amount: 0,
-          remaining_amount: invoiceLines.reduce((sum: number, line: any) => sum + line.total, 0),
-          created_at: new Date().toISOString(),
+          discount_percent: data.discount_percent || 0,
+          discount_amount: data.discount_amount || 0,
+          paid_amount: data.paid_amount || 0,
+          remaining_amount: invoiceLines.reduce((sum: number, line: any) => sum + line.total, 0) - (data.paid_amount || 0),
+          created_at: data.created_at || new Date().toISOString(),
           validated_at: undefined,
           enable_tva: false,
           tva_rate: undefined,
           total_with_tva: undefined,
           tva_amount: undefined,
-          payment_method: 'cash'
+          payment_method: data.payment_method || 'cash'
         }
         
         setCurrentInvoice(newInvoice)
+        setPaidAmount(data.paid_amount || 0)
         sessionStorage.removeItem('posInvoiceData') // Clean up
         
         // Show notification
@@ -910,7 +931,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
 
       let stockRows: any[] = []
       const primaryVariantIds = (primaryVariants || []).map((pv: any) => String(pv.id)).filter(Boolean)
-      if (warehouseForStock && primaryVariantIds.length > 0) {
+      if (primaryVariantIds.length > 0) {
         try {
           console.time('⏱️ fetch stock scoped')
           stockRows = await batchInParallel(
@@ -918,8 +939,8 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
             'product_id, primary_variant_id, quantity_in_stock',
             'primary_variant_id',
             primaryVariantIds,
-            (q: any) => q.eq('warehouse_id', warehouseForStock),
-            80,
+            (q: any) => q, // Pas de filtre warehouse_id car la colonne n'existe pas
+            30, // Réduit de 80 à 30 pour éviter les URL trop longues
           )
           console.timeEnd('⏱️ fetch stock scoped')
         } catch (stockError) {
@@ -2085,7 +2106,8 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
 
       const buildInvoiceInsert = (num: string, includeDiscounts = true) => ({
         invoice_number: num,
-        order_id: null, // Pas de commande pour les ventes directes en caisse
+        order_id: currentInvoice.order_id || null,
+        order_number: currentInvoice.order_number || null,
         client_id: clientId,
         client_name: resolvedClientName,
         invoice_date: new Date().toISOString(),
@@ -2120,23 +2142,84 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         }))
       })
 
-      let { data: invoice, error: invoiceError } = await supabase
-        .from('invoices')
-        .insert(buildInvoiceInsert(invoiceNumber, true))
-        .select()
-        .single()
+      const isEditingExistingInvoice = Boolean(
+        currentInvoice.id &&
+        !String(currentInvoice.id).startsWith('temp_')
+      )
 
-      if (invoiceError && String(invoiceError?.message || '').toLowerCase().includes('discount')) {
-        const retryNoDiscounts = await supabase
+      let invoice: any = null
+      let invoiceError: any = null
+
+      if (isEditingExistingInvoice) {
+        const updatePayload = buildInvoiceInsert(invoiceNumber, true)
+        const updateRes = await supabase
           .from('invoices')
-          .insert(buildInvoiceInsert(invoiceNumber, false))
+          .update(updatePayload)
+          .eq('id', currentInvoice.id)
+          .select()
+          .maybeSingle()
+
+        invoice = updateRes.data
+        invoiceError = updateRes.error
+
+        // If invoice doesn't exist anymore (406/PGRST116), create a new one
+        if (invoiceError && (invoiceError as any).code === 'PGRST116') {
+          console.log('Invoice not found, creating new one instead of updating')
+          const insertRes = await supabase
+            .from('invoices')
+            .insert(buildInvoiceInsert(invoiceNumber, true))
+            .select()
+            .single()
+
+          invoice = insertRes.data
+          invoiceError = insertRes.error
+
+          if (invoiceError && String(invoiceError?.message || '').toLowerCase().includes('discount')) {
+            const retryNoDiscounts = await supabase
+              .from('invoices')
+              .insert(buildInvoiceInsert(invoiceNumber, false))
+              .select()
+              .single()
+            invoice = retryNoDiscounts.data
+            invoiceError = retryNoDiscounts.error
+          }
+        } else if (invoiceError && String(invoiceError?.message || '').toLowerCase().includes('discount')) {
+          const retryUpdate = await supabase
+            .from('invoices')
+            .update(buildInvoiceInsert(invoiceNumber, false))
+            .eq('id', currentInvoice.id)
+            .select()
+            .maybeSingle()
+
+          invoice = retryUpdate.data
+          invoiceError = retryUpdate.error
+        }
+
+        if (!invoice && !invoiceError) {
+          invoice = { id: currentInvoice.id }
+        }
+      } else {
+        const insertRes = await supabase
+          .from('invoices')
+          .insert(buildInvoiceInsert(invoiceNumber, true))
           .select()
           .single()
-        invoice = retryNoDiscounts.data
-        invoiceError = retryNoDiscounts.error
+
+        invoice = insertRes.data
+        invoiceError = insertRes.error
+
+        if (invoiceError && String(invoiceError?.message || '').toLowerCase().includes('discount')) {
+          const retryNoDiscounts = await supabase
+            .from('invoices')
+            .insert(buildInvoiceInsert(invoiceNumber, false))
+            .select()
+            .single()
+          invoice = retryNoDiscounts.data
+          invoiceError = retryNoDiscounts.error
+        }
       }
 
-      if (invoiceError && (invoiceError as any).code === '23505') {
+      if (!isEditingExistingInvoice && invoiceError && (invoiceError as any).code === '23505') {
         invoiceNumber = `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`
 
         const retry = await supabase
@@ -2180,7 +2263,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
           ? 'check'
           : 'credit'
 
-      if (currentInvoice.paid_amount > 0) {
+      if (currentInvoice.paid_amount > 0 && invoice?.id) {
 
         const { error: paymentError } = await supabase
           .from('payments')
@@ -2192,12 +2275,102 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
             payment_method: normalizedPaymentMethod,
             payment_date: new Date().toISOString(),
             status: 'completed',
-            order_id: null, // Pas de commande pour les ventes directes en caisse
+            order_id: currentInvoice.order_id || null,
             cash_session_id: cashSession.id,
             collected_by: cashSession.employee_id,
           })
 
         if (paymentError) throw paymentError
+      }
+
+      if (currentInvoice.order_id) {
+        const activeLines = currentInvoice.lines?.filter(line => !line.deleted) || []
+        const nextOrderTotal = Number(currentInvoice.total_amount || 0)
+        const nextPaidAmount = Number(currentInvoice.paid_amount || 0)
+        const nextPaymentStatus = nextPaidAmount >= nextOrderTotal
+          ? 'paid'
+          : nextPaidAmount > 0
+            ? 'partial'
+            : 'unpaid'
+
+        const orderUpdatePayload: any = {
+          total_amount: nextOrderTotal,
+          final_amount: nextOrderTotal,
+          discount_amount: Number(currentInvoice.discount_amount || 0),
+          payment_method: currentInvoice.payment_method || normalizedPaymentMethod,
+          payment_status: nextPaymentStatus,
+        }
+
+        let { error: orderUpdateError } = await supabase
+          .from('orders')
+          .update(orderUpdatePayload)
+          .eq('id', currentInvoice.order_id)
+
+        if (orderUpdateError) {
+          const msg = String((orderUpdateError as any)?.message || '')
+          const code = String((orderUpdateError as any)?.code || '')
+          const missingCols = code === 'PGRST204' || code === '42703' || msg.includes("Could not find the '")
+
+          if (missingCols) {
+            const retry = await supabase
+              .from('orders')
+              .update({
+                total_amount: nextOrderTotal,
+                payment_status: nextPaymentStatus,
+              })
+              .eq('id', currentInvoice.order_id)
+            orderUpdateError = retry.error
+          }
+        }
+
+        if (orderUpdateError) throw orderUpdateError
+
+        const { error: deleteOrderItemsError } = await supabase
+          .from('order_items')
+          .delete()
+          .eq('order_id', currentInvoice.order_id)
+
+        if (deleteOrderItemsError) throw deleteOrderItemsError
+
+        if (activeLines.length > 0) {
+          const replacementItems = activeLines.map((line) => ({
+            order_id: currentInvoice.order_id,
+            product_id: line.product_id,
+            product_name_ar: line.product_name_ar,
+            quantity: Number(line.quantity || 0),
+            unit_price: Number(line.unit_price || 0),
+            line_total: Number(line.total || 0),
+            variant_id: (line as any).primary_variant_id || null,
+            created_at: new Date().toISOString(),
+          }))
+
+          let { error: insertOrderItemsError } = await supabase
+            .from('order_items')
+            .insert(replacementItems)
+
+          if (insertOrderItemsError) {
+            const msg = String((insertOrderItemsError as any)?.message || '')
+            const code = String((insertOrderItemsError as any)?.code || '')
+            const missingCols = code === 'PGRST204' || code === '42703' || msg.includes("Could not find the '")
+
+            if (missingCols) {
+              const strippedItems = replacementItems.map((item) => ({
+                order_id: item.order_id,
+                product_id: item.product_id,
+                quantity: item.quantity,
+                unit_price: item.unit_price,
+                line_total: item.line_total,
+              }))
+
+              const retry = await supabase
+                .from('order_items')
+                .insert(strippedItems)
+              insertOrderItemsError = retry.error
+            }
+          }
+
+          if (insertOrderItemsError) throw insertOrderItemsError
+        }
       }
 
       // Mettre à jour le stock
@@ -2276,21 +2449,9 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
               .select('id, quantity_in_stock')
               .eq('product_id', line.product_id)
               .eq('primary_variant_id', primaryVariantId)
-              .eq('warehouse_id', warehouseId)
               .maybeSingle()
             stockRow = res.data
             stockErr = res.error
-          }
-
-          if (stockErr && String(stockErr?.message || '').includes('warehouse_id')) {
-            const res2 = await supabase
-              .from('stock')
-              .select('id, quantity_in_stock')
-              .eq('product_id', line.product_id)
-              .eq('primary_variant_id', primaryVariantId)
-              .maybeSingle()
-            stockRow = res2.data
-            stockErr = res2.error
           }
 
           if (!stockErr && stockRow?.id) {
@@ -2330,6 +2491,18 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       setInvoiceNumber('')
       setSelectedClient(null)
       setPaidAmount(0)
+      window.dispatchEvent(new CustomEvent('payment-updated', {
+        detail: {
+          orderId: currentInvoice.order_id || null,
+          invoiceId: invoice.id,
+        }
+      }))
+      window.dispatchEvent(new CustomEvent('order-payment-updated', {
+        detail: {
+          orderId: currentInvoice.order_id || null,
+          invoiceId: invoice.id,
+        }
+      }))
       await loadProducts(true)
       await refreshCashSessionSummary(cashSession.id)
     } catch (error) {
@@ -2942,7 +3115,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                         width={96}
                         height={96}
                         loading={productIndex < 16 ? 'eager' : 'lazy'}
-                        fetchPriority={productIndex < 8 ? 'high' : 'auto'}
+                        fetchpriority={productIndex < 8 ? 'high' : 'auto'}
                         decoding="async"
                         onError={(e) => {
                           e.currentTarget.style.display = 'none'
@@ -3360,11 +3533,18 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                           client_id: clientId,
                           client_name: resolvedClientName,
                           status: 'draft',
-                          subtotal: currentInvoice.subtotal,
-                          total_amount: currentInvoice.total_amount,
-                          paid_amount: currentInvoice.paid_amount,
+                          subtotal: currentInvoice.subtotal || 0,
+                          total_amount: currentInvoice.total_amount || 0,
+                          paid_amount: currentInvoice.paid_amount || 0,
+                          remaining_amount: (currentInvoice.total_amount || 0) - (currentInvoice.paid_amount || 0),
                           invoice_date: new Date().toISOString(),
                           due_date: new Date().toISOString(),
+                          created_at: new Date().toISOString(),
+                          payment_method: currentInvoice.payment_method || 'cash',
+                          discount_percent: currentInvoice.discount_percent || null,
+                          discount_amount: currentInvoice.discount_amount || null,
+                          order_id: null,
+                          employee_id: isEmployeeMode ? employeeIdFromAuth : null,
                           items: currentInvoice.lines?.filter(line => !line.deleted).map(line => ({
                             product_id: line.product_id,
                             primary_variant_id: (line as any).primary_variant_id,
@@ -3386,6 +3566,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                       setInvoiceNumber('')
                       setSelectedClient(null)
                       setPaidAmount(0)
+                      alert('✅ تم حفظ الفاتورة في الانتظار بنجاح')
                     } catch (error) {
                       console.error('Error putting invoice on hold:', error)
                       alert('❌ حدث خطأ أثناء حفظ الفاتورة في الانتظار')

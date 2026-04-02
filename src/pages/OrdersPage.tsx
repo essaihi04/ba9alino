@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { getCategoryLabelArabic } from '../utils/categoryLabels'
-import { Search, Plus, Eye, Edit2, Truck, Package, CheckCircle, XCircle, Clock, Download, FileText, Receipt, Barcode, Save, Trash2, X, DollarSign } from 'lucide-react'
+import { Search, Plus, Eye, Edit2, Truck, Package, CheckCircle, XCircle, Clock, Download, FileText, Receipt, Barcode, Save, Trash2, X, DollarSign, Printer } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useNavigate } from 'react-router-dom'
 import { useInputPad } from '../components/useInputPad'
@@ -163,6 +163,15 @@ export default function OrdersPage() {
   const [showDraftsModal, setShowDraftsModal] = useState(false)
 
   const getOrderItemKey = (productId: string, variantId?: string | null) => `${productId}`
+
+  const getOrderItemDisplayName = (item: any) =>
+    String(
+      item?.product_name_ar ??
+      item?.name_ar ??
+      item?.product?.name_ar ??
+      item?.products?.name_ar ??
+      ''
+    ) || 'Produit sans nom'
 
   useEffect(() => {
     fetchOrders()
@@ -1536,6 +1545,210 @@ export default function OrdersPage() {
     navigate('/invoices/create')
   }
 
+  const loadOrderItemsForAction = async (order: Order) => {
+    if (Array.isArray(order.items) && order.items.length > 0) {
+      return order.items.map((item: any) => ({
+        ...item,
+        product_name_ar: getOrderItemDisplayName(item),
+      }))
+    }
+
+    const { data, error } = await supabase
+      .from('order_items')
+      .select(`
+        id,
+        product_id,
+        quantity,
+        unit_price,
+        line_total,
+        product_name_ar,
+        product_sku,
+        products (
+          id,
+          sku,
+          name_ar,
+          image_url
+        )
+      `)
+      .eq('order_id', order.id)
+
+    if (error) throw error
+    return ((data || []) as any[]).map((item) => ({
+      ...item,
+      product_name_ar: getOrderItemDisplayName(item),
+    })) as OrderItem[]
+  }
+
+  const loadLinkedInvoiceForOrder = async (order: Order) => {
+    const { data: invoicesByOrderId, error: invoicesByOrderIdError } = await supabase
+      .from('invoices')
+      .select('id, invoice_number, order_id, order_number, paid_amount, total_amount, created_at')
+      .eq('order_id', order.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    if (invoicesByOrderIdError) throw invoicesByOrderIdError
+
+    if (Array.isArray(invoicesByOrderId) && invoicesByOrderId.length > 0) {
+      return invoicesByOrderId[0]
+    }
+
+    const { data: invoicesByOrderNumber, error: invoicesByOrderNumberError } = await supabase
+      .from('invoices')
+      .select('id, invoice_number, order_id, order_number, paid_amount, total_amount, created_at')
+      .eq('order_number', order.order_number)
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    if (invoicesByOrderNumberError) throw invoicesByOrderNumberError
+
+    if (Array.isArray(invoicesByOrderNumber) && invoicesByOrderNumber.length > 0) {
+      return invoicesByOrderNumber[0]
+    }
+
+    return null
+  }
+
+  const printOrderTicket = async (order: Order) => {
+    try {
+      const items = await loadOrderItemsForAction(order)
+      const total = Number(order.final_amount || order.total_amount || 0)
+      const totalQty = items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)
+      const createdAt = new Date(order.order_date || new Date().toISOString())
+
+      const printWindow = window.open('', '_blank', 'width=420,height=900')
+      if (!printWindow) return
+
+      const html = `
+        <html>
+          <head>
+            <title>Ticket ${order.order_number}</title>
+            <style>
+              body { font-family: monospace; direction: rtl; margin: 0; padding: 8px; color: #000; }
+              .ticket { width: 80mm; margin: 0 auto; font-size: 13px; font-weight: bold; }
+              .center { text-align: center; }
+              .row { display: flex; justify-content: space-between; gap: 8px; }
+              .sep { border-top: 1px dashed #000; margin: 6px 0; padding-top: 6px; }
+              table { width: 100%; border-collapse: collapse; font-size: 12px; }
+              th, td { border: 1px solid #000; padding: 3px; }
+              th { background: #f5f5f5; }
+            </style>
+          </head>
+          <body>
+            <div class="ticket">
+              <div class="center">
+                <div style="font-size:18px;">BA9ALINO</div>
+                <div>طلب / Ticket</div>
+              </div>
+              <div class="sep">
+                <div class="row"><span>رقم الطلب</span><span>${order.order_number || ''}</span></div>
+                <div class="row"><span>التاريخ</span><span>${createdAt.toLocaleDateString('fr-FR')} ${createdAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span></div>
+                <div class="row"><span>الزبون</span><span>${order.client?.company_name_ar || ''}</span></div>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>الكمية</th>
+                    <th>الثمن</th>
+                    <th>الاسم</th>
+                    <th>المجموع</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${items.map((item) => `
+                    <tr>
+                      <td>${Number(item.quantity || 0)}</td>
+                      <td>${Number(item.unit_price || 0).toFixed(2)}</td>
+                      <td>${getOrderItemDisplayName(item)}</td>
+                      <td>${Number(item.line_total || 0).toFixed(2)}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+              <div class="sep">
+                <div class="row"><span>عدد المواد</span><span>${totalQty}</span></div>
+                <div class="row" style="font-size:16px;"><span>المجموع</span><span>${total.toFixed(2)} MAD</span></div>
+              </div>
+            </div>
+            <script>
+              window.onload = function() { window.print(); setTimeout(() => window.close(), 150); }
+            </script>
+          </body>
+        </html>
+      `
+
+      printWindow.document.open()
+      printWindow.document.write(html)
+      printWindow.document.close()
+    } catch (error) {
+      console.error('Error printing order ticket:', error)
+      alert('حدث خطأ أثناء طباعة التذكرة')
+    }
+  }
+
+  const editOrderInPOS = async (order: Order) => {
+    try {
+      const items = await loadOrderItemsForAction(order)
+      const linkedInvoice = await loadLinkedInvoiceForOrder(order)
+      const total = Number(order.final_amount || order.total_amount || 0)
+      const discountAmount = Number(order.discount_amount || 0)
+
+      const posData = {
+        invoiceId: linkedInvoice?.id || `temp_order_${order.id}`,
+        invoice_number: linkedInvoice?.invoice_number || `FAC-${order.order_number}`,
+        order_id: order.id,
+        order_number: order.order_number,
+        client_id: order.client_id || null,
+        client_name: order.client?.company_name_ar || '',
+        total_amount: total,
+        paid_amount: Number(linkedInvoice?.paid_amount || 0),
+        discount_percent: 0,
+        discount_amount: discountAmount,
+        payment_method: order.payment_method || 'cash',
+        created_at: order.order_date || new Date().toISOString(),
+        items: items.map((item) => ({
+          id: `${order.id}-${item.product_id}-${item.id}`,
+          primary_variant_id: '',
+          name_ar: getOrderItemDisplayName(item),
+          description: getOrderItemDisplayName(item),
+          unit_price: Number(item.unit_price || 0),
+          price_a: Number(item.unit_price || 0),
+          price_b: Number(item.unit_price || 0),
+          price_c: Number(item.unit_price || 0),
+          price_d: Number(item.unit_price || 0),
+          price_e: Number(item.unit_price || 0),
+          quantity: Number(item.quantity || 0),
+          stock: 999,
+          customPrice: Number(item.unit_price || 0),
+          image_url: item.product?.image_url,
+          total: Number(item.line_total || 0)
+        }))
+      }
+
+      sessionStorage.setItem('posInvoiceData', JSON.stringify(posData))
+      navigate('/pos')
+    } catch (error) {
+      console.error('Error opening order in POS:', error)
+      alert('حدث خطأ أثناء فتح الطلب في الكايس')
+    }
+  }
+
+  const openOrderInvoice = async (order: Order) => {
+    try {
+      const items = await loadOrderItemsForAction(order)
+      const orderWithItems = {
+        ...order,
+        items,
+      }
+
+      sessionStorage.setItem('invoiceOrderData', JSON.stringify(orderWithItems))
+      navigate('/invoices/create')
+    } catch (error) {
+      console.error('Error opening order invoice:', error)
+      alert('حدث خطأ أثناء فتح الفاتورة')
+    }
+  }
+
   const generateDeliveryNote = () => {
     if (!selectedOrder) return
     
@@ -1947,6 +2160,29 @@ export default function OrdersPage() {
                         >
                           <DollarSign className="w-4 h-4" />
                         </button>
+                        <button
+                          onClick={() => printOrderTicket(order)}
+                          className="text-gray-700 hover:text-black"
+                          title="طباعة ticket"
+                        >
+                          <Printer className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => openOrderInvoice(order)}
+                          className="text-red-600 hover:text-red-800"
+                          title="فتح / طباعة facture"
+                        >
+                          <FileText className="w-4 h-4" />
+                        </button>
+                        {order.status !== 'delivered' && (
+                          <button
+                            onClick={() => editOrderInPOS(order)}
+                            className="text-orange-600 hover:text-orange-800"
+                            title="تعديل في الكايس"
+                          >
+                            <Receipt className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
