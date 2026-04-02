@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { ShoppingCart, DollarSign, AlertCircle, TrendingUp, Package, Users, TrendingDown, CreditCard, FileText, Calendar } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 export default function DashboardPage() {
+  const navigate = useNavigate()
   const [stats, setStats] = useState({
     todaySales: 0,
     todayProfit: 0,
@@ -425,10 +427,10 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-3" dir="rtl">
+    <div className="space-y-2" dir="rtl">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-          <TrendingUp className="text-white" size={24} />
+        <h1 className="text-base font-bold text-white flex items-center gap-1">
+          <TrendingUp className="text-white" size={18} />
           لوحة التحكم
         </h1>
         <div className="text-xs md:text-sm text-white">
@@ -442,21 +444,21 @@ export default function DashboardPage() {
       </div>
 
       {/* 5 indicateurs clés en grandes cartes */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-1.5">
         {cards.map((card, index) => {
           const Icon = card.icon
           return (
             <div
               key={index}
-              className={`bg-gradient-to-br ${card.color} text-white rounded-xl p-3 shadow-lg`}
+              className={`bg-gradient-to-br ${card.color} text-white rounded-lg p-2 shadow`}
             >
               <div className="flex items-center justify-between">
                 <div className="flex-1">
-                  <p className="text-white/80 text-xs mb-1">{card.title}</p>
-                  <p className="text-lg font-bold">{card.value}</p>
+                  <p className="text-white/80 text-[10px] leading-tight">{card.title}</p>
+                  <p className="text-sm font-bold">{card.value}</p>
                 </div>
-                <div className="bg-white/15 p-1.5 rounded-lg">
-                  <Icon size={20} className="text-white" />
+                <div className="bg-white/15 p-1 rounded">
+                  <Icon size={16} className="text-white" />
                 </div>
               </div>
             </div>
@@ -465,50 +467,57 @@ export default function DashboardPage() {
       </div>
 
       {/* Actions rapides */}
-      <div className="bg-white rounded-xl shadow-lg p-3">
-        <h2 className="text-lg font-bold text-gray-800 mb-2">إجراءات سريعة</h2>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+      <div className="bg-white rounded-lg shadow p-2">
+        <h2 className="text-sm font-bold text-gray-800 mb-1">إجراءات سريعة</h2>
+        <div className="grid grid-cols-3 md:grid-cols-6 gap-1.5">
           <button
-            onClick={() => window.location.href = '/pos'}
-            className="bg-green-100 hover:bg-green-200 text-green-700 p-2 rounded-lg font-bold transition-all duration-200 flex flex-col items-center gap-1"
+            onClick={() => navigate('/pos')}
+            className="bg-green-100 hover:bg-green-200 text-green-700 p-1.5 rounded font-bold text-xs transition-all duration-200 flex flex-col items-center gap-0.5"
           >
-            <ShoppingCart size={20} />
+            <ShoppingCart size={16} />
             فتح الكايس
           </button>
           <button
-            onClick={() => window.location.href = '/invoices'}
-            className="bg-blue-100 hover:bg-blue-200 text-blue-700 p-2 rounded-lg font-bold transition-all duration-200 flex flex-col items-center gap-1"
+            onClick={() => navigate('/invoices')}
+            className="bg-blue-100 hover:bg-blue-200 text-blue-700 p-1.5 rounded font-bold text-xs transition-all duration-200 flex flex-col items-center gap-0.5"
           >
-            <Package size={20} />
+            <Package size={16} />
             المبيعات
           </button>
           <button
-            onClick={() => window.location.href = '/orders'}
-            className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 p-2 rounded-lg font-bold transition-all duration-200 flex flex-col items-center gap-1"
+            onClick={() => navigate('/orders')}
+            className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 p-1.5 rounded font-bold text-xs transition-all duration-200 flex flex-col items-center gap-0.5"
           >
-            <FileText size={20} />
+            <FileText size={16} />
             الطلبات
           </button>
           <button
-            onClick={() => window.location.href = '/credits'}
-            className="bg-red-100 hover:bg-red-200 text-red-700 p-2 rounded-lg font-bold transition-all duration-200 flex flex-col items-center gap-1"
+            onClick={() => navigate('/credits')}
+            className="bg-red-100 hover:bg-red-200 text-red-700 p-1.5 rounded font-bold text-xs transition-all duration-200 flex flex-col items-center gap-0.5"
           >
-            <DollarSign size={20} />
+            <DollarSign size={16} />
             متابعة الديون
           </button>
           <button
-            onClick={() => window.location.href = '/products'}
-            className="bg-purple-100 hover:bg-purple-200 text-purple-700 p-2 rounded-lg font-bold transition-all duration-200 flex flex-col items-center gap-1"
+            onClick={() => navigate('/products')}
+            className="bg-purple-100 hover:bg-purple-200 text-purple-700 p-1.5 rounded font-bold text-xs transition-all duration-200 flex flex-col items-center gap-0.5"
           >
-            <Package size={20} />
+            <Package size={16} />
             المنتجات
+          </button>
+          <button
+            onClick={() => navigate('/products?tab=stock')}
+            className="bg-orange-100 hover:bg-orange-200 text-orange-700 p-1.5 rounded font-bold text-xs transition-all duration-200 flex flex-col items-center gap-0.5"
+          >
+            <AlertCircle size={16} />
+            تنبيه المخزون
           </button>
         </div>
       </div>
 
       {/* Alertes importantes */}
       {stats.lowStockProducts > 0 && (
-        <div className="bg-orange-50 border-2 border-orange-200 rounded-xl p-3">
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-2">
           <div className="flex items-center gap-3">
             <AlertCircle className="text-orange-600" size={20} />
             <div>
@@ -522,9 +531,9 @@ export default function DashboardPage() {
       )}
 
       {stats.totalCredits > 0 && (
-        <div className="bg-red-50 border-2 border-red-200 rounded-xl p-3">
-          <div className="flex items-center gap-3">
-            <DollarSign className="text-red-600" size={20} />
+        <div className="bg-red-50 border border-red-200 rounded-lg p-2">
+          <div className="flex items-center gap-2">
+            <DollarSign className="text-red-600" size={16} />
             <div>
               <p className="font-bold text-red-800">الديون المستحقة</p>
               <p className="text-red-700 text-sm">
@@ -536,9 +545,9 @@ export default function DashboardPage() {
       )}
 
       {stats.overdueClients.length > 0 && (
-        <div className="bg-red-50 border-2 border-red-200 rounded-xl p-3">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="text-red-600 mt-1" size={20} />
+        <div className="bg-red-50 border border-red-200 rounded-lg p-2">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="text-red-600 mt-0.5" size={16} />
             <div className="flex-1">
               <p className="font-bold text-red-800 text-sm">⚠️ عملاء متأخرون في السداد (أكثر من 30 يوم)</p>
               <div className="mt-2 space-y-1">
@@ -560,9 +569,9 @@ export default function DashboardPage() {
       )}
 
       {stats.supplierPaymentReminders.length > 0 && (
-        <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-3">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="text-blue-600 mt-1" size={20} />
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-2">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="text-blue-600 mt-0.5" size={16} />
             <div className="flex-1">
               <p className="font-bold text-blue-800 text-sm">⏰ تذكير: شيكات/ديون الموردين المستحقة</p>
               <div className="mt-2 space-y-2">
@@ -595,9 +604,9 @@ export default function DashboardPage() {
       )}
 
       {stats.chequesCount > 0 && (
-        <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-3">
-          <div className="flex items-start gap-3">
-            <Calendar className="text-amber-600 mt-1" size={20} />
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-2">
+          <div className="flex items-start gap-2">
+            <Calendar className="text-amber-600 mt-0.5" size={16} />
             <div className="flex-1">
               <p className="font-bold text-amber-800 text-sm">شيكات (الفواتير المدفوعة بشيك)</p>
               <div className="mt-2 space-y-2">
