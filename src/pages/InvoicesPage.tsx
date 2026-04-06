@@ -1208,8 +1208,7 @@ export default function InvoicesPage() {
                       .from('invoices')
                       .update({
                         paid_amount: newPaid,
-                        remaining_amount: newRemaining,
-                        payment_status: newRemaining <= 0 ? 'paid' : 'partial'
+                        remaining_amount: newRemaining
                       })
                       .eq('id', invoiceId)
 
