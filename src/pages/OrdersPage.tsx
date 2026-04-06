@@ -2079,105 +2079,99 @@ export default function OrdersPage() {
   }
 
   return (
-    <div className="space-y-6" dir="rtl">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-white">الطلبات</h1>
-          <p className="text-white mt-2">إدارة طلبات العملاء وتتبعها</p>
-        </div>
-        <div className="flex gap-2">
-          <button 
-            onClick={() => setShowCreateModal(true)}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700"
-          >
-            <Plus className="w-5 h-5" />
-            طلب جديد
-          </button>
-          <button 
-            onClick={() => setShowDraftsModal(true)}
-            className="bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-orange-700"
-          >
-            <Save className="w-5 h-5" />
-            المسودات ({drafts.length})
-          </button>
-        </div>
-      </div>
+    <div className="space-y-4" dir="rtl">
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-        <div className="bg-white p-4 rounded-xl shadow-md border">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
+        <div className="bg-white p-2 rounded-lg shadow border">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-500 text-sm">إجمالي الطلبات</p>
-              <p className="text-2xl font-bold">{stats.total}</p>
+              <p className="text-gray-500 text-xs">إجمالي الطلبات</p>
+              <p className="text-lg font-bold">{stats.total}</p>
             </div>
-            <Package className="w-8 h-8 text-blue-500" />
+            <Package className="w-5 h-5 text-blue-500" />
           </div>
         </div>
-        <div className="bg-white p-4 rounded-xl shadow-md border">
+        <div className="bg-white p-2 rounded-lg shadow border">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-500 text-sm">في الانتظار</p>
-              <p className="text-2xl font-bold text-yellow-600">{stats.pending}</p>
+              <p className="text-gray-500 text-xs">في الانتظار</p>
+              <p className="text-lg font-bold text-yellow-600">{stats.pending}</p>
             </div>
-            <Clock className="w-8 h-8 text-yellow-500" />
+            <Clock className="w-5 h-5 text-yellow-500" />
           </div>
         </div>
-        <div className="bg-white p-4 rounded-xl shadow-md border">
+        <div className="bg-white p-2 rounded-lg shadow border">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-500 text-sm">قيد المعالجة</p>
-              <p className="text-2xl font-bold text-purple-600">{stats.processing}</p>
+              <p className="text-gray-500 text-xs">قيد المعالجة</p>
+              <p className="text-lg font-bold text-purple-600">{stats.processing}</p>
             </div>
-            <Package className="w-8 h-8 text-purple-500" />
+            <Package className="w-5 h-5 text-purple-500" />
           </div>
         </div>
-        <div className="bg-white p-4 rounded-xl shadow-md border">
+        <div className="bg-white p-2 rounded-lg shadow border">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-500 text-sm">تم الشحن</p>
-              <p className="text-2xl font-bold text-indigo-600">{stats.shipped}</p>
+              <p className="text-gray-500 text-xs">تم الشحن</p>
+              <p className="text-lg font-bold text-indigo-600">{stats.shipped}</p>
             </div>
-            <Truck className="w-8 h-8 text-indigo-500" />
+            <Truck className="w-5 h-5 text-indigo-500" />
           </div>
         </div>
-        <div className="bg-white p-4 rounded-xl shadow-md border">
+        <div className="bg-white p-2 rounded-lg shadow border">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-500 text-sm">تم التسليم</p>
-              <p className="text-2xl font-bold text-green-600">{stats.delivered}</p>
+              <p className="text-gray-500 text-xs">تم التسليم</p>
+              <p className="text-lg font-bold text-green-600">{stats.delivered}</p>
             </div>
-            <CheckCircle className="w-8 h-8 text-green-500" />
+            <CheckCircle className="w-5 h-5 text-green-500" />
           </div>
         </div>
-        <div className="bg-white p-4 rounded-xl shadow-md border">
+        <div className="bg-white p-2 rounded-lg shadow border">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-500 text-sm">إجمالي الإيرادات</p>
-              <p className="text-2xl font-bold">{stats.totalRevenue.toFixed(2)} MAD</p>
+              <p className="text-gray-500 text-xs">إجمالي الإيرادات</p>
+              <p className="text-lg font-bold">{stats.totalRevenue.toFixed(2)} MAD</p>
             </div>
-            <Package className="w-8 h-8 text-emerald-500" />
+            <Package className="w-5 h-5 text-emerald-500" />
           </div>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-xl shadow-md p-4">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="bg-white rounded-lg shadow p-3">
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
           <div className="relative">
-            <Search className="absolute right-3 top-3 w-5 h-5 text-gray-400" />
+            <Search className="absolute right-3 top-2.5 w-4 h-4 text-gray-400" />
             <input
               type="text"
               placeholder="البحث عن طلب..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pr-10 pl-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full pr-9 pl-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+            <div className="absolute left-2 top-1.5 flex gap-1">
+              <button 
+                onClick={() => setShowCreateModal(true)}
+                className="bg-green-600 text-white px-2 py-1 rounded text-xs flex items-center gap-1 hover:bg-green-700"
+              >
+                <Plus className="w-3 h-3" />
+                طلب جديد
+              </button>
+              <button 
+                onClick={() => setShowDraftsModal(true)}
+                className="bg-orange-600 text-white px-2 py-1 rounded text-xs flex items-center gap-1 hover:bg-orange-700"
+              >
+                <Save className="w-3 h-3" />
+                المسودات ({drafts.length})
+              </button>
+            </div>
           </div>
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="all">جميع الحالات</option>
             <option value="pending">في الانتظار</option>
@@ -2190,7 +2184,7 @@ export default function OrdersPage() {
           <select
             value={filterPayment}
             onChange={(e) => setFilterPayment(e.target.value)}
-            className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="all">جميع المدفوعات</option>
             <option value="unpaid">لم يدفع</option>
@@ -2202,13 +2196,13 @@ export default function OrdersPage() {
             type="date"
             value={dateRange.start}
             onChange={(e) => setDateRange({...dateRange, start: e.target.value})}
-            className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <input
             type="date"
             value={dateRange.end}
             onChange={(e) => setDateRange({...dateRange, end: e.target.value})}
-            className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
       </div>
@@ -2232,10 +2226,10 @@ export default function OrdersPage() {
       {/* Orders Table */}
       <div className="bg-white rounded-xl shadow-md overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1400px]">
+          <table className="w-full min-w-[1000px]">
             <thead className="bg-gray-50 border-b">
               <tr>
-                <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase w-12">
+                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase w-10">
                   <input
                     type="checkbox"
                     checked={selectedOrders.length === filteredOrders.length && filteredOrders.length > 0}
@@ -2243,16 +2237,16 @@ export default function OrdersPage() {
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
                 </th>
-                <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase w-24">رقم الطلب</th>
-                <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase min-w-40">العميل</th>
-                <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase w-32">التاريخ</th>
-                <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase w-28">البائع</th>
-                <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase w-28">المخزن</th>
-                <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase w-20">الكمية</th>
-                <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase w-28">المبلغ</th>
-                <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase w-28">حالة الطلب</th>
-                <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase w-28">حالة الدفع</th>
-                <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase w-28">نوع الأداء</th>
+                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase w-20">رقم الطلب</th>
+                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase w-32">العميل</th>
+                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase w-24">التاريخ</th>
+                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase w-20">البائع</th>
+                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase w-20">المخزن</th>
+                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase w-16">الكمية</th>
+                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase w-20">المبلغ</th>
+                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase w-20">حالة الطلب</th>
+                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase w-20">حالة الدفع</th>
+                <th className="px-2 py-2 text-right text-xs font-medium text-gray-500 uppercase w-20">نوع الأداء</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -2271,7 +2265,7 @@ export default function OrdersPage() {
               ) : (
                 paginatedOrders.map((order) => (
                   <tr key={order.id} className="hover:bg-gray-50">
-                    <td className="px-3 py-4">
+                    <td className="px-2 py-2">
                       <input
                         type="checkbox"
                         checked={selectedOrders.includes(order.id)}
@@ -2279,51 +2273,36 @@ export default function OrdersPage() {
                         className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       />
                     </td>
-                    <td className="px-3 py-4">
-                      <p className="font-medium">#{order.order_number}</p>
+                    <td className="px-2 py-2">
+                      <p className="text-sm font-medium">#{order.order_number}</p>
                     </td>
-                    <td className="px-3 py-4">
+                    <td className="px-2 py-2">
                       <div>
-                        <p className="font-medium">{order.client?.company_name_ar}</p>
-                        <p className="text-sm text-gray-500">{order.client?.contact_person_email}</p>
+                        <p className="text-sm font-medium truncate">{order.client?.company_name_ar}</p>
+                        <p className="text-xs text-gray-500 truncate">{order.client?.contact_person_email}</p>
                       </div>
                     </td>
-                    <td className="px-3 py-4">
-                      <p className="font-medium">{new Date(order.order_date).toLocaleDateString('ar-MA')}</p>
-                      <p className="text-sm text-gray-500">{new Date(order.order_date).toLocaleTimeString('ar-MA')}</p>
+                    <td className="px-2 py-2">
+                      <p className="text-sm">{new Date(order.order_date).toLocaleDateString('ar-MA')}</p>
                     </td>
-                    <td className="px-3 py-4">
+                    <td className="px-2 py-2">
                       <div>
-                        <p className="font-medium">{order.employee?.name || 'admin'}</p>
-                        <p className="text-sm text-gray-500">{order.employee?.role || 'Administrateur'}</p>
+                        <p className="text-sm font-medium">{order.employee?.name || 'admin'}</p>
                       </div>
                     </td>
-                    <td className="px-3 py-4">
+                    <td className="px-2 py-2">
                       <div>
-                        <p className="font-medium">{order.warehouse?.name || '—'}</p>
-                        {order.warehouse && (
-                          <p className="text-sm text-gray-500">{order.warehouse.is_active ? 'نشط' : 'غير نشط'}</p>
-                        )}
+                        <p className="text-sm">{order.warehouse?.name || '—'}</p>
                       </div>
                     </td>
-                    <td className="px-3 py-4">
-                      <div className="flex items-center gap-1">
-                        <span className="font-bold text-blue-600">{getOrderTotalQuantity(order)}</span>
-                        <span className="text-xs text-gray-500">منتج</span>
-                      </div>
+                    <td className="px-2 py-2">
+                      <p className="text-sm font-bold text-blue-600">{getOrderTotalQuantity(order)}</p>
                     </td>
-                    <td className="px-3 py-4">
-                      <div>
-                        <p className="font-medium">{(order.total_amount || 0).toFixed(2)} MAD</p>
-                        {order.discount_amount > 0 && (
-                          <p className="text-sm text-gray-500 line-through">
-                            {((order.total_amount || 0) + (order.discount_amount || 0)).toFixed(2)} MAD
-                          </p>
-                        )}
-                      </div>
+                    <td className="px-2 py-2">
+                      <p className="text-sm font-medium">{(order.total_amount || 0).toFixed(2)} MAD</p>
                     </td>
-                    <td className="px-3 py-4">
-                      <span className={`px-2 py-1 text-xs rounded-full flex items-center gap-1 w-fit ${getStatusColor(order.status)}`}>
+                    <td className="px-2 py-2">
+                      <span className={`px-1.5 py-0.5 text-xs rounded-full flex items-center gap-1 w-fit ${getStatusColor(order.status)}`}>
                         {getStatusIcon(order.status)}
                         {order.status === 'pending' ? 'في الانتظار' :
                          order.status === 'confirmed' ? 'مؤكد' :
@@ -2333,16 +2312,16 @@ export default function OrdersPage() {
                          order.status === 'cancelled' ? 'ملغي' : order.status}
                       </span>
                     </td>
-                    <td className="px-3 py-4">
-                      <span className={`px-2 py-1 text-xs rounded-full ${getPaymentStatusColor(order.payment_status)}`}>
+                    <td className="px-2 py-2">
+                      <span className={`px-1.5 py-0.5 text-xs rounded-full ${getPaymentStatusColor(order.payment_status)}`}>
                         {order.payment_status === 'unpaid' ? 'لم يدفع' :
                          order.payment_status === 'partial' ? 'مدفوع جزئيا' :
                          order.payment_status === 'paid' ? 'مدفوع' :
                          order.payment_status === 'refunded' ? 'مسترد' : order.payment_status}
                       </span>
                     </td>
-                    <td className="px-3 py-4">
-                      <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">
+                    <td className="px-2 py-2">
+                      <span className="px-1.5 py-0.5 text-xs rounded-full bg-gray-100 text-gray-800">
                         {order.payment_method === 'cash' ? 'نقدي' :
                          order.payment_method === 'check' ? 'شيك' :
                          order.payment_method === 'card' ? 'بطاقة' :
