@@ -324,7 +324,7 @@ export default function ClientTrackingPage() {
       <div className="text-center py-12">
         <p className="text-gray-500">العميل غير موجود</p>
         <button
-          onClick={() => navigate('/invoices')}
+          onClick={() => navigate('/credits')}
           className="mt-4 text-blue-600 hover:text-blue-800"
         >
           العودة إلى قائمة العملاء
@@ -339,23 +339,12 @@ export default function ClientTrackingPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <button
-            onClick={() => navigate('/invoices')}
+            onClick={() => navigate('/credits')}
             className="p-1 text-gray-600 hover:text-gray-800 rounded hover:bg-gray-100"
           >
             <ArrowLeft size={16} />
           </button>
-          <div>
-            <h1 className="text-base font-bold text-gray-800">متابعة العميل</h1>
-            <p className="text-gray-600 text-xs">{client.company_name_ar}</p>
-          </div>
         </div>
-        <button
-          onClick={exportData}
-          className="bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700 flex items-center gap-1"
-        >
-          <Download size={14} />
-          تصدير
-        </button>
       </div>
 
       {/* Client Info */}
