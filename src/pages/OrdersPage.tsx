@@ -303,7 +303,7 @@ export default function OrdersPage() {
 
       const withEmployeeSelect = `
         ${baseSelect},
-        employee:employee_id (
+        employee:created_by (
           id,
           name,
           phone,
@@ -317,7 +317,7 @@ export default function OrdersPage() {
         .select(withEmployeeSelect)
         .order('order_date', { ascending: false })
 
-      // Fallback: some databases don't have a usable FK relation for employee_id -> employees
+      // Fallback: some databases don't have a usable FK relation for created_by -> employees
       if (error) {
         console.warn('Orders query with employee join failed, retrying without employee join:', error)
         const retry = await supabase
