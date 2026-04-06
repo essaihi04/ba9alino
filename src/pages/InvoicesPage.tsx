@@ -93,6 +93,7 @@ export default function InvoicesPage() {
   const [filterPaymentMethod, setFilterPaymentMethod] = useState<string>('all')
   const [filterEmployee, setFilterEmployee] = useState<string>('all')
   const [filterWarehouse, setFilterWarehouse] = useState<string>('all')
+  const [filterClient, setFilterClient] = useState<string>('all')
   const [filterAmountRange, setFilterAmountRange] = useState<string>('all')
   const [filterPeriod, setFilterPeriod] = useState<string>('all')
   const [dateFrom, setDateFrom] = useState('')
@@ -117,6 +118,13 @@ export default function InvoicesPage() {
     notes: ''
   })
   const [loadingProducts, setLoadingProducts] = useState(false)
+
+  // États pour le modal d'ajout de paiement
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [paymentInvoice, setPaymentInvoice] = useState<Invoice | null>(null)
+  const [paymentAmount, setPaymentAmount] = useState('')
+  const [paymentMethod, setPaymentMethod] = useState('cash')
+  const [paymentLoading, setPaymentLoading] = useState(false)
 
   useEffect(() => {
     loadInvoices()
@@ -414,6 +422,17 @@ export default function InvoicesPage() {
     ).entries()
   )
 
+  const clientOptions = Array.from(
+    new Map(
+      invoices
+        .map(invoice => {
+          const name = invoice.client_name || invoice.clients?.company_name_ar || invoice.company_name_ar || ''
+          return name ? [name, name] : null
+        })
+        .filter((entry): entry is [string, string] => entry !== null)
+    ).entries()
+  ).sort((a, b) => a[1].localeCompare(b[1]))
+
   const filteredInvoices = invoices.filter(invoice => {
     const clientDisplayName = invoice.client_name || invoice.clients?.company_name_ar || invoice.clients?.company_name_en || ''
     const matchesSearch = clientDisplayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -424,6 +443,7 @@ export default function InvoicesPage() {
     const matchesPaymentMethod = filterPaymentMethod === 'all' || (invoice.payment_method || '') === filterPaymentMethod
     const matchesEmployee = filterEmployee === 'all' || (invoice.employee?.id || '') === filterEmployee
     const matchesWarehouse = filterWarehouse === 'all' || (invoice.warehouse?.id || '') === filterWarehouse
+    const matchesClient = filterClient === 'all' || clientDisplayName === filterClient
 
     const totalAmount = Number(invoice.total_amount || 0)
     const matchesAmountRange =
@@ -452,7 +472,7 @@ export default function InvoicesPage() {
     const matchesDateFrom = !dateFrom || (invoiceDateValue && invoiceDateValue >= dateFrom)
     const matchesDateTo = !dateTo || (invoiceDateValue && invoiceDateValue <= dateTo)
 
-    return matchesSearch && matchesStatus && matchesPaymentMethod && matchesEmployee && matchesWarehouse && matchesAmountRange && matchesPeriod && matchesDateFrom && matchesDateTo
+    return matchesSearch && matchesStatus && matchesPaymentMethod && matchesEmployee && matchesWarehouse && matchesClient && matchesAmountRange && matchesPeriod && matchesDateFrom && matchesDateTo
   })
 
   const getStatusBadge = (status: string) => {
@@ -593,7 +613,7 @@ export default function InvoicesPage() {
 
       {/* Filtres et recherche compactes */}
       <div className="bg-white rounded-lg shadow p-3">
-        <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-8 gap-2">
+        <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-9 gap-2">
           <div className="relative md:col-span-2">
             <Search className="absolute right-2 top-2 text-gray-400" size={16} />
             <input
@@ -647,6 +667,17 @@ export default function InvoicesPage() {
             <option value="all">كل المخازن</option>
             {warehouseOptions.map(([id, name]) => (
               <option key={id} value={id}>{name}</option>
+            ))}
+          </select>
+
+          <select
+            value={filterClient}
+            onChange={(e) => setFilterClient(e.target.value)}
+            className="px-3 py-2 text-sm border border-gray-200 rounded focus:border-blue-500 focus:outline-none"
+          >
+            <option value="all">كل العملاء</option>
+            {clientOptions.map(([name, display]) => (
+              <option key={name} value={name}>{display}</option>
             ))}
           </select>
 
@@ -709,6 +740,7 @@ export default function InvoicesPage() {
               setFilterPaymentMethod('all')
               setFilterEmployee('all')
               setFilterWarehouse('all')
+              setFilterClient('all')
               setFilterAmountRange('all')
               setFilterPeriod('all')
               setDateFrom('')
@@ -825,15 +857,31 @@ export default function InvoicesPage() {
                       {getStatusBadge(invoice.payment_status || '')}
                     </td>
                     <td className="px-2 py-3">
-                      <button
-                        onClick={() => {
-                          navigate(`/invoices/${invoice.id}/edit`)
-                        }}
-                        className="bg-blue-100 hover:bg-blue-200 text-blue-700 p-1.5 rounded-lg transition-colors"
-                        title="عرض الفاتورة"
-                      >
-                        <Eye size={16} />
-                      </button>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => {
+                            navigate(`/invoices/${invoice.id}/edit`)
+                          }}
+                          className="bg-blue-100 hover:bg-blue-200 text-blue-700 p-1.5 rounded-lg transition-colors"
+                          title="عرض الفاتورة"
+                        >
+                          <Eye size={16} />
+                        </button>
+                        {remaining(invoice) > 0 && (
+                          <button
+                            onClick={() => {
+                              setPaymentInvoice(invoice)
+                              setPaymentAmount('')
+                              setPaymentMethod('cash')
+                              setShowPaymentModal(true)
+                            }}
+                            className="bg-purple-100 hover:bg-purple-200 text-purple-700 p-1.5 rounded-lg transition-colors"
+                            title="إضافة دفعة"
+                          >
+                            <DollarSign size={16} />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1073,6 +1121,114 @@ export default function InvoicesPage() {
         </div>
       )}
       {inputPad.Modal}
+
+      {/* Modal إضافة دفعة */}
+      {showPaymentModal && paymentInvoice && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setShowPaymentModal(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold flex items-center gap-2">
+                <DollarSign className="text-purple-600" size={20} />
+                إضافة دفعة
+              </h2>
+              <button onClick={() => setShowPaymentModal(false)} className="text-gray-500 hover:text-gray-700">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div className="bg-gray-50 rounded-lg p-3 text-sm">
+                <p className="text-gray-600">فاتورة: <span className="font-bold">#{paymentInvoice.invoice_number || paymentInvoice.id.slice(0, 8)}</span></p>
+                <p className="text-gray-600">العميل: <span className="font-bold">{paymentInvoice.client_name || paymentInvoice.clients?.company_name_ar || 'عميل عام'}</span></p>
+                <p className="text-gray-600">المبلغ الإجمالي: <span className="font-bold">{(paymentInvoice.total_amount || 0).toFixed(2)} MAD</span></p>
+                <p className="text-gray-600">المدفوع: <span className="font-bold text-green-600">{(paymentInvoice.paid_amount || 0).toFixed(2)} MAD</span></p>
+                <p className="text-red-600 font-bold">المتبقي: {remaining(paymentInvoice).toFixed(2)} MAD</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">المبلغ المدفوع *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={paymentAmount}
+                  onChange={(e) => setPaymentAmount(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  placeholder="أدخل المبلغ"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">طريقة الدفع</label>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                >
+                  <option value="cash">نقدي</option>
+                  <option value="check">شيك</option>
+                  <option value="bank_transfer">تحويل بنكي</option>
+                  <option value="card">بطاقة</option>
+                </select>
+              </div>
+
+              <button
+                onClick={async () => {
+                  if (!paymentAmount || Number(paymentAmount) <= 0) {
+                    alert('يرجى إدخال مبلغ صحيح')
+                    return
+                  }
+                  setPaymentLoading(true)
+                  try {
+                    const invoiceId = paymentInvoice.id
+                    const amount = Number(paymentAmount)
+
+                    const { error: paymentError } = await supabase
+                      .from('payments')
+                      .insert({
+                        invoice_id: invoiceId,
+                        amount: amount,
+                        payment_method: paymentMethod,
+                        payment_date: new Date().toISOString(),
+                        status: 'completed'
+                      })
+
+                    if (paymentError) throw paymentError
+
+                    const totalAmount = paymentInvoice.total_amount || 0
+                    const currentPaid = paymentInvoice.paid_amount || 0
+                    const newPaid = currentPaid + amount
+                    const newRemaining = Math.max(0, totalAmount - newPaid)
+
+                    const { error: updateError } = await supabase
+                      .from('invoices')
+                      .update({
+                        paid_amount: newPaid,
+                        remaining_amount: newRemaining,
+                        payment_status: newRemaining <= 0 ? 'paid' : 'partial'
+                      })
+                      .eq('id', invoiceId)
+
+                    if (updateError) throw updateError
+
+                    setShowPaymentModal(false)
+                    alert('تم إضافة الدفعة بنجاح')
+                    loadInvoices()
+                  } catch (error) {
+                    console.error('Error adding payment:', error)
+                    alert('حدث خطأ أثناء إضافة الدفعة')
+                  } finally {
+                    setPaymentLoading(false)
+                  }
+                }}
+                disabled={paymentLoading}
+                className="w-full bg-purple-600 text-white py-2 rounded-lg font-bold hover:bg-purple-700 disabled:opacity-50"
+              >
+                {paymentLoading ? 'جاري الإضافة...' : 'إضافة الدفعة'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

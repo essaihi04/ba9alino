@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Download, TrendingUp, Package, AlertCircle, CheckCircle, Clock, Filter, Search } from 'lucide-react'
+import { ArrowLeft, TrendingUp, Package, AlertCircle, CheckCircle, Clock, Filter, Search, DollarSign, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 interface Client {
@@ -108,6 +108,11 @@ export default function ClientTrackingPage() {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [showFilters, setShowFilters] = useState(false)
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [paymentInvoice, setPaymentInvoice] = useState<Invoice | null>(null)
+  const [paymentAmount, setPaymentAmount] = useState('')
+  const [paymentMethod, setPaymentMethod] = useState('cash')
+  const [paymentLoading, setPaymentLoading] = useState(false)
 
   useEffect(() => {
     if (clientId) {
@@ -575,7 +580,23 @@ export default function ClientTrackingPage() {
                         </p>
                       </td>
                       <td className="px-2 py-1.5">
-                        {getStatusBadge(order.payment_status || '')}
+                        <div className="flex items-center gap-1">
+                          {getStatusBadge(order.payment_status || '')}
+                          {remainingAmount > 0 && (
+                            <button
+                              onClick={() => {
+                                setPaymentInvoice(order)
+                                setPaymentAmount('')
+                                setPaymentMethod('cash')
+                                setShowPaymentModal(true)
+                              }}
+                              className="text-purple-600 hover:text-purple-800 p-0.5 rounded hover:bg-purple-50"
+                              title="إضافة دفعة"
+                            >
+                              <DollarSign size={14} />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   )
@@ -585,6 +606,114 @@ export default function ClientTrackingPage() {
           </table>
         </div>
       </div>
+
+      {/* Modal إضافة دفعة */}
+      {showPaymentModal && paymentInvoice && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setShowPaymentModal(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold flex items-center gap-2">
+                <DollarSign className="text-purple-600" size={20} />
+                إضافة دفعة
+              </h2>
+              <button onClick={() => setShowPaymentModal(false)} className="text-gray-500 hover:text-gray-700">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div className="bg-gray-50 rounded-lg p-3 text-sm">
+                <p className="text-gray-600">فاتورة: <span className="font-bold">{paymentInvoice.order_number}</span></p>
+                <p className="text-gray-600">المبلغ الإجمالي: <span className="font-bold">{(paymentInvoice.final_amount || paymentInvoice.total_amount || 0).toFixed(2)} MAD</span></p>
+                <p className="text-red-600 font-bold">المتبقي: {((paymentInvoice.final_amount || paymentInvoice.total_amount || 0) - (paymentInvoice.payments || []).reduce((sum, p) => sum + (p.amount || 0), 0)).toFixed(2)} MAD</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">المبلغ المدفوع *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={paymentAmount}
+                  onChange={(e) => setPaymentAmount(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  placeholder="أدخل المبلغ"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">طريقة الدفع</label>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                >
+                  <option value="cash">نقدي</option>
+                  <option value="check">شيك</option>
+                  <option value="bank_transfer">تحويل بنكي</option>
+                  <option value="card">بطاقة</option>
+                </select>
+              </div>
+
+              <button
+                onClick={async () => {
+                  if (!paymentAmount || Number(paymentAmount) <= 0) {
+                    alert('يرجى إدخال مبلغ صحيح')
+                    return
+                  }
+                  setPaymentLoading(true)
+                  try {
+                    const invoiceId = paymentInvoice.id
+                    const amount = Number(paymentAmount)
+
+                    // Insert payment
+                    const { error: paymentError } = await supabase
+                      .from('payments')
+                      .insert({
+                        invoice_id: invoiceId,
+                        amount: amount,
+                        payment_method: paymentMethod,
+                        payment_date: new Date().toISOString(),
+                        status: 'completed'
+                      })
+
+                    if (paymentError) throw paymentError
+
+                    // Update invoice paid_amount and remaining_amount
+                    const totalAmount = paymentInvoice.final_amount || paymentInvoice.total_amount || 0
+                    const currentPaid = Number((paymentInvoice as any).paid_amount || (paymentInvoice.payments || []).reduce((sum, p) => sum + (p.amount || 0), 0))
+                    const newPaid = currentPaid + amount
+                    const newRemaining = Math.max(0, totalAmount - newPaid)
+
+                    const { error: updateError } = await supabase
+                      .from('invoices')
+                      .update({
+                        paid_amount: newPaid,
+                        remaining_amount: newRemaining,
+                        payment_status: newRemaining <= 0 ? 'paid' : 'partial'
+                      })
+                      .eq('id', invoiceId)
+
+                    if (updateError) throw updateError
+
+                    setShowPaymentModal(false)
+                    alert('تم إضافة الدفعة بنجاح')
+                    fetchClientData()
+                  } catch (error) {
+                    console.error('Error adding payment:', error)
+                    alert('حدث خطأ أثناء إضافة الدفعة')
+                  } finally {
+                    setPaymentLoading(false)
+                  }
+                }}
+                disabled={paymentLoading}
+                className="w-full bg-purple-600 text-white py-2 rounded-lg font-bold hover:bg-purple-700 disabled:opacity-50"
+              >
+                {paymentLoading ? 'جاري الإضافة...' : 'إضافة الدفعة'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

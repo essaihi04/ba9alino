@@ -155,6 +155,9 @@ export default function PurchasesPage() {
 
   useEffect(() => {
     if (!showCreatePurchaseModal) return
+    // Recharger les produits à chaque ouverture du modal pour inclure les produits récemment ajoutés
+    loadProducts()
+    loadCategories()
     setTimeout(() => {
       try {
         purchaseSearchInputRef.current?.focus()
