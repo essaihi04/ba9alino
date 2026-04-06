@@ -301,34 +301,38 @@ export default function OrdersPage() {
         )
       `
 
-      const withEmployeeSelect = `
-        ${baseSelect},
-        employee:employee_id (
-          id,
-          name,
-          phone,
-          role,
-          status
-        )
-      `
-
+      // Fetch orders without employee join (we'll enrich manually)
       let { data, error } = await supabase
         .from('orders')
-        .select(withEmployeeSelect)
+        .select(baseSelect)
         .order('order_date', { ascending: false })
 
-      // Fallback: some databases don't have a usable FK relation for employee_id -> employees
-      if (error) {
-        console.warn('Orders query with employee join failed, retrying without employee join:', error)
-        const retry = await supabase
-          .from('orders')
-          .select(baseSelect)
-          .order('order_date', { ascending: false })
-        data = retry.data
-        error = retry.error
-      }
-
       if (error) throw error
+      
+      // Manually fetch employee data for orders with employee_id OR created_by
+      if (data && data.length > 0) {
+        const employeeIds = [...new Set(
+          data.map(o => o.employee_id || o.created_by).filter(Boolean)
+        )]
+        
+        if (employeeIds.length > 0) {
+          const { data: employees, error: empError } = await supabase
+            .from('employees')
+            .select('id, name, phone, role, status')
+            .in('id', employeeIds)
+          
+          if (!empError && employees) {
+            // Create a map of employee data
+            const employeeMap = new Map(employees.map(emp => [emp.id, emp]))
+            
+            // Enrich orders with employee data (prefer employee_id, fallback to created_by)
+            data = data.map(order => ({
+              ...order,
+              employee: employeeMap.get(order.employee_id || order.created_by)
+            }))
+          }
+        }
+      }
       
       console.log('Orders fetched successfully:', data?.length || 0, 'orders')
       console.log('Sample order with employee and warehouse:', data?.[0])
