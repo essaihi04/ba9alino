@@ -665,10 +665,14 @@ export default function ClientTrackingPage() {
                     const invoiceId = paymentInvoice.id
                     const amount = Number(paymentAmount)
 
+                    // Generate payment number
+                    const paymentNumber = `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`
+                    
                     // Insert payment
                     const { error: paymentError } = await supabase
                       .from('payments')
                       .insert({
+                        payment_number: paymentNumber,
                         invoice_id: invoiceId,
                         amount: amount,
                         payment_method: paymentMethod,
