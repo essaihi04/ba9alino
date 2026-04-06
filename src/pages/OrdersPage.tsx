@@ -50,6 +50,7 @@ interface Order {
   }
   notes?: string
   items: OrderItem[]
+  order_items?: OrderItem[]
 }
 
 interface OrderItem {
@@ -288,12 +289,21 @@ export default function OrdersPage() {
           name,
           address,
           is_active
+        ),
+        order_items:order_items (
+          id,
+          product_id,
+          quantity,
+          unit_price,
+          line_total,
+          product_name_ar,
+          product_sku
         )
       `
 
       const withEmployeeSelect = `
         ${baseSelect},
-        employee:created_by (
+        employee:employee_id (
           id,
           name,
           phone,
@@ -307,7 +317,7 @@ export default function OrdersPage() {
         .select(withEmployeeSelect)
         .order('order_date', { ascending: false })
 
-      // Fallback: some databases don't have a usable FK relation for created_by -> employees
+      // Fallback: some databases don't have a usable FK relation for employee_id -> employees
       if (error) {
         console.warn('Orders query with employee join failed, retrying without employee join:', error)
         const retry = await supabase
@@ -321,7 +331,9 @@ export default function OrdersPage() {
       if (error) throw error
       
       console.log('Orders fetched successfully:', data?.length || 0, 'orders')
-      console.log('Sample order with employee:', data?.[0])
+      console.log('Sample order with employee and warehouse:', data?.[0])
+      console.log('Employee data:', data?.[0]?.employee)
+      console.log('Warehouse data:', data?.[0]?.warehouse)
       setOrders(data || [])
       try {
         sessionStorage.setItem(
@@ -1271,8 +1283,10 @@ export default function OrdersPage() {
 
   // Calculate total quantity for an order
   const getOrderTotalQuantity = (order: any) => {
-    if (!order.items || !Array.isArray(order.items)) return 0
-    return order.items.reduce((total: number, item: any) => total + (item.quantity || 0), 0)
+    // Try order_items first (from the main query), then fallback to items
+    const items = order.order_items || order.items
+    if (!items || !Array.isArray(items)) return 0
+    return items.reduce((total: number, item: any) => total + (item.quantity || 0), 0)
   }
 
   const updateOrderStatus = async () => {
