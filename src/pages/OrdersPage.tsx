@@ -334,6 +334,17 @@ export default function OrdersPage() {
       console.log('Sample order with employee and warehouse:', data?.[0])
       console.log('Employee data:', data?.[0]?.employee)
       console.log('Warehouse data:', data?.[0]?.warehouse)
+      console.log('created_by field:', data?.[0]?.created_by)
+      console.log('employee_id field:', data?.[0]?.employee_id)
+      
+      // Log all orders to see which have employee data
+      const ordersWithEmployee = data?.filter(o => o.employee) || []
+      const ordersWithoutEmployee = data?.filter(o => !o.employee) || []
+      console.log(`Orders with employee: ${ordersWithEmployee.length}, without: ${ordersWithoutEmployee.length}`)
+      if (ordersWithoutEmployee.length > 0) {
+        console.log('Sample order without employee:', ordersWithoutEmployee[0])
+      }
+      
       setOrders(data || [])
       try {
         sessionStorage.setItem(
