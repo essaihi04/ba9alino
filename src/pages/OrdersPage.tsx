@@ -303,7 +303,7 @@ export default function OrdersPage() {
 
       const withEmployeeSelect = `
         ${baseSelect},
-        employee:created_by (
+        employee:employee_id (
           id,
           name,
           phone,
@@ -317,7 +317,7 @@ export default function OrdersPage() {
         .select(withEmployeeSelect)
         .order('order_date', { ascending: false })
 
-      // Fallback: some databases don't have a usable FK relation for created_by -> employees
+      // Fallback: some databases don't have a usable FK relation for employee_id -> employees
       if (error) {
         console.warn('Orders query with employee join failed, retrying without employee join:', error)
         const retry = await supabase
@@ -334,16 +334,6 @@ export default function OrdersPage() {
       console.log('Sample order with employee and warehouse:', data?.[0])
       console.log('Employee data:', data?.[0]?.employee)
       console.log('Warehouse data:', data?.[0]?.warehouse)
-      console.log('created_by field:', data?.[0]?.created_by)
-      console.log('employee_id field:', data?.[0]?.employee_id)
-      
-      // Log all orders to see which have employee data
-      const ordersWithEmployee = data?.filter(o => o.employee) || []
-      const ordersWithoutEmployee = data?.filter(o => !o.employee) || []
-      console.log(`Orders with employee: ${ordersWithEmployee.length}, without: ${ordersWithoutEmployee.length}`)
-      if (ordersWithoutEmployee.length > 0) {
-        console.log('Sample order without employee:', ordersWithoutEmployee[0])
-      }
       
       setOrders(data || [])
       try {

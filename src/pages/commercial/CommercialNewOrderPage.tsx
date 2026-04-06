@@ -743,6 +743,7 @@ export default function CommercialNewOrderPage() {
           subtotal: promotionSummary.subtotal,
           tax_amount: 0,
           total_amount: totalAmount,
+          employee_id: commercialId,
           created_by: commercialId,
           source: 'commercial'
         })
