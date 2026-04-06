@@ -210,99 +210,99 @@ export default function CommercialClientEditPage() {
 
   return (
     <div className="min-h-screen bg-gray-50" dir="rtl">
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 shadow-lg sticky top-0 z-10">
-        <div className="flex items-center gap-4">
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-2 shadow-lg sticky top-0 z-10">
+        <div className="flex items-center gap-2">
           <button
             onClick={() => navigate('/commercial/clients')}
-            className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+            className="p-1 hover:bg-white/20 rounded transition-colors"
           >
-            <ArrowLeft size={24} />
+            <ArrowLeft size={18} />
           </button>
           <div className="flex-1">
-            <h1 className="text-xl font-bold">تعديل بيانات العميل</h1>
-            <p className="text-blue-100 text-sm">عدّل معلومات العميل وحفظ الموقع والصورة</p>
+            <h1 className="text-base font-bold">تعديل بيانات العميل</h1>
+            <p className="text-blue-100 text-[10px]">عدّل معلومات العميل وحفظ الموقع والصورة</p>
           </div>
         </div>
       </div>
 
-      <form onSubmit={handleUpdateClient} className="p-4 space-y-4 max-w-2xl mx-auto">
-        <div className="bg-white rounded-xl shadow-md p-4 space-y-4">
+      <form onSubmit={handleUpdateClient} className="p-2 space-y-2 max-w-2xl mx-auto">
+        <div className="bg-white rounded-lg shadow p-2 space-y-2">
           <div>
-            <label className="block text-sm font-medium mb-1">اسم الشركة (عربي) *</label>
+            <label className="block text-xs font-medium mb-0.5">اسم الشركة (عربي) *</label>
             <input
               type="text"
               required
               value={formData.company_name_ar}
               onChange={(e) => setFormData({ ...formData, company_name_ar: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-2 py-1 border rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
               placeholder="أدخل اسم الشركة..."
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">اسم الشركة (English)</label>
+            <label className="block text-xs font-medium mb-0.5">اسم الشركة (English)</label>
             <input
               type="text"
               value={formData.company_name_en}
               onChange={(e) => setFormData({ ...formData, company_name_en: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-2 py-1 border rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
               placeholder="Company name..."
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">اسم جهة الاتصال *</label>
+            <label className="block text-xs font-medium mb-0.5">اسم جهة الاتصال *</label>
             <input
               type="text"
               required
               value={formData.contact_person_name}
               onChange={(e) => setFormData({ ...formData, contact_person_name: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-2 py-1 border rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
               placeholder="أدخل اسم جهة الاتصال..."
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">رقم الهاتف *</label>
+            <label className="block text-xs font-medium mb-0.5">رقم الهاتف *</label>
             <input
               type="tel"
               required
               value={formData.contact_person_phone}
               onChange={(e) => setFormData({ ...formData, contact_person_phone: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-2 py-1 border rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
               placeholder="06xxxxxxxx"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">البريد الإلكتروني</label>
+            <label className="block text-xs font-medium mb-0.5">البريد الإلكتروني</label>
             <input
               type="email"
               value={formData.contact_person_email}
               onChange={(e) => setFormData({ ...formData, contact_person_email: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-2 py-1 border rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
               placeholder="email@example.com"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">العنوان</label>
+            <label className="block text-xs font-medium mb-0.5">العنوان</label>
             <input
               type="text"
               value={formData.address}
               onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-2 py-1 border rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
               placeholder="العنوان الكامل..."
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">المدينة</label>
+            <label className="block text-xs font-medium mb-0.5">المدينة</label>
             <input
               type="text"
               value={formData.city}
               onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-2 py-1 border rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
               placeholder="المدينة..."
             />
           </div>
@@ -317,7 +317,7 @@ export default function CommercialClientEditPage() {
                   step="0.000001"
                   value={formData.gps_lat ?? ''}
                   onChange={(e) => setFormData({ ...formData, gps_lat: e.target.value ? parseFloat(e.target.value) : null })}
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-2 py-1 border rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
                   placeholder="مثال: 34.023451"
                 />
               </div>
@@ -328,7 +328,7 @@ export default function CommercialClientEditPage() {
                   step="0.000001"
                   value={formData.gps_lng ?? ''}
                   onChange={(e) => setFormData({ ...formData, gps_lng: e.target.value ? parseFloat(e.target.value) : null })}
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-2 py-1 border rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
                   placeholder="مثال: -6.835210"
                 />
               </div>
@@ -382,11 +382,11 @@ export default function CommercialClientEditPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">فئة الاشتراك</label>
+            <label className="block text-xs font-medium mb-0.5">فئة الاشتراك</label>
             <select
               value={formData.subscription_tier}
               onChange={(e) => setFormData({ ...formData, subscription_tier: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-2 py-1 border rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
               <option value="A">A - سعر أ</option>
               <option value="B">B - سعر ب</option>
@@ -397,29 +397,29 @@ export default function CommercialClientEditPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">الحد الائتماني (اختياري)</label>
+            <label className="block text-xs font-medium mb-0.5">الحد الائتماني (اختياري)</label>
             <input
               type="number"
               value={formData.credit_limit}
               onChange={(e) => setFormData({ ...formData, credit_limit: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-2 py-1 border rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
               placeholder="مثال: 5000"
               min="0"
             />
           </div>
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex gap-2">
           <button
             type="button"
             onClick={() => navigate('/commercial/clients')}
-            className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-bold hover:bg-gray-300 transition-colors"
+            className="flex-1 bg-gray-200 text-gray-700 py-2 rounded font-bold text-sm hover:bg-gray-300 transition-colors"
           >
             إلغاء
           </button>
           <button
             type="submit"
-            className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 transition-colors disabled:opacity-60"
+            className="flex-1 bg-blue-600 text-white py-2 rounded font-bold text-sm hover:bg-blue-700 transition-colors disabled:opacity-60"
             disabled={saving || uploadingPhoto}
           >
             {saving ? 'جاري الحفظ...' : 'حفظ التعديلات'}

@@ -1,7 +1,14 @@
 import { useState, useEffect } from 'react'
-import { AlertCircle, Clock, DollarSign, User, Calendar, TrendingUp, FileText, CreditCard, Eye, ArrowRight, CheckCircle } from 'lucide-react'
+import { AlertCircle, Clock, DollarSign, User, Calendar, TrendingUp, FileText, CreditCard, Eye, ArrowRight, CheckCircle, Search, Filter } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+
+const toInputDateValue = (value?: string | null) => {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toISOString().split('T')[0]
+}
 
 interface ClientCredit {
   client_id: string
@@ -28,6 +35,12 @@ interface InvoiceWithPayments {
   check_date?: string | null
   check_deposit_date?: string | null
   payment_status?: string | null
+  client_id?: string | null
+  invoice_date?: string | null
+  client?: {
+    id?: string | null
+    company_name_ar?: string | null
+  } | null
   payments: Payment[]
 }
 
@@ -45,11 +58,21 @@ export default function CreditsPage() {
   const [chequePaidInvoices, setChequePaidInvoices] = useState<InvoiceWithPayments[]>([])
   const [selectedClient, setSelectedClient] = useState<ClientCredit | null>(null)
   const [clientInvoices, setClientInvoices] = useState<InvoiceWithPayments[]>([])
+  const [creditInvoices, setCreditInvoices] = useState<InvoiceWithPayments[]>([])
   const [loading, setLoading] = useState(true)
   const [showPaymentHistory, setShowPaymentHistory] = useState(false)
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceWithPayments | null>(null)
   const [showChequePaymentModal, setShowChequePaymentModal] = useState(false)
   const [selectedChequeInvoice, setSelectedChequeInvoice] = useState<InvoiceWithPayments | null>(null)
+  
+  // Filtres
+  const [searchTerm, setSearchTerm] = useState('')
+  const [filterAmount, setFilterAmount] = useState<'all' | 'low' | 'medium' | 'high'>('all')
+  const [filterDays, setFilterDays] = useState<'all' | 'recent' | 'medium' | 'overdue'>('all')
+  const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'partial' | 'unpaid'>('all')
+  const [periodFilter, setPeriodFilter] = useState<'all' | 'today' | '7days' | '30days' | 'month' | 'custom'>('all')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   useEffect(() => {
     loadCredits()
@@ -99,6 +122,13 @@ export default function CreditsPage() {
           
           return isUnpaid && method !== 'check' && method !== 'cheque'
         })
+
+        const unpaidInvoicesWithDetails = unpaidInvoices.map(invoice => ({
+          ...invoice,
+          remaining: (invoice.total_amount || 0) - (invoice.paid_amount || 0),
+          payment_method: invoice.payment_method || invoice.payments?.[0]?.payment_method || null
+        }))
+        setCreditInvoices(unpaidInvoicesWithDetails)
         
         // Traiter les factures payées par chèque
         const chequePaidWithDetails = chequePaid.map(invoice => ({
@@ -162,6 +192,7 @@ export default function CreditsPage() {
       .from('invoices')
       .select(`
         *,
+        client:clients(id, company_name_ar),
         payments (*)
       `)
       .eq('client_id', clientId)
@@ -217,7 +248,26 @@ export default function CreditsPage() {
 
   const handleClientClick = (client: ClientCredit) => {
     setSelectedClient(client)
-    loadClientInvoices(client.client_id)
+
+    const localClientInvoices = creditInvoices.filter(invoice => {
+      if (client.client_id && invoice.client_id) {
+        return invoice.client_id === client.client_id
+      }
+
+      return (invoice.client?.company_name_ar || 'عميل غير معروف') === client.client_name
+    })
+
+    if (localClientInvoices.length > 0) {
+      setClientInvoices(localClientInvoices)
+      return
+    }
+
+    if (client.client_id) {
+      loadClientInvoices(client.client_id)
+      return
+    }
+
+    setClientInvoices([])
   }
 
   const handleInvoiceClick = (invoice: InvoiceWithPayments) => {
@@ -332,57 +382,203 @@ export default function CreditsPage() {
   const totalNonDue = allInvoices.reduce((sum, inv) => sum + inv.remaining, 0)
   const nonDueCount = allInvoices.length
 
+  // Filtrer les crédits selon les critères
+  const filteredCredits = credits.filter(client => {
+    const clientDateValue = toInputDateValue(client.oldest_debt_date)
+    const today = new Date()
+    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+    const clientDate = clientDateValue ? new Date(clientDateValue) : null
+
+    // Filtre par recherche (nom du client)
+    if (searchTerm && !client.client_name.toLowerCase().includes(searchTerm.toLowerCase())) {
+      return false
+    }
+
+    // Filtre par montant
+    if (filterAmount !== 'all') {
+      if (filterAmount === 'low' && client.remaining >= 1000) return false
+      if (filterAmount === 'medium' && (client.remaining < 1000 || client.remaining >= 5000)) return false
+      if (filterAmount === 'high' && client.remaining < 5000) return false
+    }
+
+    // Filtre par durée de retard
+    if (filterDays !== 'all') {
+      if (filterDays === 'recent' && client.days_overdue > 15) return false
+      if (filterDays === 'medium' && (client.days_overdue <= 15 || client.days_overdue > 30)) return false
+      if (filterDays === 'overdue' && client.days_overdue <= 30) return false
+    }
+
+    // Filtre par statut de paiement/retard
+    if (filterStatus !== 'all') {
+      if (filterStatus === 'paid') return false
+      if (filterStatus === 'partial' && client.total_paid <= 0) return false
+      if (filterStatus === 'unpaid' && client.total_paid > 0) return false
+    }
+
+    // Filtre par période rapide
+    if (periodFilter !== 'all' && clientDate) {
+      const diffDays = Math.floor((startOfToday.getTime() - clientDate.getTime()) / (1000 * 60 * 60 * 24))
+      const isSameMonth = clientDate.getFullYear() === today.getFullYear() && clientDate.getMonth() === today.getMonth()
+
+      if (periodFilter === 'today' && diffDays !== 0) return false
+      if (periodFilter === '7days' && (diffDays < 0 || diffDays > 7)) return false
+      if (periodFilter === '30days' && (diffDays < 0 || diffDays > 30)) return false
+      if (periodFilter === 'month' && !isSameMonth) return false
+    }
+
+    // Filtre par dates personnalisées
+    if (clientDateValue && dateFrom && clientDateValue < dateFrom) {
+      return false
+    }
+
+    if (clientDateValue && dateTo && clientDateValue > dateTo) {
+      return false
+    }
+
+    return true
+  })
+
   return (
-    <div className="space-y-6" dir="rtl">
+    <div className="space-y-2" dir="rtl">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-          <AlertCircle className="text-white" size={36} />
+        <h1 className="text-lg font-bold text-white flex items-center gap-2">
+          <AlertCircle className="text-white" size={20} />
           متابعة الديون
         </h1>
       </div>
 
       {/* Statistiques globales */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-gradient-to-br from-red-500 to-red-600 text-white rounded-xl p-6 shadow-lg">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <div className="bg-gradient-to-br from-red-500 to-red-600 text-white rounded-lg p-3 shadow">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-red-100 text-sm mb-1">إجمالي الديون</p>
-              <p className="text-3xl font-bold">{totalDebt.toFixed(2)} MAD</p>
+              <p className="text-red-100 text-[10px] mb-0.5">إجمالي الديون</p>
+              <p className="text-sm md:text-base font-bold">{totalDebt.toFixed(0)} MAD</p>
             </div>
-            <DollarSign size={48} className="text-red-200" />
+            <DollarSign size={20} className="text-red-200" />
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-xl p-6 shadow-lg">
+        <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-lg p-3 shadow">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-purple-100 text-sm mb-1">الديون الغير مستحقة</p>
-              <p className="text-3xl font-bold">{totalNonDue.toFixed(2)} MAD</p>
+              <p className="text-purple-100 text-[10px] mb-0.5">الديون الغير مستحقة</p>
+              <p className="text-sm md:text-base font-bold">{totalNonDue.toFixed(0)} MAD</p>
             </div>
-            <Clock size={48} className="text-purple-200" />
+            <Clock size={20} className="text-purple-200" />
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-xl p-6 shadow-lg">
+        <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-lg p-3 shadow">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-orange-100 text-sm mb-1">عدد العملاء</p>
-              <p className="text-3xl font-bold">{credits.length}</p>
+              <p className="text-orange-100 text-[10px] mb-0.5">عدد العملاء</p>
+              <p className="text-sm md:text-base font-bold">{filteredCredits.length}</p>
             </div>
-            <User size={48} className="text-orange-200" />
+            <User size={20} className="text-orange-200" />
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 text-white rounded-xl p-6 shadow-lg">
+        <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 text-white rounded-lg p-3 shadow">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-yellow-100 text-sm mb-1">متوسط الدين</p>
-              <p className="text-3xl font-bold">
-                {credits.length > 0 ? (totalDebt / credits.length).toFixed(2) : '0.00'} MAD
+              <p className="text-yellow-100 text-[10px] mb-0.5">متوسط الدين</p>
+              <p className="text-sm md:text-base font-bold">
+                {filteredCredits.length > 0 ? (filteredCredits.reduce((sum, c) => sum + c.remaining, 0) / filteredCredits.length).toFixed(0) : '0'} MAD
               </p>
             </div>
-            <TrendingUp size={48} className="text-yellow-200" />
+            <TrendingUp size={20} className="text-yellow-200" />
           </div>
+        </div>
+      </div>
+
+      {/* Filtres */}
+      <div className="bg-white rounded-lg shadow p-2">
+        <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-8 gap-2">
+          <div className="relative md:col-span-2">
+            <Search className="absolute right-2 top-2 text-gray-400" size={14} />
+            <input
+              type="text"
+              placeholder="ابحث عن عميل..."
+              className="w-full pr-7 pl-3 py-1.5 text-xs border border-gray-200 rounded focus:border-blue-500 focus:outline-none"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <select
+            value={filterAmount}
+            onChange={(e) => setFilterAmount(e.target.value as any)}
+            className="px-2 py-1.5 text-xs border border-gray-200 rounded focus:border-blue-500 focus:outline-none"
+          >
+            <option value="all">كل المبالغ</option>
+            <option value="low">&lt; 1000 MAD</option>
+            <option value="medium">1000 - 5000</option>
+            <option value="high">&gt; 5000 MAD</option>
+          </select>
+          <select
+            value={filterDays}
+            onChange={(e) => setFilterDays(e.target.value as any)}
+            className="px-2 py-1.5 text-xs border border-gray-200 rounded focus:border-blue-500 focus:outline-none"
+          >
+            <option value="all">كل المدد</option>
+            <option value="recent">&lt; 15 يوم</option>
+            <option value="medium">15 - 30 يوم</option>
+            <option value="overdue">&gt; 30 يوم</option>
+          </select>
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value as any)}
+            className="px-2 py-1.5 text-xs border border-gray-200 rounded focus:border-blue-500 focus:outline-none"
+          >
+            <option value="all">كل الحالات</option>
+            <option value="partial">مدفوع جزئياً</option>
+            <option value="unpaid">غير مدفوع</option>
+          </select>
+          <select
+            value={periodFilter}
+            onChange={(e) => setPeriodFilter(e.target.value as any)}
+            className="px-2 py-1.5 text-xs border border-gray-200 rounded focus:border-blue-500 focus:outline-none"
+          >
+            <option value="all">كل الفترات</option>
+            <option value="today">اليوم</option>
+            <option value="7days">7 أيام</option>
+            <option value="30days">30 يوم</option>
+            <option value="month">هذا الشهر</option>
+            <option value="custom">فترة مخصصة</option>
+          </select>
+          <input
+            type="date"
+            className="px-2 py-1.5 text-xs border border-gray-200 rounded focus:border-blue-500 focus:outline-none"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+          />
+          <input
+            type="date"
+            className="px-2 py-1.5 text-xs border border-gray-200 rounded focus:border-blue-500 focus:outline-none"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+          />
+        </div>
+        <div className="flex items-center justify-between mt-2 text-xs text-gray-600">
+          <div className="flex items-center gap-1">
+            <Filter size={12} />
+            <span>{filteredCredits.length} عميل</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setSearchTerm('')
+              setFilterAmount('all')
+              setFilterDays('all')
+              setFilterStatus('all')
+              setPeriodFilter('all')
+              setDateFrom('')
+              setDateTo('')
+            }}
+            className="text-blue-600 hover:text-blue-700 font-semibold"
+          >
+            إعادة التصفية
+          </button>
         </div>
       </div>
 
@@ -392,14 +588,14 @@ export default function CreditsPage() {
           <table className="w-full">
             <thead className="bg-gray-100 text-black">
               <tr>
-                <th className="px-6 py-4 text-right font-bold">العميل</th>
-                <th className="px-6 py-4 text-right font-bold">إجمالي الدين</th>
-                <th className="px-6 py-4 text-right font-bold">المدفوع</th>
-                <th className="px-6 py-4 text-right font-bold">المتبقي</th>
-                <th className="px-6 py-4 text-right font-bold">عدد الفواتير</th>
-                <th className="px-6 py-4 text-right font-bold">مدة الدين</th>
-                <th className="px-6 py-4 text-right font-bold">الحالة</th>
-                <th className="px-6 py-4 text-right font-bold">إجراءات</th>
+                <th className="px-4 py-3 text-right font-bold text-sm">العميل</th>
+                <th className="px-4 py-3 text-right font-bold text-sm">إجمالي الدين</th>
+                <th className="px-4 py-3 text-right font-bold text-sm">المدفوع</th>
+                <th className="px-4 py-3 text-right font-bold text-sm">المتبقي</th>
+                <th className="px-4 py-3 text-right font-bold text-sm">عدد الفواتير</th>
+                <th className="px-4 py-3 text-right font-bold text-sm">مدة الدين</th>
+                <th className="px-4 py-3 text-right font-bold text-sm">الحالة</th>
+                <th className="px-4 py-3 text-right font-bold text-sm">إجراءات</th>
               </tr>
             </thead>
             <tbody>
@@ -409,14 +605,14 @@ export default function CreditsPage() {
                     جاري التحميل...
                   </td>
                 </tr>
-              ) : credits.length === 0 ? (
+              ) : filteredCredits.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="text-center py-8 text-gray-500">
                     لا توجد ديون مسجلة
                   </td>
                 </tr>
               ) : (
-                credits.map((client) => (
+                filteredCredits.map((client) => (
                   <tr
                     key={client.client_id}
                     className="border-b hover:bg-red-50 transition-colors"
@@ -574,21 +770,22 @@ export default function CreditsPage() {
                           <div className="flex gap-1">
                             <button
                               onClick={() => {
+                                setSelectedInvoice(invoice)
+                                setShowPaymentHistory(true)
+                              }}
+                              className="bg-blue-100 hover:bg-blue-200 text-blue-700 p-1 rounded transition-colors"
+                              title="عرض التفاصيل"
+                            >
+                              <Eye size={14} />
+                            </button>
+                            <button
+                              onClick={() => {
                                 setSelectedChequeInvoice(invoice)
                                 setShowChequePaymentModal(true)
                               }}
                               className="bg-orange-600 hover:bg-orange-700 text-white px-2 py-1 rounded text-xs font-bold transition-colors"
                             >
                               تحديث الحالة
-                            </button>
-                            <button
-                              onClick={() => {
-                                setSelectedInvoice(invoice)
-                                setShowPaymentHistory(true)
-                              }}
-                              className="bg-gray-600 hover:bg-gray-700 text-white px-2 py-1 rounded text-xs font-bold transition-colors"
-                            >
-                              تفاصيل
                             </button>
                           </div>
                         </td>
@@ -649,15 +846,27 @@ export default function CreditsPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <button
-                            onClick={() => {
-                              setSelectedInvoice(invoice)
-                              setShowPaymentHistory(true)
-                            }}
-                            className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded-lg font-bold text-xs transition-colors"
-                          >
-                            تفاصيل
-                          </button>
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => {
+                                setSelectedInvoice(invoice)
+                                setShowPaymentHistory(true)
+                              }}
+                              className="bg-blue-100 hover:bg-blue-200 text-blue-700 p-1 rounded transition-colors"
+                              title="عرض التفاصيل"
+                            >
+                              <Eye size={14} />
+                            </button>
+                            <button
+                              onClick={() => {
+                                setSelectedInvoice(invoice)
+                                setShowPaymentHistory(true)
+                              }}
+                              className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded-lg font-bold text-xs transition-colors"
+                            >
+                              تفاصيل
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -674,47 +883,61 @@ export default function CreditsPage() {
         </div>
       )}
 
-      {/* Détails client sélectionné */}
+      {/* Modal détails client */}
       {selectedClient && (
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
-            <User className="text-red-600" />
-            تفاصيل ديون: {selectedClient.client_name}
-          </h2>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setSelectedClient(null)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[85vh] overflow-y-auto p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <User className="text-red-600" />
+                تفاصيل ديون: {selectedClient.client_name}
+              </h2>
+              <button
+                onClick={() => setSelectedClient(null)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
 
-          <div className="space-y-3">
-            {clientInvoices.map(invoice => {
-              return (
-                <div 
-                  key={invoice.id} 
-                  className="border-2 border-gray-200 rounded-lg p-4 hover:border-red-300 transition-colors cursor-pointer"
-                  onClick={() => handleInvoiceClick(invoice)}
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <p className="font-bold text-gray-800">فاتورة #{invoice.invoice_number || invoice.id.slice(0, 8)}</p>
-                        {getPaymentTypeDisplay(invoice.payment_method)}
-                      </div>
-                      <p className="text-sm text-gray-600 flex items-center gap-1">
-                        <Calendar size={14} />
-                        {new Date(invoice.created_at).toLocaleDateString('ar-DZ')}
-                      </p>
-                      {invoice.payments && invoice.payments.length > 0 && (
-                        <p className="text-xs text-blue-600 mt-1">
-                          {invoice.payments.length} عملية دفع
+            <div className="space-y-3">
+              {clientInvoices.length > 0 ? clientInvoices.map(invoice => {
+                return (
+                  <div 
+                    key={invoice.id} 
+                    className="border-2 border-gray-200 rounded-lg p-4 hover:border-red-300 transition-colors cursor-pointer"
+                    onClick={() => handleInvoiceClick(invoice)}
+                  >
+                    <div className="flex justify-between items-start gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-3 mb-2 flex-wrap">
+                          <p className="font-bold text-gray-800">فاتورة #{invoice.invoice_number || invoice.id.slice(0, 8)}</p>
+                          {getPaymentTypeDisplay(invoice.payment_method)}
+                        </div>
+                        <p className="text-sm text-gray-600 flex items-center gap-1">
+                          <Calendar size={14} />
+                          {new Date(invoice.created_at).toLocaleDateString('ar-DZ')}
                         </p>
-                      )}
-                    </div>
-                    <div className="text-left">
-                      <p className="text-sm text-gray-600">المجموع: {invoice.total_amount?.toFixed(2)} MAD</p>
-                      <p className="text-sm text-green-600">المدفوع: {invoice.paid_amount?.toFixed(2)} MAD</p>
-                      <p className="text-lg font-bold text-red-600">الباقي: {invoice.remaining.toFixed(2)} MAD</p>
+                        {invoice.payments && invoice.payments.length > 0 && (
+                          <p className="text-xs text-blue-600 mt-1">
+                            {invoice.payments.length} عملية دفع
+                          </p>
+                        )}
+                      </div>
+                      <div className="text-left whitespace-nowrap">
+                        <p className="text-sm text-gray-600">المجموع: {invoice.total_amount?.toFixed(2)} MAD</p>
+                        <p className="text-sm text-green-600">المدفوع: {invoice.paid_amount?.toFixed(2)} MAD</p>
+                        <p className="text-lg font-bold text-red-600">الباقي: {invoice.remaining.toFixed(2)} MAD</p>
+                      </div>
                     </div>
                   </div>
+                )
+              }) : (
+                <div className="text-center py-8 text-gray-500">
+                  لا توجد فواتير لهذا العميل
                 </div>
-              )
-            })}
+              )}
+            </div>
           </div>
         </div>
       )}

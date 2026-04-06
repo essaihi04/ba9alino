@@ -204,43 +204,43 @@ export default function ProfilePage() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-4">
+        <div className="max-w-7xl mx-auto px-2 sm:px-4">
+          <div className="flex justify-between items-center py-1.5">
+            <div className="flex items-center space-x-2">
               <button
                 onClick={() => navigate('/')}
-                className="p-2 text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100"
+                className="p-1 text-gray-600 hover:text-gray-900 rounded hover:bg-gray-100"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
-              <h1 className="text-2xl font-bold text-gray-900">ملف الشركة</h1>
+              <h1 className="text-base font-bold text-gray-900">ملف الشركة</h1>
             </div>
             <div className="flex items-center space-x-2">
               {isEditing ? (
                 <>
                   <button
                     onClick={handleCancel}
-                    className="flex items-center space-x-2 bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700"
+                    className="flex items-center space-x-1 bg-gray-600 text-white px-2 py-1 rounded text-xs hover:bg-gray-700"
                   >
                     إلغاء
                   </button>
                   <button
                     onClick={handleSave}
                     disabled={saving}
-                    className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50"
+                    className="flex items-center space-x-1 bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700 disabled:opacity-50"
                   >
-                    <Save size={16} />
+                    <Save size={14} />
                     <span>{saving ? 'جاري الحفظ...' : 'حفظ'}</span>
                   </button>
                 </>
               ) : (
                 <button
                   onClick={() => setIsEditing(true)}
-                  className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                  className="flex items-center space-x-1 bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700"
                 >
-                  <Edit2 size={16} />
+                  <Edit2 size={14} />
                   <span>تعديل</span>
                 </button>
               )}
@@ -250,20 +250,20 @@ export default function ProfilePage() {
       </div>
 
       {/* Content */}
-      <div className="max-w-4xl mx-auto p-8">
-        <div className="bg-white rounded-lg shadow-lg p-8">
+      <div className="max-w-4xl mx-auto p-2">
+        <div className="bg-white rounded shadow p-3">
           {/* Logo Section */}
-          <div className="mb-8 text-center">
+          <div className="mb-3 text-center">
             <div className="relative inline-block">
               {logoPreview ? (
                 <img
                   src={logoPreview}
                   alt="Company Logo"
-                  className="w-32 h-32 object-contain rounded-lg border-2 border-gray-200"
+                  className="w-20 h-20 object-contain rounded border-2 border-gray-200"
                 />
               ) : (
-                <div className="w-32 h-32 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center">
-                  <Building className="w-12 h-12 text-gray-400" />
+                <div className="w-20 h-20 bg-gray-100 rounded border-2 border-dashed border-gray-300 flex items-center justify-center">
+                  <Building className="w-8 h-8 text-gray-400" />
                 </div>
               )}
               {isEditing && (
@@ -280,22 +280,22 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="grid grid-cols-2 gap-4">
             {/* Company Information */}
             <div>
-              <h3 className="text-lg font-semibold mb-4 flex items-center">
-                <Building className="w-5 h-5 ml-2" />
+              <h3 className="text-sm font-semibold mb-2 flex items-center">
+                <Building className="w-4 h-4 ml-1" />
                 معلومات الشركة
               </h3>
-              <div className="space-y-4">
+              <div className="space-y-2">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">اسم الشركة (عربي)</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-0.5">اسم الشركة (عربي)</label>
                   {isEditing ? (
                     <input
                       type="text"
                       value={companyInfo.company_name_ar}
                       onChange={(e) => setCompanyInfo(prev => ({ ...prev, company_name_ar: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
                       placeholder="اسم الشركة بالعربية"
                     />
                   ) : (
@@ -304,13 +304,13 @@ export default function ProfilePage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">اسم الشركة (فرنساوي)</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-0.5">اسم الشركة (فرنساوي)</label>
                   {isEditing ? (
                     <input
                       type="text"
                       value={companyInfo.company_name}
                       onChange={(e) => setCompanyInfo(prev => ({ ...prev, company_name: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
                       placeholder="Nom de l'entreprise"
                     />
                   ) : (
@@ -319,13 +319,13 @@ export default function ProfilePage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">الرقم التعريفي للشركة (ICE)</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-0.5">الرقم التعريفي للشركة (ICE)</label>
                   {isEditing ? (
                     <input
                       type="text"
                       value={companyInfo.ice}
                       onChange={(e) => setCompanyInfo(prev => ({ ...prev, ice: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
                       placeholder="ICE"
                     />
                   ) : (
@@ -334,13 +334,13 @@ export default function ProfilePage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">الرقم الضريبي</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-0.5">الرقم الضريبي</label>
                   {isEditing ? (
                     <input
                       type="text"
                       value={companyInfo.tax_id}
                       onChange={(e) => setCompanyInfo(prev => ({ ...prev, tax_id: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
                       placeholder="الرقم الضريبي"
                     />
                   ) : (
@@ -352,19 +352,19 @@ export default function ProfilePage() {
 
             {/* Contact Information */}
             <div>
-              <h3 className="text-lg font-semibold mb-4 flex items-center">
-                <Phone className="w-5 h-5 ml-2" />
+              <h3 className="text-sm font-semibold mb-2 flex items-center">
+                <Phone className="w-4 h-4 ml-1" />
                 معلومات الاتصال
               </h3>
-              <div className="space-y-4">
+              <div className="space-y-2">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">رقم الهاتف</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-0.5">رقم الهاتف</label>
                   {isEditing ? (
                     <input
                       type="tel"
                       value={companyInfo.phone}
                       onChange={(e) => setCompanyInfo(prev => ({ ...prev, phone: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
                       placeholder="06xxxxxxxx"
                     />
                   ) : (
@@ -373,13 +373,13 @@ export default function ProfilePage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">البريد الإلكتروني</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-0.5">البريد الإلكتروني</label>
                   {isEditing ? (
                     <input
                       type="email"
                       value={companyInfo.email}
                       onChange={(e) => setCompanyInfo(prev => ({ ...prev, email: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
                       placeholder="email@company.com"
                     />
                   ) : (
@@ -388,13 +388,13 @@ export default function ProfilePage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">الموقع الإلكتروني</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-0.5">الموقع الإلكتروني</label>
                   {isEditing ? (
                     <input
                       type="url"
                       value={companyInfo.website}
                       onChange={(e) => setCompanyInfo(prev => ({ ...prev, website: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
                       placeholder="https://www.company.com"
                     />
                   ) : (
@@ -406,19 +406,19 @@ export default function ProfilePage() {
           </div>
 
           {/* Address Information */}
-          <div className="mt-8">
-            <h3 className="text-lg font-semibold mb-4 flex items-center">
-              <MapPin className="w-5 h-5 ml-2" />
+          <div className="mt-3">
+            <h3 className="text-sm font-semibold mb-2 flex items-center">
+              <MapPin className="w-4 h-4 ml-1" />
               العنوان
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">العنوان (عربي)</label>
+                <label className="block text-xs font-medium text-gray-700 mb-0.5">العنوان (عربي)</label>
                 {isEditing ? (
                   <textarea
                     value={companyInfo.address_ar}
                     onChange={(e) => setCompanyInfo(prev => ({ ...prev, address_ar: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
                     rows={3}
                     placeholder="العنوان بالعربية"
                   />
@@ -428,12 +428,12 @@ export default function ProfilePage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">العنوان (فرنساوي)</label>
+                <label className="block text-xs font-medium text-gray-700 mb-0.5">العنوان (فرنساوي)</label>
                 {isEditing ? (
                   <textarea
                     value={companyInfo.address}
                     onChange={(e) => setCompanyInfo(prev => ({ ...prev, address: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
                     rows={3}
                     placeholder="Adresse en français"
                   />
@@ -445,20 +445,20 @@ export default function ProfilePage() {
           </div>
 
           {/* Bank Information */}
-          <div className="mt-8">
-            <h3 className="text-lg font-semibold mb-4 flex items-center">
-              <CreditCard className="w-5 h-5 ml-2" />
+          <div className="mt-3">
+            <h3 className="text-sm font-semibold mb-2 flex items-center">
+              <CreditCard className="w-4 h-4 ml-1" />
               معلومات البنكية
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">اسم البنك</label>
+                <label className="block text-xs font-medium text-gray-700 mb-0.5">اسم البنك</label>
                 {isEditing ? (
                   <input
                     type="text"
                     value={companyInfo.bank_name}
                     onChange={(e) => setCompanyInfo(prev => ({ ...prev, bank_name: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
                     placeholder="اسم البنك"
                   />
                 ) : (
@@ -467,13 +467,13 @@ export default function ProfilePage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">IBAN</label>
+                <label className="block text-xs font-medium text-gray-700 mb-0.5">IBAN</label>
                 {isEditing ? (
                   <input
                     type="text"
                     value={companyInfo.bank_iban}
                     onChange={(e) => setCompanyInfo(prev => ({ ...prev, bank_iban: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
                     placeholder="IBAN"
                   />
                 ) : (
@@ -482,13 +482,13 @@ export default function ProfilePage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">رقم الحساب</label>
+                <label className="block text-xs font-medium text-gray-700 mb-0.5">رقم الحساب</label>
                 {isEditing ? (
                   <input
                     type="text"
                     value={companyInfo.bank_account}
                     onChange={(e) => setCompanyInfo(prev => ({ ...prev, bank_account: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
                     placeholder="رقم الحساب"
                   />
                 ) : (

@@ -3675,19 +3675,19 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
 
       {/* Modal d'édition ligne facture */}
       {showEditInvoiceLineModal && editingInvoiceLine && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => handleEditInvoiceLineCancel()}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[95vw] sm:w-[450px] max-h-[95vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200">
-              <h3 className="text-xl font-bold text-gray-800">{editingInvoiceLine.product_name_ar}</h3>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2" onClick={() => handleEditInvoiceLineCancel()}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-[95vw] sm:w-[420px] max-h-[95vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-3 border-b border-gray-200">
+              <h3 className="text-base font-bold text-gray-800">{editingInvoiceLine.product_name_ar}</h3>
               <button onClick={handleEditInvoiceLineCancel} className="text-gray-500 hover:text-gray-700 transition-colors">
-                <X size={24} />
+                <X size={20} />
               </button>
             </div>
 
-            <div className="p-4 sm:p-6 overflow-y-auto flex-1">
-              <div className="space-y-4">
+            <div className="p-3 overflow-y-auto flex-1">
+              <div className="space-y-3">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">الكمية</label>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">الكمية</label>
                   <button
                     type="button"
                     onClick={() =>
@@ -3699,14 +3699,14 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                         onConfirm: (v) => setEditLineQuantity(String(parseInt(v) || 1)),
                       })
                     }
-                    className="w-full p-4 border-2 border-gray-200 rounded-xl hover:border-green-500 focus:border-green-500 focus:outline-none transition-colors text-left bg-gray-50"
+                    className="w-full p-2.5 border border-gray-200 rounded-lg hover:border-green-500 focus:border-green-500 focus:outline-none transition-colors text-left bg-gray-50"
                   >
-                    <span className="text-lg font-semibold text-gray-800">{editLineQuantity || '1'}</span>
+                    <span className="text-base font-semibold text-gray-800">{editLineQuantity || '1'}</span>
                   </button>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">الثمن (MAD)</label>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">الثمن (MAD)</label>
                   <button
                     type="button"
                     onClick={() =>
@@ -3719,15 +3719,15 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                         onConfirm: (v) => setEditLinePrice((parseFloat(v) || 0).toFixed(2)),
                       })
                     }
-                    className="w-full p-4 border-2 border-gray-200 rounded-xl hover:border-green-500 focus:border-green-500 focus:outline-none transition-colors text-left bg-gray-50"
+                    className="w-full p-2.5 border border-gray-200 rounded-lg hover:border-green-500 focus:border-green-500 focus:outline-none transition-colors text-left bg-gray-50"
                   >
-                    <span className="text-lg font-semibold text-gray-800">{editLinePrice || '0.00'}</span>
+                    <span className="text-base font-semibold text-gray-800">{editLinePrice || '0.00'}</span>
                   </button>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">نوع البيع</label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <label className="block text-xs font-bold text-gray-700 mb-1">نوع البيع</label>
+                  <div className="grid grid-cols-3 gap-1.5">
                     {(() => {
                       const pid = (editingInvoiceLine as any).primary_variant_id
                       const types = Array.from(
@@ -3748,7 +3748,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                               setEditLinePrice(Number(nextPrice || 0).toFixed(2))
                             }
                           }}
-                          className={`${editLineUnitType === t ? 'bg-green-600 text-white border-green-600' : 'bg-gray-50 text-gray-800 border-gray-200 hover:border-green-500'} border-2 rounded-xl py-3 font-bold transition-colors`}
+                          className={`${editLineUnitType === t ? 'bg-green-600 text-white border-green-600' : 'bg-gray-50 text-gray-800 border-gray-200 hover:border-green-500'} border rounded-lg py-2 text-sm font-bold transition-colors`}
                         >
                           {t === 'unit' ? 'وحدة' : t === 'carton' ? 'كرتون' : t === 'kilo' ? 'كيلو' : t}
                         </button>
@@ -3758,8 +3758,8 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">نوع الزبون</label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <label className="block text-xs font-bold text-gray-700 mb-1">نوع الزبون</label>
+                  <div className="grid grid-cols-3 gap-1.5">
                     {(['auto', 'A', 'B', 'C', 'D', 'E'] as const).map((tier) => (
                       <button
                         key={tier}
@@ -3774,7 +3774,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                             setEditLinePrice(Number(nextPrice || 0).toFixed(2))
                           }
                         }}
-                        className={`${editLinePricingTier === tier ? 'bg-green-600 text-white border-green-600' : 'bg-gray-50 text-gray-800 border-gray-200 hover:border-green-500'} border-2 rounded-xl py-3 font-bold transition-colors`}
+                        className={`${editLinePricingTier === tier ? 'bg-green-600 text-white border-green-600' : 'bg-gray-50 text-gray-800 border-gray-200 hover:border-green-500'} border rounded-lg py-2 text-sm font-bold transition-colors`}
                       >
                         {tier === 'auto' ? 'تلقائي' : getCategoryLabelArabic(tier)}
                       </button>
@@ -3784,16 +3784,16 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
               </div>
             </div>
 
-            <div className="p-4 sm:p-6 border-t border-gray-200 bg-white flex gap-3">
+            <div className="p-3 border-t border-gray-200 bg-white flex gap-2">
               <button
                 onClick={handleEditInvoiceLineConfirm}
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-xl font-bold transition-colors shadow-lg"
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2.5 px-3 rounded-lg font-bold transition-colors shadow-lg"
               >
                 تأكيد
               </button>
               <button
                 onClick={handleEditInvoiceLineCancel}
-                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-3 px-4 rounded-xl font-bold transition-colors"
+                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-2.5 px-3 rounded-lg font-bold transition-colors"
               >
                 إلغاء
               </button>

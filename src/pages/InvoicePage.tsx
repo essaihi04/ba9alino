@@ -103,6 +103,7 @@ interface InvoiceRecord {
   items: any[] | null
   notes: string | null
   status: string | null
+  payment_method?: string | null
   paid_amount: number | null
   remaining_amount: number | null
 }
@@ -197,7 +198,7 @@ export default function InvoicePage() {
 
       const itemsRaw = Array.isArray(inv.items) ? inv.items : []
       const items: InvoiceItem[] = itemsRaw.map((it: any) => ({
-        description: String(it.description ?? it.description_ar ?? ''),
+        description: String(it.description ?? it.description_ar ?? it.product_name ?? it.product_name_ar ?? it.name_ar ?? ''),
         quantity: Number(it.quantity ?? 0),
         unitPrice: Number(it.unitPrice ?? it.unit_price ?? 0),
         total: Number(it.total ?? it.line_total ?? 0),
@@ -1028,16 +1029,16 @@ export default function InvoicePage() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-4">
+        <div className="max-w-7xl mx-auto px-2 sm:px-4">
+          <div className="flex justify-between items-center py-1.5">
+            <div className="flex items-center space-x-2">
               <button
                 onClick={() => navigate(invoiceId ? '/invoices' : '/orders')}
-                className="p-2 text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100"
+                className="p-1 text-gray-600 hover:text-gray-900 rounded hover:bg-gray-100"
               >
-                <ArrowLeft size={20} />
-              </button>@@
-              <h1 className="text-2xl font-bold text-gray-900">
+                <ArrowLeft size={16} />
+              </button>
+              <h1 className="text-base font-bold text-gray-900">
                 {isLocked ? 'عرض فاتورة' : (invoiceId ? 'تعديل فاتورة' : 'إنشاء فاتورة')}
               </h1>
             </div>
@@ -1047,24 +1048,35 @@ export default function InvoicePage() {
                   onClick={() => {
                     const posData = {
                       invoiceId: editingInvoiceId,
+                      client_id: loadedInvoice?.client_id || order?.client_id || order?.client?.id || null,
+                      client_name: loadedInvoice?.client_name || invoiceData.clientInfo.name || '',
+                      total_amount: loadedInvoice?.total_amount ?? invoiceData.totalAmount ?? 0,
+                      paid_amount: loadedInvoice?.paid_amount ?? 0,
+                      discount_percent: 0,
+                      discount_amount: loadedInvoice?.discount_amount ?? invoiceData.discountAmount ?? 0,
+                      payment_method: loadedInvoice?.payment_method || order?.payment_method || 'cash',
+                      created_at: loadedInvoice?.invoice_date || invoiceData.invoiceDate || new Date().toISOString(),
                       items: invoiceData.items.map(item => ({
-                        id: item.id,
-                        primary_variant_id: item.primary_variant_id,
-                        name_ar: item.name_ar,
-                        price_a: item.unit_price,
-                        price_b: item.unit_price,
-                        price_c: item.unit_price,
-                        price_d: item.unit_price,
-                        price_e: item.unit_price,
+                        id: `${editingInvoiceId}-${item.description}-${item.unitPrice}`,
+                        primary_variant_id: '',
+                        name_ar: item.description,
+                        unit_price: item.unitPrice,
+                        price_a: item.unitPrice,
+                        price_b: item.unitPrice,
+                        price_c: item.unitPrice,
+                        price_d: item.unitPrice,
+                        price_e: item.unitPrice,
                         quantity: item.quantity,
                         stock: 999,
-                        customPrice: item.unit_price
+                        customPrice: item.unitPrice,
+                        image_url: undefined,
+                        total: item.total
                       }))
                     }
                     sessionStorage.setItem('posInvoiceData', JSON.stringify(posData))
                     navigate('/pos')
                   }}
-                  className="flex items-center space-x-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700"
+                  className="flex items-center space-x-1 bg-orange-600 text-white px-2 py-1 rounded text-xs hover:bg-orange-700"
                 >
                   <Edit3 size={16} />
                   <span>تعديل في الكايس</span>
@@ -1075,18 +1087,18 @@ export default function InvoicePage() {
                   <>
                     <button
                       onClick={() => setIsEditing(false)}
-                      className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+                      className="flex items-center space-x-1 bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700"
                     >
-                      <Save size={16} />
+                      <Save size={14} />
                       <span>حفظ</span>
                     </button>
                   </>
                 ) : (
                   <button
                     onClick={() => setIsEditing(true)}
-                    className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                    className="flex items-center space-x-1 bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700"
                   >
-                    <Edit3 size={16} />
+                    <Edit3 size={14} />
                     <span>تعديل</span>
                   </button>
                 )
@@ -1097,24 +1109,24 @@ export default function InvoicePage() {
                     setPaymentMethod('cash')
                     setShowPaymentTypeModal(true)
                   }}
-                  className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+                  className="flex items-center space-x-1 bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700"
                 >
-                  <Save size={16} />
+                  <Save size={14} />
                   <span>تأكيد البيع</span>
                 </button>
               )}
               <button
                 onClick={handleDownloadPDF}
-                className="flex items-center space-x-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+                className="flex items-center space-x-1 bg-red-600 text-white px-2 py-1 rounded text-xs hover:bg-red-700"
               >
-                <Download size={16} />
-                <span>تحميل PDF</span>
+                <Download size={14} />
+                <span>PDF</span>
               </button>
               <button
                 onClick={handlePrint}
-                className="flex items-center space-x-2 bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700"
+                className="flex items-center space-x-1 bg-gray-600 text-white px-2 py-1 rounded text-xs hover:bg-gray-700"
               >
-                <Printer size={16} />
+                <Printer size={14} />
                 <span>طباعة</span>
               </button>
             </div>
@@ -1123,26 +1135,26 @@ export default function InvoicePage() {
       </div>
 
       {/* Invoice Content */}
-      <div className="max-w-5xl mx-auto p-2">
-        <div id="invoice-content" className="bg-white rounded-lg shadow-lg p-4" style={{ direction: 'rtl', fontSize: '12px' }}>
+      <div className="max-w-5xl mx-auto p-1">
+        <div id="invoice-content" className="bg-white rounded shadow p-2" style={{ direction: 'rtl', fontSize: '11px' }}>
           {/* Invoice Header */}
-          <div className="border-b-4 border-blue-600 pb-3 mb-3">
-            <div className="flex justify-between items-start">
-              <div>
-                <h2 className="text-3xl font-bold text-gray-900 mb-1">فاتورة</h2>
-                <p className="text-gray-600 text-sm">رقم الفاتورة: {invoiceData.invoiceNumber}</p>
+          <div className="border-b-2 border-blue-600 pb-1 mb-1">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-gray-900">فاتورة</h2>
+                <span className="text-gray-600 text-[10px]">رقم: {invoiceData.invoiceNumber}</span>
               </div>
-              <div className="text-left bg-blue-50 p-2 rounded-lg">
-                <p className="text-gray-700 font-semibold text-xs">التاريخ: {invoiceData.invoiceDate}</p>
+              <div className="text-left bg-blue-50 px-2 py-0.5 rounded text-[10px]">
+                <span className="text-gray-700 font-semibold">التاريخ: {invoiceData.invoiceDate}</span>
               </div>
             </div>
           </div>
 
           {/* Company Info */}
-          <div className="mb-4 bg-gray-50 p-2 rounded-lg">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="mb-1 bg-gray-50 p-1.5 rounded">
+            <div className="grid grid-cols-2 gap-2">
               <div>
-                <h3 className="text-base font-bold text-gray-900 mb-1">معلومات الشركة</h3>
+                <h3 className="text-[11px] font-bold text-gray-900 mb-0.5">معلومات الشركة</h3>
                 <div className="flex items-start space-x-2">
                   {companyInfo?.logo_url && (
                     <img 
@@ -1162,9 +1174,9 @@ export default function InvoicePage() {
                 </div>
               </div>
               <div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3">معلومات الزبون</h3>
+                <h3 className="text-[11px] font-bold text-gray-900 mb-0.5">معلومات الزبون</h3>
                 {isEditing ? (
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     <input
                       type="text"
                       value={invoiceData.clientInfo.name}
@@ -1172,7 +1184,7 @@ export default function InvoicePage() {
                         ...prev,
                         clientInfo: { ...prev.clientInfo, name: e.target.value }
                       }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      className="w-full px-1.5 py-0.5 border border-gray-300 rounded text-xs"
                       placeholder="اسم الزبون"
                     />
                     <input
@@ -1182,7 +1194,7 @@ export default function InvoicePage() {
                         ...prev,
                         clientInfo: { ...prev.clientInfo, phone: e.target.value }
                       }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      className="w-full px-1.5 py-0.5 border border-gray-300 rounded text-xs"
                       placeholder="رقم الهاتف"
                     />
                     <input
@@ -1192,7 +1204,7 @@ export default function InvoicePage() {
                         ...prev,
                         clientInfo: { ...prev.clientInfo, address: e.target.value }
                       }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      className="w-full px-1.5 py-0.5 border border-gray-300 rounded text-xs"
                       placeholder="العنوان"
                     />
                   </div>
@@ -1209,20 +1221,20 @@ export default function InvoicePage() {
 
           {/* Tax Rate Selection */}
           {isEditing && (
-            <div className="mb-4 bg-gray-50 p-3 rounded-lg">
-              <div className="flex items-center space-x-4 space-x-reverse">
-                <label className="text-sm font-semibold text-gray-700">نسبة الضريبة:</label>
+            <div className="mb-1 bg-gray-50 p-1.5 rounded">
+              <div className="flex items-center space-x-2 space-x-reverse">
+                <label className="text-[10px] font-semibold text-gray-700">نسبة الضريبة:</label>
                 <select
                   value={invoiceData.taxRate}
                   onChange={(e) => updateTaxRate(Number(e.target.value))}
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="px-1.5 py-0.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500 outline-none"
                 >
-                  <option value={0}>بدون ضريبة (0%)</option>
-                  <option value={7}>ضريبة 7%</option>
-                  <option value={10}>ضريبة 10%</option>
-                  <option value={20}>ضريبة 20%</option>
+                  <option value={0}>0%</option>
+                  <option value={7}>7%</option>
+                  <option value={10}>10%</option>
+                  <option value={20}>20%</option>
                 </select>
-                <span className="text-sm text-gray-600">
+                <span className="text-[10px] text-gray-600">
                   ({(invoiceData.subtotal * (invoiceData.taxRate / 100)).toFixed(2)} MAD)
                 </span>
               </div>
@@ -1230,9 +1242,9 @@ export default function InvoicePage() {
           )}
 
           {/* Items Table */}
-          <div className="mb-4">
-            <div className="flex justify-between items-center mb-2">
-              <h3 className="text-base font-bold text-gray-900">تفاصيل المنتجات</h3>
+          <div className="mb-1">
+            <div className="flex justify-between items-center mb-0.5">
+              <h3 className="text-[11px] font-bold text-gray-900">تفاصيل المنتجات</h3>
               {isEditing && (
                 <button
                   onClick={addItem}
@@ -1330,10 +1342,10 @@ export default function InvoicePage() {
           </div>
 
           {/* Totals */}
-          <div className="mb-4">
+          <div className="mb-1">
             <div className="flex justify-end">
               <div className="w-full md:w-1/3">
-                <div className="bg-gray-50 p-2 rounded space-y-1">
+                <div className="bg-gray-50 p-1.5 rounded space-y-0.5">
                   <div className="flex justify-between text-xs">
                     <span className="text-gray-600">المجموع الفرعي:</span>
                     <span className="font-semibold">{invoiceData.subtotal.toFixed(2)} MAD</span>
@@ -1360,8 +1372,8 @@ export default function InvoicePage() {
           </div>
 
           {/* Notes */}
-          <div className="mb-4">
-            <h3 className="text-base font-semibold mb-1">ملاحظات</h3>
+          <div className="mb-1">
+            <h3 className="text-[11px] font-semibold mb-0.5">ملاحظات</h3>
             {isEditing ? (
               <textarea
                 value={invoiceData.notes}
@@ -1377,8 +1389,8 @@ export default function InvoicePage() {
           </div>
 
           {/* Footer */}
-          <div className="mt-4 pt-2 border-t border-gray-200">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <div className="mt-1 pt-1 border-t border-gray-200">
+            <div className="grid grid-cols-2 gap-1">
               <div className="text-center">
                 <p className="text-gray-600 font-semibold text-xs">شكراً لثقتكم بنا!</p>
                 <p className="text-gray-500 text-xs mt-0">هذه الفاتورة تم إنشاؤها بواسطة نظام إدارة {companyInfo?.company_name_ar || 'باقالينو'}</p>

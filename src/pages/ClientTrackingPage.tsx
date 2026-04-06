@@ -29,6 +29,22 @@ interface Order {
   payments: Payment[]
 }
 
+interface Invoice {
+  id: string
+  invoice_number: string
+  invoice_date?: string | null
+  created_at: string
+  total_amount: number
+  order_number: string
+  order_date: string
+  final_amount?: number
+  paid_amount?: number | null
+  remaining_amount?: number | null
+  payment_status: 'pending' | 'partial' | 'paid' | 'refunded' | 'credit'
+  items?: OrderItem[]
+  payments: Payment[]
+}
+
 interface OrderItem {
   id: string
   product_id: string
@@ -71,7 +87,7 @@ export default function ClientTrackingPage() {
   const navigate = useNavigate()
   
   const [client, setClient] = useState<Client | null>(null)
-  const [orders, setOrders] = useState<Order[]>([])
+  const [orders, setOrders] = useState<Invoice[]>([])
   const [stats, setStats] = useState<ClientStats>({
     totalOrders: 0,
     totalAmount: 0,
@@ -113,21 +129,11 @@ export default function ClientTrackingPage() {
       if (clientError) throw clientError
       setClient(clientData)
       
-      // Fetch orders with items and payments
+      // Fetch invoices with items and payments
       const { data: ordersData, error: ordersError } = await supabase
-        .from('orders')
+        .from('invoices')
         .select(`
           *,
-          items,
-          order_items:order_items(
-            id,
-            product_id,
-            product_name_ar,
-            product_sku,
-            quantity,
-            unit_price,
-            line_total
-          ),
           payments:payments(
             id,
             amount,
@@ -136,16 +142,15 @@ export default function ClientTrackingPage() {
           )
         `)
         .eq('client_id', clientId)
-        .order('order_date', { ascending: false })
+        .order('invoice_date', { ascending: false })
       
       if (ordersError) throw ordersError
       
-      const orders = (ordersData || []).map((order: any) => {
-        const relItems = Array.isArray(order.order_items) ? order.order_items : []
-        const jsonItems = Array.isArray(order.items) ? order.items : []
+      const orders = (ordersData || []).map((invoice: any) => {
+        const jsonItems = Array.isArray(invoice.items) ? invoice.items : []
 
-        const merged = (relItems.length > 0 ? relItems : jsonItems).map((it: any) => ({
-          id: it.id || `${order.id}-${it.product_id || it.product_sku || Math.random()}`,
+        const merged = jsonItems.map((it: any) => ({
+          id: it.id || `${invoice.id}-${it.product_id || it.product_sku || Math.random()}`,
           product_id: it.product_id,
           product_name_ar: it.product_name_ar || it.product?.name_ar || it.name_ar || it.product_name || 'منتج بدون اسم',
           product_sku: it.product_sku || it.product?.sku || it.sku || '',
@@ -156,16 +161,20 @@ export default function ClientTrackingPage() {
         }))
 
         return {
-          ...order,
+          ...invoice,
+          order_number: invoice.invoice_number,
+          order_date: invoice.invoice_date || invoice.created_at,
+          final_amount: invoice.total_amount,
           items: merged,
-          order_items: relItems
+          paid_amount: Number(invoice.paid_amount || 0),
+          remaining_amount: Number(invoice.remaining_amount || Math.max(0, Number(invoice.total_amount || 0) - Number(invoice.paid_amount || 0)))
         }
       })
 
-      setOrders(orders as any)
+      setOrders(orders as Invoice[])
       
       // Calculate statistics
-      calculateStats(orders)
+      calculateStats(orders as any)
       
     } catch (error) {
       console.error('Error fetching client data:', error)
@@ -178,6 +187,8 @@ export default function ClientTrackingPage() {
     const totalOrders = ordersData.length
     const totalAmount = ordersData.reduce((sum, order) => sum + (order.final_amount || order.total_amount || 0), 0)
     const paidAmount = ordersData.reduce((sum, order) => {
+      const directPaidAmount = Number((order as any).paid_amount || 0)
+      if (directPaidAmount > 0) return sum + directPaidAmount
       const orderPayments = order.payments || []
       return sum + orderPayments.reduce((paymentSum, payment) => paymentSum + (payment.amount || 0), 0)
     }, 0)
@@ -323,135 +334,135 @@ export default function ClientTrackingPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-2">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
           <button
             onClick={() => navigate('/invoices')}
-            className="p-2 text-gray-600 hover:text-gray-800 rounded-lg hover:bg-gray-100"
+            className="p-1 text-gray-600 hover:text-gray-800 rounded hover:bg-gray-100"
           >
-            <ArrowLeft size={20} />
+            <ArrowLeft size={16} />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-800">متابعة العميل</h1>
-            <p className="text-gray-600">{client.company_name_ar}</p>
+            <h1 className="text-base font-bold text-gray-800">متابعة العميل</h1>
+            <p className="text-gray-600 text-xs">{client.company_name_ar}</p>
           </div>
         </div>
         <button
           onClick={exportData}
-          className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2"
+          className="bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700 flex items-center gap-1"
         >
-          <Download size={16} />
-          تصدير البيانات
+          <Download size={14} />
+          تصدير
         </button>
       </div>
 
       {/* Client Info */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <h2 className="text-lg font-semibold mb-4">معلومات العميل</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="bg-white border border-gray-200 rounded p-2">
+        <h2 className="text-sm font-semibold mb-1">معلومات العميل</h2>
+        <div className="grid grid-cols-3 gap-2">
           <div>
-            <p className="text-sm text-gray-500">الاسم</p>
-            <p className="font-medium">{client.company_name_ar}</p>
+            <p className="text-[10px] text-gray-500">الاسم</p>
+            <p className="font-medium text-xs">{client.company_name_ar}</p>
           </div>
           <div>
-            <p className="text-sm text-gray-500">الهاتف</p>
-            <p className="font-medium">{client.contact_person_phone}</p>
+            <p className="text-[10px] text-gray-500">الهاتف</p>
+            <p className="font-medium text-xs">{client.contact_person_phone}</p>
           </div>
           <div>
-            <p className="text-sm text-gray-500">البريد الإلكتروني</p>
-            <p className="font-medium">{client.contact_person_email}</p>
+            <p className="text-[10px] text-gray-500">البريد الإلكتروني</p>
+            <p className="font-medium text-xs">{client.contact_person_email}</p>
           </div>
           <div>
-            <p className="text-sm text-gray-500">العنوان</p>
-            <p className="font-medium">{client.address}, {client.city}</p>
+            <p className="text-[10px] text-gray-500">العنوان</p>
+            <p className="font-medium text-xs">{client.address}, {client.city}</p>
           </div>
           <div>
-            <p className="text-sm text-gray-500">فئة الاشتراك</p>
-            <p className="font-medium">{client.subscription_tier}</p>
+            <p className="text-[10px] text-gray-500">فئة الاشتراك</p>
+            <p className="font-medium text-xs">{client.subscription_tier}</p>
           </div>
           <div>
-            <p className="text-sm text-gray-500">تاريخ الإنشاء</p>
-            <p className="font-medium">{new Date(client.created_at).toLocaleDateString('ar-MA')}</p>
+            <p className="text-[10px] text-gray-500">تاريخ الإنشاء</p>
+            <p className="font-medium text-xs">{new Date(client.created_at).toLocaleDateString('ar-MA')}</p>
           </div>
         </div>
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
+      <div className="grid grid-cols-4 gap-2">
+        <div className="bg-white border border-gray-200 rounded p-2">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">إجمالي الطلبات</p>
-              <p className="text-2xl font-bold text-gray-800">{stats.totalOrders}</p>
+              <p className="text-[10px] text-gray-500">إجمالي الطلبات</p>
+              <p className="text-sm font-bold text-gray-800">{stats.totalOrders}</p>
             </div>
-            <Package className="text-blue-600" size={24} />
+            <Package className="text-blue-600" size={16} />
           </div>
         </div>
         
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
+        <div className="bg-white border border-gray-200 rounded p-2">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">إجمالي المشتريات</p>
-              <p className="text-2xl font-bold text-gray-800">{stats.totalAmount.toFixed(2)} MAD</p>
+              <p className="text-[10px] text-gray-500">إجمالي المشتريات</p>
+              <p className="text-sm font-bold text-gray-800">{stats.totalAmount.toFixed(2)} MAD</p>
             </div>
-            <TrendingUp className="text-green-600" size={24} />
+            <TrendingUp className="text-green-600" size={16} />
           </div>
         </div>
         
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
+        <div className="bg-white border border-gray-200 rounded p-2">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">المدفوع</p>
-              <p className="text-2xl font-bold text-green-600">{stats.paidAmount.toFixed(2)} MAD</p>
+              <p className="text-[10px] text-gray-500">المدفوع</p>
+              <p className="text-sm font-bold text-green-600">{stats.paidAmount.toFixed(2)} MAD</p>
             </div>
-            <CheckCircle className="text-green-600" size={24} />
+            <CheckCircle className="text-green-600" size={16} />
           </div>
         </div>
         
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
+        <div className="bg-white border border-gray-200 rounded p-2">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500">المتبقي</p>
-              <p className="text-2xl font-bold text-red-600">{stats.remainingAmount.toFixed(2)} MAD</p>
+              <p className="text-[10px] text-gray-500">المتبقي</p>
+              <p className="text-sm font-bold text-red-600">{stats.remainingAmount.toFixed(2)} MAD</p>
             </div>
-            <AlertCircle className="text-red-600" size={24} />
+            <AlertCircle className="text-red-600" size={16} />
           </div>
         </div>
       </div>
 
       {/* Additional Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <p className="text-sm text-gray-500">متوسط قيمة الطلب</p>
-          <p className="text-xl font-bold text-gray-800">{stats.averageOrderValue.toFixed(2)} MAD</p>
+      <div className="grid grid-cols-4 gap-2">
+        <div className="bg-white border border-gray-200 rounded p-2">
+          <p className="text-[10px] text-gray-500">متوسط قيمة الطلب</p>
+          <p className="text-sm font-bold text-gray-800">{stats.averageOrderValue.toFixed(2)} MAD</p>
         </div>
         
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <p className="text-sm text-gray-500">إجمالي المنتجات</p>
-          <p className="text-xl font-bold text-gray-800">{stats.totalProducts}</p>
+        <div className="bg-white border border-gray-200 rounded p-2">
+          <p className="text-[10px] text-gray-500">إجمالي المنتجات</p>
+          <p className="text-sm font-bold text-gray-800">{stats.totalProducts}</p>
         </div>
         
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <p className="text-sm text-gray-500">آخر طلب</p>
-          <p className="text-sm font-medium text-gray-800">
+        <div className="bg-white border border-gray-200 rounded p-2">
+          <p className="text-[10px] text-gray-500">آخر طلب</p>
+          <p className="text-xs font-medium text-gray-800">
             {stats.firstOrderDate ? new Date(stats.firstOrderDate).toLocaleDateString('ar-MA') : 'N/A'}
           </p>
         </div>
         
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <p className="text-sm text-gray-500">أول طلب</p>
-          <p className="text-sm font-medium text-gray-800">
+        <div className="bg-white border border-gray-200 rounded p-2">
+          <p className="text-[10px] text-gray-500">أول طلب</p>
+          <p className="text-xs font-medium text-gray-800">
             {stats.lastOrderDate ? new Date(stats.lastOrderDate).toLocaleDateString('ar-MA') : 'N/A'}
           </p>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-white border border-gray-200 rounded-lg p-4">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">الطلبات</h3>
+      <div className="bg-white border border-gray-200 rounded p-2">
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-sm font-semibold">الفواتير</h3>
           <button
             onClick={() => setShowFilters(!showFilters)}
             className="flex items-center gap-2 text-gray-600 hover:text-gray-800"
@@ -462,12 +473,12 @@ export default function ClientTrackingPage() {
         </div>
         
         {showFilters && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+          <div className="grid grid-cols-4 gap-2 mb-2">
             <div className="relative">
               <Search className="absolute right-3 top-3 text-gray-400" size={16} />
               <input
                 type="text"
-                placeholder="بحث عن طلب..."
+                placeholder="بحث عن فاتورة..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pr-10 pl-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -506,48 +517,48 @@ export default function ClientTrackingPage() {
         )}
       </div>
 
-      {/* Orders Table */}
-      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+      {/* Invoices Table */}
+      <div className="bg-white border border-gray-200 rounded overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full text-xs">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-right text-sm font-medium text-gray-700">رقم الطلب</th>
-                <th className="px-4 py-3 text-right text-sm font-medium text-gray-700">التاريخ</th>
-                <th className="px-4 py-3 text-right text-sm font-medium text-gray-700">المنتجات</th>
-                <th className="px-4 py-3 text-right text-sm font-medium text-gray-700">المبلغ الإجمالي</th>
-                <th className="px-4 py-3 text-right text-sm font-medium text-gray-700">المدفوع</th>
-                <th className="px-4 py-3 text-right text-sm font-medium text-gray-700">المتبقي</th>
-                <th className="px-4 py-3 text-right text-sm font-medium text-gray-700">الحالة</th>
+                <th className="px-2 py-1.5 text-right font-medium text-gray-700">رقم الفاتورة</th>
+                <th className="px-2 py-1.5 text-right font-medium text-gray-700">التاريخ</th>
+                <th className="px-2 py-1.5 text-right font-medium text-gray-700">المنتجات</th>
+                <th className="px-2 py-1.5 text-right font-medium text-gray-700">المبلغ الإجمالي</th>
+                <th className="px-2 py-1.5 text-right font-medium text-gray-700">المدفوع</th>
+                <th className="px-2 py-1.5 text-right font-medium text-gray-700">المتبقي</th>
+                <th className="px-2 py-1.5 text-right font-medium text-gray-700">الحالة</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {filteredOrders.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
-                    لا توجد طلبات مطابقة للفلاتر
+                    لا توجد فواتير مطابقة للفلاتر
                   </td>
                 </tr>
               ) : (
                 filteredOrders.map((order) => {
                   const orderTotal = order.final_amount || order.total_amount || 0
-                  const paidAmount = (order.payments || []).reduce((sum, payment) => sum + (payment.amount || 0), 0)
-                  const remainingAmount = orderTotal - paidAmount
+                  const paidAmount = Number((order as any).paid_amount || (order.payments || []).reduce((sum, payment) => sum + (payment.amount || 0), 0))
+                  const remainingAmount = Number((order as any).remaining_amount ?? (orderTotal - paidAmount))
                   
                   return (
                     <tr key={order.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3">
+                      <td className="px-2 py-1.5">
                         <p className="font-medium">{order.order_number}</p>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-2 py-1.5">
                         <p>{new Date(order.order_date).toLocaleDateString('ar-MA')}</p>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-2 py-1.5">
                         <div className="max-w-xs">
                           {order.items && order.items.length > 0 ? (
                             <div>
                               {order.items.slice(0, 2).map((item, index) => (
-                                <p key={index} className="text-sm text-gray-700 truncate">
+                                <p key={index} className="text-gray-700 truncate">
                                   {item.product_name_ar || item.product?.name_ar || 'منتج بدون اسم'}
                                   {item.quantity > 1 && <span className="text-gray-500"> x{item.quantity}</span>}
                                 </p>
@@ -563,18 +574,18 @@ export default function ClientTrackingPage() {
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-2 py-1.5">
                         <p className="font-medium">{orderTotal.toFixed(2)} MAD</p>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-2 py-1.5">
                         <p className="text-green-600">{paidAmount.toFixed(2)} MAD</p>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-2 py-1.5">
                         <p className={`font-medium ${remainingAmount > 0 ? 'text-red-600' : 'text-gray-600'}`}>
                           {remainingAmount.toFixed(2)} MAD
                         </p>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-2 py-1.5">
                         {getStatusBadge(order.payment_status || '')}
                       </td>
                     </tr>

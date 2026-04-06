@@ -90,6 +90,21 @@ export default function InvoicesPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('all')
+  const [filterPaymentMethod, setFilterPaymentMethod] = useState<string>('all')
+  const [filterEmployee, setFilterEmployee] = useState<string>('all')
+  const [filterWarehouse, setFilterWarehouse] = useState<string>('all')
+  const [filterAmountRange, setFilterAmountRange] = useState<string>('all')
+  const [filterPeriod, setFilterPeriod] = useState<string>('all')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+
+  // Helper function to format date for input fields
+  const toInputDateValue = (dateString: string | null | undefined) => {
+    if (!dateString) return ''
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return ''
+    return date.toISOString().split('T')[0]
+  }
   
   // États pour le modal de création de facture
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -137,11 +152,8 @@ export default function InvoicesPage() {
             is_active,
             is_default
           ),
-          stock_records (
-            quantity_in_stock,
-            quantity_available,
-            is_low_stock,
-            is_out_of_stock
+          stock (
+            quantity_in_stock
           )
         `)
         .eq('is_active', true)
@@ -152,11 +164,11 @@ export default function InvoicesPage() {
       // Calculer le stock disponible pour chaque produit
       const productsWithStock = (data || []).map(product => {
         // Utiliser le stock disponible depuis la table stock si disponible
-        const stockRecord = product.stock_records?.[0]
+        const stockRecord = product.stock?.[0]
         let availableStock = product.stock || 0
         
         if (stockRecord) {
-          availableStock = stockRecord.quantity_available || stockRecord.quantity_in_stock || 0
+          availableStock = stockRecord.quantity_in_stock || 0
         }
         
         // Calculer le stock total depuis les variants si pas de stock record
@@ -386,6 +398,22 @@ export default function InvoicesPage() {
     creditCount: invoices.filter(inv => (inv.payment_status || '') === 'credit').length,
   }
 
+  const employeeOptions = Array.from(
+    new Map(
+      invoices
+        .filter(invoice => invoice.employee?.id)
+        .map(invoice => [invoice.employee!.id, invoice.employee!.name])
+    ).entries()
+  )
+
+  const warehouseOptions = Array.from(
+    new Map(
+      invoices
+        .filter(invoice => invoice.warehouse?.id)
+        .map(invoice => [invoice.warehouse!.id, invoice.warehouse!.name])
+    ).entries()
+  )
+
   const filteredInvoices = invoices.filter(invoice => {
     const clientDisplayName = invoice.client_name || invoice.clients?.company_name_ar || invoice.clients?.company_name_en || ''
     const matchesSearch = clientDisplayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -393,8 +421,38 @@ export default function InvoicesPage() {
                          (invoice.invoice_number || '').toLowerCase().includes(searchTerm.toLowerCase())
     
     const matchesStatus = filterStatus === 'all' || (invoice.payment_status || '') === filterStatus
-    
-    return matchesSearch && matchesStatus
+    const matchesPaymentMethod = filterPaymentMethod === 'all' || (invoice.payment_method || '') === filterPaymentMethod
+    const matchesEmployee = filterEmployee === 'all' || (invoice.employee?.id || '') === filterEmployee
+    const matchesWarehouse = filterWarehouse === 'all' || (invoice.warehouse?.id || '') === filterWarehouse
+
+    const totalAmount = Number(invoice.total_amount || 0)
+    const matchesAmountRange =
+      filterAmountRange === 'all' ||
+      (filterAmountRange === 'low' && totalAmount < 1000) ||
+      (filterAmountRange === 'medium' && totalAmount >= 1000 && totalAmount < 5000) ||
+      (filterAmountRange === 'high' && totalAmount >= 5000)
+
+    const invoiceDateValue = toInputDateValue(invoice.invoice_date || invoice.created_at)
+    const invoiceDate = invoiceDateValue ? new Date(invoiceDateValue) : null
+    const today = new Date()
+    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+
+    const matchesPeriod = (() => {
+      if (filterPeriod === 'all' || !invoiceDate) return true
+      const diffDays = Math.floor((startOfToday.getTime() - invoiceDate.getTime()) / (1000 * 60 * 60 * 24))
+      const sameMonth = invoiceDate.getFullYear() === today.getFullYear() && invoiceDate.getMonth() === today.getMonth()
+
+      if (filterPeriod === 'today') return diffDays === 0
+      if (filterPeriod === '7days') return diffDays >= 0 && diffDays <= 7
+      if (filterPeriod === '30days') return diffDays >= 0 && diffDays <= 30
+      if (filterPeriod === 'month') return sameMonth
+      return true
+    })()
+
+    const matchesDateFrom = !dateFrom || (invoiceDateValue && invoiceDateValue >= dateFrom)
+    const matchesDateTo = !dateTo || (invoiceDateValue && invoiceDateValue <= dateTo)
+
+    return matchesSearch && matchesStatus && matchesPaymentMethod && matchesEmployee && matchesWarehouse && matchesAmountRange && matchesPeriod && matchesDateFrom && matchesDateTo
   })
 
   const getStatusBadge = (status: string) => {
@@ -469,106 +527,79 @@ export default function InvoicesPage() {
   }
 
   return (
-    <div className="space-y-6" dir="rtl">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-          <FileText className="text-white" size={36} />
-          المبيعات
-        </h1>
-        <button
-            onClick={() => navigate('/pos')}
-            className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 flex items-center gap-2"
-          >
-            <Plus size={20} />
-            بيع جديد
-          </button>
-      </div>
-
-      {/* Statistiques */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-600">
+    <div className="space-y-2" dir="rtl">
+      {/* Statistiques compactes */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+        <div className="bg-white rounded-lg shadow p-3 border-l-4 border-blue-600">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-500 text-sm">إجمالي الفواتير</p>
-              <p className="text-2xl font-bold text-gray-800">{stats.totalInvoices}</p>
+              <p className="text-gray-500 text-xs">إجمالي الفواتير</p>
+              <p className="text-lg font-bold text-gray-800">{stats.totalInvoices}</p>
             </div>
-            <FileText className="text-blue-600" size={32} />
+            <FileText className="text-blue-600" size={20} />
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-600">
+        <div className="bg-white rounded-lg shadow p-3 border-l-4 border-green-600">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-500 text-sm">إجمالي المبيعات</p>
-              <p className="text-2xl font-bold text-gray-800">{stats.totalAmount.toFixed(2)} MAD</p>
+              <p className="text-gray-500 text-xs">إجمالي المبيعات</p>
+              <p className="text-lg font-bold text-gray-800">{stats.totalAmount.toFixed(0)} MAD</p>
             </div>
-            <DollarSign className="text-green-600" size={32} />
+            <DollarSign className="text-green-600" size={20} />
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-emerald-600">
+        <div className="bg-white rounded-lg shadow p-3 border-l-4 border-emerald-600">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-500 text-sm">المدفوع</p>
-              <p className="text-2xl font-bold text-gray-800">{stats.paidAmount.toFixed(2)} MAD</p>
+              <p className="text-gray-500 text-xs">المدفوع</p>
+              <p className="text-lg font-bold text-gray-800">{stats.paidAmount.toFixed(0)} MAD</p>
             </div>
-            <CheckCircle className="text-emerald-600" size={32} />
+            <CheckCircle className="text-emerald-600" size={20} />
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-red-600">
+        <div className="bg-white rounded-lg shadow p-3 border-l-4 border-red-600">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-500 text-sm">المتبقي</p>
-              <p className="text-2xl font-bold text-gray-800">{stats.remainingAmount.toFixed(2)} MAD</p>
+              <p className="text-gray-500 text-xs">المتبقي</p>
+              <p className="text-lg font-bold text-gray-800">{stats.remainingAmount.toFixed(0)} MAD</p>
             </div>
-            <AlertCircle className="text-red-600" size={32} />
-          </div>
-        </div>
-      </div>
-
-      {/* Statistiques détaillées */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-green-50 rounded-xl p-4 border border-green-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-green-700 text-sm font-semibold">فواتير مدفوعة</p>
-              <p className="text-xl font-bold text-green-800">{stats.paidCount}</p>
-            </div>
-            <CheckCircle className="text-green-600" size={24} />
+            <AlertCircle className="text-red-600" size={20} />
           </div>
         </div>
 
-        <div className="bg-yellow-50 rounded-xl p-4 border border-yellow-200">
+        <div className="bg-green-50 rounded-lg p-3 border border-green-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-yellow-700 text-sm font-semibold">فواتير جزئية</p>
-              <p className="text-xl font-bold text-yellow-800">{stats.partialCount}</p>
+              <p className="text-green-700 text-xs font-semibold">فواتير مدفوعة</p>
+              <p className="text-base font-bold text-green-800">{stats.paidCount}</p>
             </div>
-            <Clock className="text-yellow-600" size={24} />
+            <CheckCircle className="text-green-600" size={16} />
           </div>
         </div>
 
-        <div className="bg-red-50 rounded-xl p-4 border border-red-200">
+        <div className="bg-yellow-50 rounded-lg p-3 border border-yellow-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-red-700 text-sm font-semibold">فواتير دين</p>
-              <p className="text-xl font-bold text-red-800">{stats.creditCount}</p>
+              <p className="text-yellow-700 text-xs font-semibold">فواتير جزئية</p>
+              <p className="text-base font-bold text-yellow-800">{stats.partialCount}</p>
             </div>
-            <AlertCircle className="text-red-600" size={24} />
+            <Clock className="text-yellow-600" size={16} />
           </div>
         </div>
       </div>
 
-      {/* Filtres et recherche */}
-      <div className="bg-white rounded-xl shadow-lg p-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="relative">
-            <Search className="absolute right-3 top-3 text-gray-400" size={20} />
+      {/* Filtres et recherche compactes */}
+      <div className="bg-white rounded-lg shadow p-3">
+        <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-8 gap-2">
+          <div className="relative md:col-span-2">
+            <Search className="absolute right-2 top-2 text-gray-400" size={16} />
             <input
               type="text"
               placeholder="ابحث عن فاتورة أو عميل..."
-              className="w-full pr-10 pl-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none"
+              className="w-full pr-8 pl-3 py-2 text-sm border border-gray-200 rounded focus:border-blue-500 focus:outline-none"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -577,7 +608,7 @@ export default function InvoicesPage() {
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none"
+            className="px-3 py-2 text-sm border border-gray-200 rounded focus:border-blue-500 focus:outline-none"
           >
             <option value="all">كل الحالات</option>
             <option value="unpaid">غير مدفوعة</option>
@@ -586,9 +617,107 @@ export default function InvoicesPage() {
             <option value="credit">دين</option>
           </select>
 
-          <div className="flex items-center justify-center text-sm text-gray-600">
+          <select
+            value={filterPaymentMethod}
+            onChange={(e) => setFilterPaymentMethod(e.target.value)}
+            className="px-3 py-2 text-sm border border-gray-200 rounded focus:border-blue-500 focus:outline-none"
+          >
+            <option value="all">كل طرق الدفع</option>
+            <option value="cash">نقدي</option>
+            <option value="check">شيك</option>
+            <option value="debt">دين</option>
+          </select>
+
+          <select
+            value={filterEmployee}
+            onChange={(e) => setFilterEmployee(e.target.value)}
+            className="px-3 py-2 text-sm border border-gray-200 rounded focus:border-blue-500 focus:outline-none"
+          >
+            <option value="all">كل البائعين</option>
+            {employeeOptions.map(([id, name]) => (
+              <option key={id} value={id}>{name}</option>
+            ))}
+          </select>
+
+          <select
+            value={filterWarehouse}
+            onChange={(e) => setFilterWarehouse(e.target.value)}
+            className="px-3 py-2 text-sm border border-gray-200 rounded focus:border-blue-500 focus:outline-none"
+          >
+            <option value="all">كل المخازن</option>
+            {warehouseOptions.map(([id, name]) => (
+              <option key={id} value={id}>{name}</option>
+            ))}
+          </select>
+
+          <select
+            value={filterAmountRange}
+            onChange={(e) => setFilterAmountRange(e.target.value)}
+            className="px-3 py-2 text-sm border border-gray-200 rounded focus:border-blue-500 focus:outline-none"
+          >
+            <option value="all">كل المبالغ</option>
+            <option value="low">أقل من 1000</option>
+            <option value="medium">1000 - 5000</option>
+            <option value="high">أكثر من 5000</option>
+          </select>
+
+          <select
+            value={filterPeriod}
+            onChange={(e) => setFilterPeriod(e.target.value)}
+            className="px-3 py-2 text-sm border border-gray-200 rounded focus:border-blue-500 focus:outline-none"
+          >
+            <option value="all">كل الفترات</option>
+            <option value="today">اليوم</option>
+            <option value="7days">7 أيام</option>
+            <option value="30days">30 يوم</option>
+            <option value="month">هذا الشهر</option>
+          </select>
+
+          <input
+            type="date"
+            className="px-3 py-2 text-sm border border-gray-200 rounded focus:border-blue-500 focus:outline-none"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+          />
+
+          <input
+            type="date"
+            className="px-3 py-2 text-sm border border-gray-200 rounded focus:border-blue-500 focus:outline-none"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+          />
+
+          <div className="flex items-center justify-center text-xs text-gray-600">
             {filteredInvoices.length} فاتورة
           </div>
+
+          <button
+              onClick={() => navigate('/pos')}
+              className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg font-bold transition-all duration-200 transform hover:scale-105 flex items-center justify-center gap-1"
+            >
+              <Plus size={16} />
+              بيع جديد
+            </button>
+        </div>
+        <div className="flex items-center justify-between mt-2 text-xs text-gray-600">
+          <span>نتائج التصفية: {filteredInvoices.length}</span>
+          <button
+            type="button"
+            onClick={() => {
+              setSearchTerm('')
+              setFilterStatus('all')
+              setFilterPaymentMethod('all')
+              setFilterEmployee('all')
+              setFilterWarehouse('all')
+              setFilterAmountRange('all')
+              setFilterPeriod('all')
+              setDateFrom('')
+              setDateTo('')
+            }}
+            className="text-blue-600 hover:text-blue-700 font-semibold"
+          >
+            إعادة التصفية
+          </button>
         </div>
       </div>
 
@@ -712,55 +841,6 @@ export default function InvoicesPage() {
             </table>
           </div>
         )}
-      </div>
-
-      {/* Statistiques rapides */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl p-6 shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-blue-100 text-sm mb-1">إجمالي المبيعات</p>
-              <p className="text-2xl font-bold">
-                {filteredInvoices.reduce((sum, inv) => sum + (inv.total_amount || 0), 0).toFixed(2)} MAD
-              </p>
-            </div>
-            <FileText size={32} className="text-blue-200" />
-          </div>
-        </div>
-
-        <div className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl p-6 shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-green-100 text-sm mb-1">المدفوع</p>
-              <p className="text-2xl font-bold">
-                {filteredInvoices.reduce((sum, inv) => sum + (inv.paid_amount || 0), 0).toFixed(2)} MAD
-              </p>
-            </div>
-            <CheckCircle size={32} className="text-green-200" />
-          </div>
-        </div>
-
-        <div className="bg-gradient-to-br from-red-500 to-red-600 text-white rounded-xl p-6 shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-red-100 text-sm mb-1">الديون</p>
-              <p className="text-2xl font-bold">
-                {filteredInvoices.reduce((sum, inv) => sum + remaining(inv), 0).toFixed(2)} MAD
-              </p>
-            </div>
-            <AlertCircle size={32} className="text-red-200" />
-          </div>
-        </div>
-
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-xl p-6 shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-purple-100 text-sm mb-1">عدد الفواتير</p>
-              <p className="text-2xl font-bold">{filteredInvoices.length}</p>
-            </div>
-            <DollarSign size={32} className="text-purple-200" />
-          </div>
-        </div>
       </div>
 
       {/* Modal de création de facture */}

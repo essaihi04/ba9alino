@@ -374,16 +374,16 @@ export default function DeliveryNotePage() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-4">
+        <div className="max-w-7xl mx-auto px-2 sm:px-4">
+          <div className="flex justify-between items-center py-1.5">
+            <div className="flex items-center space-x-2">
               <button
                 onClick={() => navigate('/orders')}
-                className="p-2 text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100"
+                className="p-1 text-gray-600 hover:text-gray-900 rounded hover:bg-gray-100"
               >
-                <ArrowLeft size={20} />
+                <ArrowLeft size={16} />
               </button>
-              <h1 className="text-2xl font-bold text-gray-900">إنشاء بون تسليم</h1>
+              <h1 className="text-base font-bold text-gray-900">إنشاء بون تسليم</h1>
             </div>
             <div className="flex items-center space-x-2">
               {isEditing ? (
@@ -392,39 +392,39 @@ export default function DeliveryNotePage() {
                     handleSaveDeliveryNote()
                     setIsEditing(false)
                   }}
-                  className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+                  className="flex items-center space-x-1 bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700"
                 >
-                  <Save size={16} />
+                  <Save size={14} />
                   <span>حفظ</span>
                 </button>
               ) : (
                 <button
                   onClick={() => setIsEditing(true)}
-                  className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                  className="flex items-center space-x-1 bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700"
                 >
-                  <Edit3 size={16} />
+                  <Edit3 size={14} />
                   <span>تعديل</span>
                 </button>
               )}
               <button
                 onClick={handleSaveDeliveryNote}
-                className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+                className="flex items-center space-x-1 bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700"
               >
-                <Save size={16} />
+                <Save size={14} />
                 <span>حفظ</span>
               </button>
               <button
                 onClick={handlePrint}
-                className="flex items-center space-x-2 bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700"
+                className="flex items-center space-x-1 bg-gray-600 text-white px-2 py-1 rounded text-xs hover:bg-gray-700"
               >
-                <Printer size={16} />
+                <Printer size={14} />
                 <span>طباعة</span>
               </button>
               <button
                 onClick={handleDownload}
-                className="flex items-center space-x-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
+                className="flex items-center space-x-1 bg-purple-600 text-white px-2 py-1 rounded text-xs hover:bg-purple-700"
               >
-                <Download size={16} />
+                <Download size={14} />
                 <span>تحميل</span>
               </button>
             </div>
@@ -433,35 +433,35 @@ export default function DeliveryNotePage() {
       </div>
 
       {/* Delivery Note Content */}
-      <div className="max-w-4xl mx-auto p-8">
-        <div className="bg-white rounded-lg shadow-lg p-8">
+      <div className="max-w-5xl mx-auto p-1">
+        <div className="bg-white rounded shadow p-2" style={{ fontSize: '11px' }}>
           {/* Delivery Note Header */}
-          <div className="border-b-4 border-green-600 pb-6 mb-6">
-            <div className="flex justify-between items-start">
-              <div>
-                <h2 className="text-4xl font-bold text-gray-900 mb-2">بون تسليم</h2>
-                <p className="text-gray-600 text-lg">رقم البون: {deliveryNoteData.noteNumber}</p>
+          <div className="border-b-2 border-green-600 pb-1 mb-1" style={{ direction: 'rtl' }}>
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-gray-900">بون تسليم</h2>
+                <span className="text-gray-600 text-[10px]">رقم: {deliveryNoteData.noteNumber}</span>
               </div>
-              <div className="text-left bg-green-50 p-4 rounded-lg">
-                <p className="text-gray-700 font-semibold mb-1">التاريخ: {deliveryNoteData.deliveryDate}</p>
+              <div className="text-left bg-green-50 px-2 py-0.5 rounded text-[10px]">
+                <span className="text-gray-700 font-semibold">التاريخ: {deliveryNoteData.deliveryDate}</span>
               </div>
             </div>
           </div>
 
           {/* Company Info */}
-          <div className="mb-8 bg-gray-50 p-4 rounded-lg">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="mb-1 bg-gray-50 p-1.5 rounded" style={{ direction: 'rtl' }}>
+            <div className="grid grid-cols-2 gap-2">
               <div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3">معلومات الشركة</h3>
-                <div className="flex items-start space-x-4">
+                <h3 className="text-[11px] font-bold text-gray-900 mb-0.5">معلومات الشركة</h3>
+                <div className="flex items-start space-x-2">
                   {companyInfo?.logo_url && (
                     <img 
                       src={companyInfo.logo_url} 
                       alt="Company Logo" 
-                      className="w-16 h-16 object-contain rounded"
+                      className="w-10 h-10 object-contain rounded"
                     />
                   )}
-                  <div>
+                  <div className="text-xs">
                     <p className="text-gray-700 font-semibold">{companyInfo?.company_name_ar || '—'}</p>
                     <p className="text-gray-600">{companyInfo?.address_ar || '—'}</p>
                     <p className="text-gray-600">الهاتف: {companyInfo?.phone || '—'}</p>
@@ -472,7 +472,7 @@ export default function DeliveryNotePage() {
                 </div>
               </div>
               <div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3">معلومات العميل</h3>
+                <h3 className="text-[11px] font-bold text-gray-900 mb-0.5">معلومات العميل</h3>
                 {isEditing ? (
                   <div className="space-y-2">
                     <input
@@ -482,7 +482,7 @@ export default function DeliveryNotePage() {
                         ...prev,
                         clientInfo: { ...prev.clientInfo, name: e.target.value }
                       }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      className="w-full px-1.5 py-0.5 border border-gray-300 rounded text-xs"
                       placeholder="اسم العميل"
                     />
                     <input
@@ -492,7 +492,7 @@ export default function DeliveryNotePage() {
                         ...prev,
                         clientInfo: { ...prev.clientInfo, phone: e.target.value }
                       }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      className="w-full px-1.5 py-0.5 border border-gray-300 rounded text-xs"
                       placeholder="رقم الهاتف"
                     />
                     <input
@@ -502,12 +502,12 @@ export default function DeliveryNotePage() {
                         ...prev,
                         clientInfo: { ...prev.clientInfo, address: e.target.value }
                       }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                      className="w-full px-1.5 py-0.5 border border-gray-300 rounded text-xs"
                       placeholder="العنوان"
                     />
                   </div>
                 ) : (
-                  <div className="space-y-1">
+                  <div className="space-y-0.5 text-xs">
                     <p className="text-gray-700 font-semibold">{deliveryNoteData.clientInfo.name}</p>
                     <p className="text-gray-600">{deliveryNoteData.clientInfo.phone}</p>
                     <p className="text-gray-600">{deliveryNoteData.clientInfo.address}</p>
@@ -518,74 +518,74 @@ export default function DeliveryNotePage() {
           </div>
 
           {/* Items Table */}
-          <div className="mb-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-gray-900">المواد المسلمة</h3>
+          <div className="mb-1" style={{ direction: 'rtl' }}>
+            <div className="flex justify-between items-center mb-0.5">
+              <h3 className="text-[11px] font-bold text-gray-900">المواد المسلمة</h3>
               {isEditing && (
                 <button
                   onClick={addItem}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition"
+                  className="bg-blue-600 text-white px-2 py-0.5 rounded text-[10px] hover:bg-blue-700 transition"
                 >
                   + إضافة مادة
                 </button>
               )}
             </div>
-            <div className="overflow-x-auto border-2 border-gray-200 rounded-lg">
-              <table className="w-full">
+            <div className="overflow-x-auto border border-gray-200 rounded">
+              <table className="w-full text-xs">
                 <thead className="bg-gray-100">
                   <tr>
-                    <th className="border border-gray-300 px-4 py-3 text-right font-bold text-gray-900">الوصف</th>
-                    <th className="border border-gray-300 px-4 py-3 text-center font-bold text-gray-900">الكمية</th>
-                    <th className="border border-gray-300 px-4 py-3 text-center font-bold text-gray-900">الوحدة</th>
-                    <th className="border border-gray-300 px-4 py-3 text-center font-bold text-gray-900">الحالة</th>
-                    {isEditing && <th className="border border-gray-300 px-4 py-3 text-center font-bold text-gray-900">إجراء</th>}
+                    <th className="border border-gray-300 px-2 py-1 text-right font-bold text-gray-900">الوصف</th>
+                    <th className="border border-gray-300 px-2 py-1 text-center font-bold text-gray-900">الكمية</th>
+                    <th className="border border-gray-300 px-2 py-1 text-center font-bold text-gray-900">الوحدة</th>
+                    <th className="border border-gray-300 px-2 py-1 text-center font-bold text-gray-900">الحالة</th>
+                    {isEditing && <th className="border border-gray-300 px-2 py-1 text-center font-bold text-gray-900">إجراء</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {deliveryNoteData.items.map((item, index) => (
                     <tr key={index} className="hover:bg-gray-50">
-                      <td className="border border-gray-300 px-4 py-3">
+                      <td className="border border-gray-300 px-2 py-1">
                         {isEditing ? (
                           <input
                             type="text"
                             value={item.description}
                             onChange={(e) => updateItem(index, 'description', e.target.value)}
-                            className="w-full px-2 py-2 border border-gray-200 rounded"
+                            className="w-full px-1 py-0 border border-gray-200 rounded text-xs"
                           />
                         ) : (
                           <span className="font-medium">{item.description}</span>
                         )}
                       </td>
-                      <td className="border border-gray-300 px-4 py-3 text-center">
+                      <td className="border border-gray-300 px-2 py-1 text-center">
                         {isEditing ? (
                           <input
                             type="number"
                             value={item.quantity}
                             onChange={(e) => updateItem(index, 'quantity', parseInt(e.target.value) || 0)}
-                            className="w-20 px-2 py-2 border border-gray-200 rounded text-center"
+                            className="w-14 px-1 py-0 border border-gray-200 rounded text-center text-xs"
                           />
                         ) : (
                           <span className="font-semibold">{item.quantity}</span>
                         )}
                       </td>
-                      <td className="border border-gray-300 px-4 py-3 text-center">
+                      <td className="border border-gray-300 px-2 py-1 text-center">
                         {isEditing ? (
                           <input
                             type="text"
                             value={item.unit}
                             onChange={(e) => updateItem(index, 'unit', e.target.value)}
-                            className="w-20 px-2 py-2 border border-gray-200 rounded text-center"
+                            className="w-14 px-1 py-0 border border-gray-200 rounded text-center text-xs"
                           />
                         ) : (
                           <span>{item.unit}</span>
                         )}
                       </td>
-                      <td className="border border-gray-300 px-4 py-3 text-center">
+                      <td className="border border-gray-300 px-2 py-1 text-center">
                         {isEditing ? (
                           <select
                             value={item.condition}
                             onChange={(e) => updateItem(index, 'condition', e.target.value)}
-                            className="w-24 px-2 py-2 border border-gray-200 rounded text-center"
+                            className="w-20 px-1 py-0 border border-gray-200 rounded text-center text-xs"
                           >
                             <option value="جديدة">جديدة</option>
                             <option value="مستعملة">مستعملة</option>
@@ -596,10 +596,10 @@ export default function DeliveryNotePage() {
                         )}
                       </td>
                       {isEditing && (
-                        <td className="border border-gray-300 px-4 py-3 text-center">
+                        <td className="border border-gray-300 px-2 py-1 text-center">
                           <button
                             onClick={() => removeItem(index)}
-                            className="text-red-600 hover:text-red-800 font-semibold"
+                            className="text-red-600 hover:text-red-800 font-semibold text-xs"
                           >
                             حذف
                           </button>
@@ -611,53 +611,53 @@ export default function DeliveryNotePage() {
               </table>
             </div>
           </div>
-          <div className="mb-6">
-            <h3 className="text-lg font-semibold mb-3">ملاحظات</h3>
+          <div className="mb-1" style={{ direction: 'rtl' }}>
+            <h3 className="text-[11px] font-semibold mb-0.5">ملاحظات</h3>
             {isEditing ? (
               <textarea
                 value={deliveryNoteData.notes}
                 onChange={(e) => setDeliveryNoteData(prev => ({ ...prev, notes: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                rows={3}
+                className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
+                rows={1}
               />
             ) : (
-              <p className="text-gray-600">{deliveryNoteData.notes}</p>
+              <p className="text-gray-600 text-xs">{deliveryNoteData.notes}</p>
             )}
           </div>
 
           {/* Signatures */}
-          <div className="mb-6">
-            <h3 className="text-lg font-semibold mb-3">التوقيعات</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="mb-1" style={{ direction: 'rtl' }}>
+            <h3 className="text-[11px] font-semibold mb-0.5">التوقيعات</h3>
+            <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">سلمت من قبل:</label>
+                <label className="block text-[10px] font-medium text-gray-700 mb-0.5">سلمت من قبل:</label>
                 {isEditing ? (
                   <input
                     type="text"
                     value={deliveryNoteData.deliveredBy}
                     onChange={(e) => setDeliveryNoteData(prev => ({ ...prev, deliveredBy: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-1.5 py-0.5 border border-gray-300 rounded text-xs"
                     placeholder="اسم المسلم"
                   />
                 ) : (
-                  <div className="border-b-2 border-gray-300 pb-2">
-                    <p className="text-gray-600">{deliveryNoteData.deliveredBy || '___________________'}</p>
+                  <div className="border-b border-gray-300 pb-1">
+                    <p className="text-gray-600 text-xs">{deliveryNoteData.deliveredBy || '___________________'}</p>
                   </div>
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">استلمت من قبل:</label>
+                <label className="block text-[10px] font-medium text-gray-700 mb-0.5">استلمت من قبل:</label>
                 {isEditing ? (
                   <input
                     type="text"
                     value={deliveryNoteData.receivedBy}
                     onChange={(e) => setDeliveryNoteData(prev => ({ ...prev, receivedBy: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-1.5 py-0.5 border border-gray-300 rounded text-xs"
                     placeholder="اسم المستلم"
                   />
                 ) : (
-                  <div className="border-b-2 border-gray-300 pb-2">
-                    <p className="text-gray-600">{deliveryNoteData.receivedBy || '___________________'}</p>
+                  <div className="border-b border-gray-300 pb-1">
+                    <p className="text-gray-600 text-xs">{deliveryNoteData.receivedBy || '___________________'}</p>
                   </div>
                 )}
               </div>
@@ -665,9 +665,9 @@ export default function DeliveryNotePage() {
           </div>
 
           {/* Footer */}
-          <div className="mt-8 pt-6 border-t-2 border-gray-200 text-center">
-            <p className="text-gray-600 font-semibold">شكراً لثقتكم بنا!</p>
-            <p className="text-gray-500 text-sm mt-2">هذا البون تم إنشاؤه بواسطة نظام إدارة {companyInfo?.company_name_ar || 'باقالينو'}</p>
+          <div className="mt-1 pt-1 border-t border-gray-200 text-center">
+            <p className="text-gray-600 font-semibold text-xs">شكراً لثقتكم بنا!</p>
+            <p className="text-gray-500 text-[10px] mt-0">هذا البون تم إنشاؤه بواسطة نظام إدارة {companyInfo?.company_name_ar || 'باقالينو'}</p>
           </div>
         </div>
       </div>
