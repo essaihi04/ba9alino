@@ -674,6 +674,7 @@ export default function ClientTrackingPage() {
                       .insert({
                         payment_number: paymentNumber,
                         invoice_id: invoiceId,
+                        client_id: clientId,
                         amount: amount,
                         payment_method: paymentMethod,
                         payment_date: new Date().toISOString(),

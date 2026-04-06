@@ -1190,6 +1190,7 @@ export default function InvoicesPage() {
                       .insert({
                         payment_number: paymentNumber,
                         invoice_id: invoiceId,
+                        client_id: paymentInvoice.client_id,
                         amount: amount,
                         payment_method: paymentMethod,
                         payment_date: new Date().toISOString(),
