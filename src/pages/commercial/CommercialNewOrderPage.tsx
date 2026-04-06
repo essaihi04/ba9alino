@@ -638,12 +638,13 @@ export default function CommercialNewOrderPage() {
         .single()
 
       if (employeeError || !employee) {
-        // Créer l'employé s'il n'existe pas
+        // Créer l'employé s'il n'existe pas avec le vrai nom depuis localStorage
+        const commercialName = localStorage.getItem('commercial_name') || 'Commercial User'
         const { data: newEmployee, error: createEmployeeError } = await supabase
           .from('employees')
           .insert({
             id: commercialId,
-            name: 'Commercial User',
+            name: commercialName,
             email: `commercial-${commercialId}@ba9alino.com`,
             phone: '0000000000', // Téléphone par défaut obligatoire
             role: 'commercial'
