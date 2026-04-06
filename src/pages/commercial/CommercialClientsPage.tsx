@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { getCategoryLabelArabic } from '../../utils/categoryLabels'
-import { Search, Plus, Phone, MapPin, Image as ImageIcon, MapPinOff } from 'lucide-react'
+import { Search, Plus, Phone, MapPin, Image as ImageIcon, MapPinOff, Users } from 'lucide-react'
 import CommercialLayout from '../../components/commercial/CommercialLayout'
 
 const SHOP_PHOTO_BUCKET = import.meta.env.VITE_SHOP_PHOTO_BUCKET || 'magasin'
