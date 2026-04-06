@@ -205,43 +205,12 @@ export default function OrdersPage() {
 
   const getBulkActionButtons = () => {
     const selectedOrdersData = orders.filter(order => selectedOrders.includes(order.id))
-    
-    // Déterminer quels boutons afficher selon les commandes sélectionnées
-    const hasUnpaidOrders = selectedOrdersData.some(order => order.payment_status !== 'paid')
-    const hasEditableStatus = selectedOrdersData.some(order => 
-      !(order.status === 'delivered' && order.payment_status === 'paid')
-    )
-    const hasNonDeliveredOrders = selectedOrdersData.some(order => order.status !== 'delivered')
 
     return (
       <>
-        {hasEditableStatus && (
-          <button
-            onClick={() => {
-              // Implémenter le changement de statut en masse
-              alert('Changement de statut en masse à implémenter')
-            }}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700"
-          >
-            <Edit2 className="w-4 h-4" />
-            تغيير الحالة ({selectedOrders.length})
-          </button>
-        )}
-        {hasUnpaidOrders && (
-          <button
-            onClick={() => {
-              // Implémenter l'ajout de paiement en masse
-              alert('Ajout de paiement en masse à implémenter')
-            }}
-            className="bg-purple-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-700"
-          >
-            <DollarSign className="w-4 h-4" />
-            إضافة دفعة ({selectedOrders.length})
-          </button>
-        )}
         <button
           onClick={() => {
-            // Imprimer les factures sélectionnées
+            // Imprimer les tickets des commandes sélectionnées
             selectedOrdersData.forEach(order => {
               printOrderTicket(order)
             })
@@ -253,7 +222,7 @@ export default function OrdersPage() {
         </button>
         <button
           onClick={() => {
-            // Ouvrir les factures sélectionnées
+            // Ouvrir les factures des commandes sélectionnées
             selectedOrdersData.forEach(order => {
               openOrderInvoice(order)
             })
@@ -2193,18 +2162,19 @@ export default function OrdersPage() {
                 <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase w-28">حالة الطلب</th>
                 <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase w-28">حالة الدفع</th>
                 <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase w-28">نوع الأداء</th>
+                <th className="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase w-32">إجراءات</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {loading ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center">
+                  <td colSpan={11} className="px-4 py-8 text-center">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
                   </td>
                 </tr>
               ) : filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={11} className="px-4 py-8 text-center text-gray-500">
                     لا توجد طلبات
                   </td>
                 </tr>
@@ -2291,6 +2261,66 @@ export default function OrdersPage() {
                          order.payment_method === 'credit' ? 'دين' :
                          order.payment_method || '—'}
                       </span>
+                    </td>
+                    <td className="px-3 py-4">
+                      <div className="flex gap-1 justify-end">
+                        <button
+                          onClick={() => {
+                            setSelectedOrder(order)
+                            setNewStatus(order.status)
+                            setShowStatusModal(true)
+                          }}
+                          className={`text-green-600 hover:text-green-800 ${
+                            order.status === 'delivered' && order.payment_status === 'paid' 
+                              ? 'opacity-50 cursor-not-allowed' 
+                              : ''
+                          }`}
+                          title={
+                            order.status === 'delivered' && order.payment_status === 'paid' 
+                              ? 'لا يمكن تعديل حالة الطلب المكتمل' 
+                              : 'تغيير الحالة'
+                          }
+                          disabled={order.status === 'delivered' && order.payment_status === 'paid'}
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={async () => {
+                            setSelectedOrder(order)
+                            const orderTotal = order.final_amount || order.total_amount
+                            const remaining = await getOrderRemainingAmount(order.id, orderTotal)
+                            setRemainingAmount(remaining)
+                            setPaymentData({
+                              amount: '',
+                              payment_method: 'cash',
+                              payment_date: new Date().toISOString().split('T')[0]
+                            })
+                            setShowPaymentModal(true)
+                          }}
+                          className={`text-purple-600 hover:text-purple-800 ${
+                            order.payment_status === 'paid' 
+                              ? 'opacity-50 cursor-not-allowed' 
+                              : ''
+                          }`}
+                          title={
+                            order.payment_status === 'paid' 
+                              ? 'الطلب مدفوع بالكامل' 
+                              : 'إضافة دفعة للطلب'
+                          }
+                          disabled={order.payment_status === 'paid'}
+                        >
+                          <DollarSign className="w-4 h-4" />
+                        </button>
+                        {order.status !== 'delivered' && (
+                          <button
+                            onClick={() => editOrderInPOS(order)}
+                            className="text-orange-600 hover:text-orange-800"
+                            title="تعديل في الكايس"
+                          >
+                            <Receipt className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
