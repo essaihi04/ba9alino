@@ -1347,7 +1347,7 @@ export default function OrdersPage() {
       const netPaid = Math.max(0, totalPaid - totalRefunded)
       return orderTotal - netPaid
     } catch (error) {
-      console.error('Error calculating remaining amount:', error)
+      console.error('Error getting remaining amount:', error)
       return orderTotal
     }
   }
@@ -1358,7 +1358,12 @@ export default function OrdersPage() {
     try {
       const orderTotal = selectedOrder.final_amount || selectedOrder.total_amount
       const paymentAmount = parseFloat(paymentData.amount)
-      
+
+      if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
+        alert('يرجى إدخال مبلغ صحيح')
+        return
+      }
+
       // Get existing payments for this order
       const { data: existingPayments } = await supabase
         .from('payments')
@@ -1374,15 +1379,47 @@ export default function OrdersPage() {
         .filter((p: any) => p.status === 'refunded')
         .reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0)
       const netPaid = Math.max(0, totalPaid - totalRefunded)
+      const currentRemaining = Math.max(0, orderTotal - netPaid)
+
+      if (paymentAmount > currentRemaining) {
+        alert('المبلغ يتجاوز المبلغ المتبقي')
+        return
+      }
+
+      const paymentPayload: any = {
+        order_id: selectedOrder.id,
+        payment_number: `PAY-${Date.now()}`,
+        client_id: selectedOrder.client_id || null,
+        amount: paymentAmount,
+        payment_method: paymentData.payment_method,
+        payment_date: paymentData.payment_date,
+        status: 'completed'
+      }
+
+      if (paymentData.payment_method === 'check') {
+        paymentPayload.check_number = chequeData.cheque_number || null
+        paymentPayload.check_bank = chequeData.bank_name || null
+        paymentPayload.check_deposit_date = chequeData.deposit_date || null
+      }
+
+      const { error: paymentInsertError } = await supabase
+        .from('payments')
+        .insert(paymentPayload)
+
+      if (paymentInsertError) {
+        console.error('❌ Error inserting payment:', paymentInsertError)
+        throw paymentInsertError
+      }
 
       // Update order payment status
       const newTotalPaid = netPaid + paymentAmount
-      
-      let newPaymentStatus = 'partial'
+      let newPaymentStatus: Order['payment_status'] = 'partial'
       if (newTotalPaid >= orderTotal) {
         newPaymentStatus = 'paid'
       } else if (newTotalPaid > 0) {
         newPaymentStatus = 'partial'
+      } else {
+        newPaymentStatus = 'unpaid'
       }
 
       const { error: orderUpdateError } = await supabase
@@ -1427,13 +1464,15 @@ export default function OrdersPage() {
           const invoice = invoicesList[0]
           
           const newInvoicePaidAmount = newTotalPaid
-          const newInvoiceStatus = newTotalPaid >= invoice.total_amount ? 'paid' : 'sent'
+          const newInvoiceRemainingAmount = Math.max(0, invoice.total_amount - newInvoicePaidAmount)
+          const newInvoiceStatus = newTotalPaid >= invoice.total_amount ? 'paid' : 'partial'
           
           const { error: invoiceUpdateError } = await supabase
             .from('invoices')
             .update({ 
               paid_amount: newInvoicePaidAmount,
-              remaining_amount: invoice.total_amount - newInvoicePaidAmount,
+              remaining_amount: newInvoiceRemainingAmount,
+              payment_status: newPaymentStatus,
               status: newInvoiceStatus,
               updated_at: new Date().toISOString()
             })
@@ -1446,7 +1485,7 @@ export default function OrdersPage() {
       }
 
       setShowPaymentModal(false)
-      fetchOrders(true)
+      await fetchOrders(true)
       
       // Reset payment and cheque data
       setPaymentData({
@@ -1989,7 +2028,7 @@ export default function OrdersPage() {
             className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="all">جميع المدفوعات</option>
-            <option value="pending">لم يدفع</option>
+            <option value="unpaid">لم يدفع</option>
             <option value="partial">مدفوع جزئيا</option>
             <option value="paid">مدفوع بالكامل</option>
             <option value="refunded">مسترد</option>
@@ -2059,14 +2098,16 @@ export default function OrdersPage() {
                     </td>
                     <td className="px-3 py-4">
                       <div>
-                        <p className="font-medium">{order.employee?.name || 'غير محدد'}</p>
-                        <p className="text-sm text-gray-500">{order.employee?.role}</p>
+                        <p className="font-medium">{order.employee?.name || 'admin'}</p>
+                        <p className="text-sm text-gray-500">{order.employee?.role || 'Administrateur'}</p>
                       </div>
                     </td>
                     <td className="px-3 py-4">
                       <div>
-                        <p className="font-medium">{order.warehouse?.name || 'غير محدد'}</p>
-                        <p className="text-sm text-gray-500">{order.warehouse?.is_active ? 'نشط' : 'غير نشط'}</p>
+                        <p className="font-medium">{order.warehouse?.name || '—'}</p>
+                        {order.warehouse && (
+                          <p className="text-sm text-gray-500">{order.warehouse.is_active ? 'نشط' : 'غير نشط'}</p>
+                        )}
                       </div>
                     </td>
                     <td className="px-3 py-4">
