@@ -221,18 +221,51 @@ export default function PurchasesPage() {
 
   const loadProducts = async () => {
     try {
-      // Charger tous les produits actifs (limit 5000 pour éviter la troncature par défaut de Supabase à 1000)
-      const { data, error } = await supabase
-        .from('products')
-        .select('id, name_ar, sku, stock, cost_price, price_a, category_id, image_url')
-        .neq('is_active', false)
-        .order('name_ar')
-        .limit(5000)
+      // Pagination complète comme dans POSPage pour charger TOUS les produits
+      const selectFields = 'id, name_ar, sku, stock, cost_price, price_a, category_id, image_url'
+      let allProducts: any[] = []
+      let from = 0
+      const pageSize = 1000
 
-      if (error) throw error
-      setProducts(data || [])
+      // Premier essai avec filtre is_active
+      let useIsActiveFilter = true
+      while (true) {
+        let query = supabase
+          .from('products')
+          .select(selectFields)
+          .order('name_ar')
+          .range(from, from + pageSize - 1)
 
-      const productIds = (data || []).map(p => p.id)
+        if (useIsActiveFilter) {
+          query = query.neq('is_active', false)
+        }
+
+        const { data: page, error: pageError } = await query
+
+        if (pageError) {
+          // Si is_active n'existe pas, retenter sans filtre
+          const msg = String((pageError as any)?.message || '')
+          const code = String((pageError as any)?.code || '')
+          if (useIsActiveFilter && (code === '42703' || msg.toLowerCase().includes('is_active'))) {
+            console.warn('is_active column not found, retrying without filter')
+            useIsActiveFilter = false
+            allProducts = []
+            from = 0
+            continue
+          }
+          throw pageError
+        }
+
+        if (!page || page.length === 0) break
+        allProducts = allProducts.concat(page)
+        if (page.length < pageSize) break
+        from += pageSize
+      }
+
+      console.log(`📦 PurchasesPage: ${allProducts.length} products loaded`)
+      setProducts(allProducts)
+
+      const productIds = allProducts.map(p => p.id)
       if (productIds.length === 0) {
         setPrimaryVariantsByProductId({})
         return
