@@ -238,21 +238,25 @@ export default function PurchasesPage() {
         return
       }
 
-      const { data: primaryVariants, error: primaryError } = await supabase
-        .from('product_primary_variants')
-        .select('id, product_id, variant_name, barcode, is_default, is_active')
-        .in('product_id', productIds)
-        .eq('is_active', true)
-        .limit(10000)
-
-      if (primaryError) {
-        console.warn('Error loading product primary variants:', primaryError)
-        setPrimaryVariantsByProductId({})
-        return
+      // Charger les variantes par lots de 300 pour éviter la limite d'URL de Supabase
+      const BATCH_SIZE = 300
+      let allPrimaryVariants: any[] = []
+      for (let i = 0; i < productIds.length; i += BATCH_SIZE) {
+        const chunk = productIds.slice(i, i + BATCH_SIZE)
+        const { data: batchVariants, error: batchError } = await supabase
+          .from('product_primary_variants')
+          .select('id, product_id, variant_name, barcode, is_default, is_active')
+          .in('product_id', chunk)
+          .eq('is_active', true)
+        if (batchError) {
+          console.warn('Error loading product primary variants batch:', batchError)
+        } else {
+          allPrimaryVariants = allPrimaryVariants.concat(batchVariants || [])
+        }
       }
 
       const byProduct: Record<string, ProductPrimaryVariant[]> = {}
-      ;(primaryVariants || []).forEach((v: any) => {
+      allPrimaryVariants.forEach((v: any) => {
         if (!v?.product_id) return
         const pid = String(v.product_id)
         if (!byProduct[pid]) byProduct[pid] = []
