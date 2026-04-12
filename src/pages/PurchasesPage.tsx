@@ -221,10 +221,13 @@ export default function PurchasesPage() {
 
   const loadProducts = async () => {
     try {
+      // Charger tous les produits actifs (limit 5000 pour éviter la troncature par défaut de Supabase à 1000)
       const { data, error } = await supabase
         .from('products')
         .select('id, name_ar, sku, stock, cost_price, price_a, category_id, image_url')
+        .eq('is_active', true)
         .order('name_ar')
+        .limit(5000)
 
       if (error) throw error
       setProducts(data || [])
@@ -239,6 +242,8 @@ export default function PurchasesPage() {
         .from('product_primary_variants')
         .select('id, product_id, variant_name, barcode, is_default, is_active')
         .in('product_id', productIds)
+        .eq('is_active', true)
+        .limit(10000)
 
       if (primaryError) {
         console.warn('Error loading product primary variants:', primaryError)
