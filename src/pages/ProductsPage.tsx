@@ -1535,6 +1535,7 @@ export default function ProductsPage() {
         price_e: parsePrice(formData.price_e),
         stock: parseQuantity(formData.quantity_in_stock),
         image_url: formData.image_url || null,
+        is_active: true,
       }
 
       let { data: productResult, error } = await supabase

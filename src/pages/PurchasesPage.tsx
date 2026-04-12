@@ -225,7 +225,7 @@ export default function PurchasesPage() {
       const { data, error } = await supabase
         .from('products')
         .select('id, name_ar, sku, stock, cost_price, price_a, category_id, image_url')
-        .eq('is_active', true)
+        .neq('is_active', false)
         .order('name_ar')
         .limit(5000)
 
@@ -247,7 +247,7 @@ export default function PurchasesPage() {
           .from('product_primary_variants')
           .select('id, product_id, variant_name, barcode, is_default, is_active')
           .in('product_id', chunk)
-          .eq('is_active', true)
+          .neq('is_active', false)
         if (batchError) {
           console.warn('Error loading product primary variants batch:', batchError)
         } else {
