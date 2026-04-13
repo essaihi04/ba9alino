@@ -1246,36 +1246,8 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       }
     }
     
-    // If no barcode match, search by name (case-insensitive)
-    const nameMatch = products.find(p => 
-      p.name_ar?.toLowerCase() === searchQuery.trim().toLowerCase()
-    )
-    console.log('📝 Name match:', nameMatch?.name_ar)
-    
-    if (nameMatch) {
-      addToInvoice(nameMatch)
-      setSearchQuery('') // Clear search after adding
-      focusSearchInput()
-      return
-    }
-    
-    // If only one product matches the search query, add it
-    const matchingProducts = products.filter(p => {
-      const nameMatch = p.name_ar?.toLowerCase().includes(searchQuery.toLowerCase())
-      const barcodeMatch = p.barcode ? p.barcode.replace(/[\s-]/g, '').includes(normalizedSearch) : false
-      return nameMatch || barcodeMatch
-    })
-    console.log('📋 Matching products count:', matchingProducts.length)
-    
-    if (matchingProducts.length === 1) {
-      addToInvoice(matchingProducts[0])
-      setSearchQuery('') // Clear search after adding
-      focusSearchInput()
-      return
-    }
-    
-    // If multiple matches or no match, keep search query for manual selection
-    console.log('🔍 Multiple matches or no match found, showing results for manual selection')
+    // Pas de match barcode → ne rien ajouter automatiquement
+    // L'utilisateur doit cliquer manuellement sur le produit dans la grille
     focusSearchInput()
   }
 
@@ -1360,12 +1332,9 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       }
     }
 
-    if (filteredProducts.length === 1) {
-      addToInvoice(filteredProducts[0])
-      setSearchQuery('')
-      focusSearchInput()
-    }
-  }, [searchQuery, products, filteredProducts.length])
+    // Ne PAS auto-ajouter par nom — seul le barcode ajoute directement
+    // L'utilisateur doit cliquer manuellement sur le produit dans la grille
+  }, [searchQuery, products])
 
   const getProductPrice = (item: Product | CartItem) => {
     // Si c'est un CartItem et a un prix personnalisé, l'utiliser
