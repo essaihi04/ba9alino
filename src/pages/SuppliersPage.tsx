@@ -520,15 +520,6 @@ export default function SuppliersPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">اسم المورد (English)</label>
-                  <input
-                    type="text"
-                    value={formData.name_en}
-                    onChange={(e) => setFormData({...formData, name_en: e.target.value})}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
                   <label className="block text-sm font-medium mb-1">شخص الاتصال</label>
                   <input
                     type="text"
@@ -552,42 +543,6 @@ export default function SuppliersPage() {
                     type="tel"
                     value={formData.phone}
                     onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">شروط الدفع (عربي)</label>
-                  <input
-                    type="text"
-                    value={formData.payment_terms_ar}
-                    onChange={(e) => setFormData({...formData, payment_terms_ar: e.target.value})}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">شروط الدفع (English)</label>
-                  <input
-                    type="text"
-                    value={formData.payment_terms_en}
-                    onChange={(e) => setFormData({...formData, payment_terms_en: e.target.value})}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">العنوان (عربي)</label>
-                  <input
-                    type="text"
-                    value={formData.address_ar}
-                    onChange={(e) => setFormData({...formData, address_ar: e.target.value})}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">العنوان (English)</label>
-                  <input
-                    type="text"
-                    value={formData.address_en}
-                    onChange={(e) => setFormData({...formData, address_en: e.target.value})}
                     className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
