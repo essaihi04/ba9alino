@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Search, DollarSign, CreditCard, CheckCircle, Clock, AlertCircle, Plus, FileText } from 'lucide-react'
+import { useEffect, useState, useMemo } from 'react'
+import { Search, DollarSign, CreditCard, CheckCircle, Clock, AlertCircle, Plus, FileText, ArrowUpDown, Calendar, Filter } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useInputPad } from '../components/useInputPad'
 
@@ -35,6 +35,11 @@ export default function PaymentsPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('unpaid')
+  const [filterPaymentMethod, setFilterPaymentMethod] = useState<string>('all')
+  const [filterDateFrom, setFilterDateFrom] = useState<string>('')
+  const [filterDateTo, setFilterDateTo] = useState<string>('')
+  const [sortBy, setSortBy] = useState<string>('date_desc')
+  const [showFilters, setShowFilters] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
   const [paymentAmount, setPaymentAmount] = useState('')
@@ -126,24 +131,51 @@ export default function PaymentsPage() {
     }
   }
 
-  const filteredInvoices = invoices.filter(invoice => {
-    const matchesSearch = (invoice.client_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (invoice.company_name_ar || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (invoice.invoice_number || '').toLowerCase().includes(searchTerm.toLowerCase())
-    
-    let matchesStatus = true
-    if (filterStatus === 'unpaid') {
-      matchesStatus = (invoice.paid_amount || 0) === 0
-    } else if (filterStatus === 'paid') {
-      matchesStatus = (invoice.remaining_amount || 0) === 0
-    } else if (filterStatus === 'partial') {
-      matchesStatus = (invoice.paid_amount || 0) > 0 && (invoice.remaining_amount || 0) > 0
-    } else if (filterStatus !== 'all') {
-      matchesStatus = false
-    }
-    
-    return matchesSearch && matchesStatus
-  })
+  const filteredInvoices = useMemo(() => {
+    let result = invoices.filter(invoice => {
+      const matchesSearch = (invoice.client_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           (invoice.company_name_ar || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           (invoice.invoice_number || '').toLowerCase().includes(searchTerm.toLowerCase())
+      
+      let matchesStatus = true
+      if (filterStatus === 'unpaid') {
+        matchesStatus = (invoice.remaining_amount || 0) > 0 && (invoice.paid_amount || 0) === 0
+      } else if (filterStatus === 'paid') {
+        matchesStatus = (invoice.remaining_amount || 0) === 0
+      } else if (filterStatus === 'partial') {
+        matchesStatus = (invoice.paid_amount || 0) > 0 && (invoice.remaining_amount || 0) > 0
+      } else if (filterStatus === 'has_debt') {
+        matchesStatus = (invoice.remaining_amount || 0) > 0
+      }
+
+      let matchesPaymentMethod = true
+      if (filterPaymentMethod !== 'all') {
+        matchesPaymentMethod = invoice.payment_method === filterPaymentMethod
+      }
+
+      let matchesDate = true
+      const invDate = invoice.invoice_date || invoice.created_at?.slice(0, 10) || ''
+      if (filterDateFrom && invDate < filterDateFrom) matchesDate = false
+      if (filterDateTo && invDate > filterDateTo) matchesDate = false
+      
+      return matchesSearch && matchesStatus && matchesPaymentMethod && matchesDate
+    })
+
+    // Sort
+    result.sort((a, b) => {
+      switch (sortBy) {
+        case 'date_desc': return new Date(b.invoice_date || b.created_at).getTime() - new Date(a.invoice_date || a.created_at).getTime()
+        case 'date_asc': return new Date(a.invoice_date || a.created_at).getTime() - new Date(b.invoice_date || b.created_at).getTime()
+        case 'amount_desc': return (b.total_amount || 0) - (a.total_amount || 0)
+        case 'amount_asc': return (a.total_amount || 0) - (b.total_amount || 0)
+        case 'remaining_desc': return (b.remaining_amount || 0) - (a.remaining_amount || 0)
+        case 'remaining_asc': return (a.remaining_amount || 0) - (b.remaining_amount || 0)
+        default: return 0
+      }
+    })
+
+    return result
+  }, [invoices, searchTerm, filterStatus, filterPaymentMethod, filterDateFrom, filterDateTo, sortBy])
 
   const getStatusBadge = (remaining: number, paidAmount: number) => {
     if (remaining === 0) {
@@ -404,80 +436,132 @@ export default function PaymentsPage() {
         </button>
       </div>
 
-      {/* Statistiques rapides */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-xl p-6 shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-green-100 text-sm mb-1">الإجمالي المدفوع</p>
-              <p className="text-2xl font-bold">
-                {totalPaid.toFixed(2)} MAD
-              </p>
-            </div>
-            <CheckCircle size={32} className="text-green-200" />
+      {/* شريط الإحصائيات المختصر */}
+      <div className="bg-white rounded-xl shadow-lg p-4">
+        <div className="flex flex-wrap items-center gap-6 text-sm">
+          <div className="flex items-center gap-2">
+            <CheckCircle size={18} className="text-green-600" />
+            <span className="text-gray-600">المدفوع:</span>
+            <span className="font-bold text-green-700">{totalPaid.toFixed(0)} MAD</span>
           </div>
-        </div>
-
-        <div className="bg-gradient-to-br from-red-500 to-red-600 text-white rounded-xl p-6 shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-red-100 text-sm mb-1">الديون المستحقة</p>
-              <p className="text-2xl font-bold">{totalUnpaid.toFixed(2)} MAD</p>
-            </div>
-            <AlertCircle size={32} className="text-red-200" />
+          <div className="flex items-center gap-2">
+            <AlertCircle size={18} className="text-red-600" />
+            <span className="text-gray-600">الديون:</span>
+            <span className="font-bold text-red-700">{totalUnpaid.toFixed(0)} MAD</span>
           </div>
-        </div>
-
-        <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 text-white rounded-xl p-6 shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-yellow-100 text-sm mb-1">فواتير غير مدفوعة</p>
-              <p className="text-2xl font-bold">{unpaidCount}</p>
-            </div>
-            <Clock size={32} className="text-yellow-200" />
+          <div className="flex items-center gap-2">
+            <Clock size={18} className="text-yellow-600" />
+            <span className="text-gray-600">غير مدفوعة:</span>
+            <span className="font-bold text-yellow-700">{unpaidCount}</span>
           </div>
-        </div>
-
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl p-6 shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-blue-100 text-sm mb-1">إجمالي الفواتير</p>
-              <p className="text-2xl font-bold">{filteredInvoices.length}</p>
-            </div>
-            <DollarSign size={32} className="text-blue-200" />
+          <div className="flex items-center gap-2">
+            <DollarSign size={18} className="text-blue-600" />
+            <span className="text-gray-600">الفواتير:</span>
+            <span className="font-bold text-blue-700">{filteredInvoices.length}</span>
           </div>
         </div>
       </div>
 
-      {/* Filtres et recherche */}
-      <div className="bg-white rounded-xl shadow-lg p-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="relative">
-            <Search className="absolute right-3 top-3 text-gray-400" size={20} />
+      {/* البحث والفلاتر */}
+      <div className="bg-white rounded-xl shadow-lg p-4">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* بحث */}
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute right-3 top-3 text-gray-400" size={18} />
             <input
               type="text"
               placeholder="ابحث عن فاتورة أو عميل..."
-              className="w-full pr-10 pl-4 py-3 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
+              className="w-full pr-10 pl-4 py-2.5 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none text-sm"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          
+
+          {/* حالة الدفع */}
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none"
+            className="px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none text-sm"
           >
+            <option value="has_debt">عليها دين</option>
             <option value="unpaid">غير مدفوع</option>
-            <option value="paid">مدفوع بالكامل</option>
             <option value="partial">مدفوع جزئياً</option>
+            <option value="paid">مدفوع بالكامل</option>
             <option value="all">كل الحالات</option>
           </select>
 
-          <div className="flex items-center justify-center text-sm text-gray-600">
-            {filteredInvoices.length} فاتورة (من {invoices.length} إجمالي)
-          </div>
+          {/* طريقة الدفع */}
+          <select
+            value={filterPaymentMethod}
+            onChange={(e) => setFilterPaymentMethod(e.target.value)}
+            className="px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none text-sm"
+          >
+            <option value="all">كل طرق الدفع</option>
+            <option value="cash">نقدي</option>
+            <option value="card">بطاقة</option>
+            <option value="bank_transfer">تحويل بنكي</option>
+            <option value="check">شيك</option>
+            <option value="credit">دين</option>
+          </select>
+
+          {/* ترتيب */}
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:border-green-500 focus:outline-none text-sm"
+          >
+            <option value="date_desc">الأحدث أولاً</option>
+            <option value="date_asc">الأقدم أولاً</option>
+            <option value="amount_desc">المبلغ ↓</option>
+            <option value="amount_asc">المبلغ ↑</option>
+            <option value="remaining_desc">الباقي ↓</option>
+            <option value="remaining_asc">الباقي ↑</option>
+          </select>
+
+          {/* زر فلاتر التاريخ */}
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`px-3 py-2.5 border-2 rounded-lg text-sm flex items-center gap-1 ${showFilters ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+          >
+            <Calendar size={16} />
+            تاريخ
+          </button>
+
+          {/* عداد النتائج */}
+          <span className="text-xs text-gray-500">
+            {filteredInvoices.length} / {invoices.length}
+          </span>
         </div>
+
+        {/* فلاتر التاريخ */}
+        {showFilters && (
+          <div className="flex items-center gap-3 mt-3 pt-3 border-t">
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600">من:</label>
+              <input
+                type="date"
+                value={filterDateFrom}
+                onChange={(e) => setFilterDateFrom(e.target.value)}
+                className="px-3 py-2 border-2 border-gray-200 rounded-lg text-sm"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600">إلى:</label>
+              <input
+                type="date"
+                value={filterDateTo}
+                onChange={(e) => setFilterDateTo(e.target.value)}
+                className="px-3 py-2 border-2 border-gray-200 rounded-lg text-sm"
+              />
+            </div>
+            <button
+              onClick={() => { setFilterDateFrom(''); setFilterDateTo('') }}
+              className="text-xs text-red-600 hover:text-red-800"
+            >
+              مسح التاريخ
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Tableau des factures */}
@@ -497,6 +581,7 @@ export default function PaymentsPage() {
                 <tr>
                   <th className="px-6 py-4 text-right font-bold">رقم الفاتورة</th>
                   <th className="px-6 py-4 text-right font-bold">العميل</th>
+                  <th className="px-6 py-4 text-right font-bold">التاريخ</th>
                   <th className="px-6 py-4 text-right font-bold">المجموع</th>
                   <th className="px-6 py-4 text-right font-bold">المدفوع</th>
                   <th className="px-6 py-4 text-right font-bold">الباقي</th>
@@ -520,6 +605,9 @@ export default function PaymentsPage() {
                       <span className="font-semibold text-gray-700">
                         {invoice.client_name || invoice.company_name_ar || 'عميل عام'}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 text-gray-600 text-sm">
+                      {new Date(invoice.invoice_date || invoice.created_at).toLocaleDateString('ar-MA')}
                     </td>
                     <td className="px-6 py-4">
                       <span className="font-bold text-gray-800">

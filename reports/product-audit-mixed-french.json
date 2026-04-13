@@ -1,0 +1,198 @@
+[
+  {
+    "id": "b201460a-dc2f-4bfa-a68b-2a2c790c56b9",
+    "name_ar": "ALKASBAH - مرتديلا بالاعشاء - Mortadelle aux fines herbes - 600",
+    "sku": "6111262901081",
+    "category_id": "38ed14b1-fad2-49ee-a9e5-2a9c68eca20b",
+    "category_name": "لحوم"
+  },
+  {
+    "id": "6605c0da-3bf6-4c43-adcc-776f971d53d0",
+    "name_ar": "CHERGUI - قشدة طرية - Crème fraiche",
+    "sku": "6111126000905",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "a5c863c1-7ca3-40d7-8319-46d75dd6da10",
+    "name_ar": "Fromital - رايب البلاد - raïb du bled - 900g",
+    "sku": "6111243090711",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "a1b39bf1-5ab3-46cf-bc7d-0eec17dd78af",
+    "name_ar": "Galletas de chocolate  اوريو - Oreo bañadas - 246g",
+    "sku": "7622300491215",
+    "category_id": "1aa35c38-f2e0-4ab3-8c53-c2fa7af0c5e9",
+    "category_name": "بسكويت"
+  },
+  {
+    "id": "fc076a1d-dc2a-44a1-a512-5c22f44fc10b",
+    "name_ar": "idna - العين - la source (العين) - 8L",
+    "sku": "6111271800054",
+    "category_id": "7d3cde65-79a3-4266-83c7-ad1e6a38eed4",
+    "category_name": "مشروبات غازية"
+  },
+  {
+    "id": "7081e827-d174-4ebb-8987-f1ed4d02acf0",
+    "name_ar": "ifoulky aharouay - إفولكي - Crema de cacahuete - 500",
+    "sku": "6111252670263",
+    "category_id": "42e40334-9e3c-4b9f-8fce-07becc534ea9",
+    "category_name": "مصبرات"
+  },
+  {
+    "id": "e9447f18-c5f5-4eec-99a1-98cabd1c4dc0",
+    "name_ar": "la source - العين",
+    "sku": "6111271800023",
+    "category_id": "7d3cde65-79a3-4266-83c7-ad1e6a38eed4",
+    "category_name": "مشروبات غازية"
+  },
+  {
+    "id": "ad9776f6-b86a-445c-84b6-ed0c3614ebdd",
+    "name_ar": "La vache qui rit,Bel - البقرة الضاحكة بمذاق الجبن الاحمر - La vache qui rit - Au goût fromage rouge - 120 g (8 x 15 g)",
+    "sku": "3073781163681",
+    "category_id": "42e40334-9e3c-4b9f-8fce-07becc534ea9",
+    "category_name": "مصبرات"
+  },
+  {
+    "id": "ac710205-c112-4dcf-b1ed-c3381a06c156",
+    "name_ar": "Le Berger, الراعي - Beurre allégé - 250 g",
+    "sku": "6111246720721",
+    "category_id": "42e40334-9e3c-4b9f-8fce-07becc534ea9",
+    "category_name": "مصبرات"
+  },
+  {
+    "id": "d4ab9820-7774-47df-bed5-2ea3e9f48c2e",
+    "name_ar": "Le Berger, الراعي - Mascarpone 250g araai - 250 g",
+    "sku": "6111246720462",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "751f8432-e1dc-48b1-9b54-408897dcbbe6",
+    "name_ar": "Le Berger, الراعي - Ricotta le berger - 170 g",
+    "sku": "6111246720806",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "1206210c-1524-4822-9f69-873557b4a391",
+    "name_ar": "Lilia - مارغرين المائدة - Margarine de Table - 400 g",
+    "sku": "6111099005396",
+    "category_id": "42e40334-9e3c-4b9f-8fce-07becc534ea9",
+    "category_name": "مصبرات"
+  },
+  {
+    "id": "9715638d-f7f3-4381-9ac9-73263fccbd23",
+    "name_ar": "LU,Mondelēz - برانس - Príncipe crema de chocolate - 300 g 15.5",
+    "sku": "7622210204424",
+    "category_id": "1aa35c38-f2e0-4ab3-8c53-c2fa7af0c5e9",
+    "category_name": "بسكويت"
+  },
+  {
+    "id": "ce656438-ff21-48d4-9c55-4d59f6a73c69",
+    "name_ar": "Nestlé - رقائق القمح بطعم الشوكولاتة والكراميل - Céréales Lion caramel et chocolat - 400 g",
+    "sku": "7613031370641",
+    "category_id": "5aa6a060-3adb-45a6-bf6f-26a9b68ef46c",
+    "category_name": "حبوب"
+  },
+  {
+    "id": "04c2e1d1-068f-4174-8b8b-e709ee3848cf",
+    "name_ar": "Ritter Sport - ريتر سبورت لوز - Amandes au miel et au sel - 100 g",
+    "sku": "4000417704009",
+    "category_id": "bf1d6fd7-bbd2-414a-a10e-f5f4b3b8c9d5",
+    "category_name": "شوكولاتة"
+  },
+  {
+    "id": "25fcfa48-57b4-4ced-8f0c-d79ab1c14444",
+    "name_ar": "vqr original 16pمزار - la vache qui rit 16 p origianl - 240 g",
+    "sku": "6111028001239",
+    "category_id": "42e40334-9e3c-4b9f-8fce-07becc534ea9",
+    "category_name": "مصبرات"
+  },
+  {
+    "id": "807301ae-b3fd-43bb-8261-9ae3db77039f",
+    "name_ar": "البستان - لب - Jus Tropical",
+    "sku": "6111179006190",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "85475468-1359-4a44-b7ad-fd3df25c5894",
+    "name_ar": "الراعي,Le Berger - Crème Cuisine",
+    "sku": "6111246720448",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "4c7d87eb-9c18-4815-b83e-88651ea871ab",
+    "name_ar": "الراعي,Le Berger - Feta - 150 g",
+    "sku": "6111246720318",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "7e9fef16-995b-4faf-8b5a-c5db8df83892",
+    "name_ar": "الراعي,Le Berger - Petit frais الراعي - petits frais nature 170g araai",
+    "sku": "6111246720783",
+    "category_id": "42e40334-9e3c-4b9f-8fce-07becc534ea9",
+    "category_name": "مصبرات"
+  },
+  {
+    "id": "228d8767-7e53-442b-9ecd-cc0a73424daa",
+    "name_ar": "الشرگي - le gourmanf - 170غ",
+    "sku": "6111126005597",
+    "category_id": "cee57dc6-d0c8-4524-8932-5f0fe813458d",
+    "category_name": "مثلجات"
+  },
+  {
+    "id": "5feaae5a-6eb4-4963-b7a5-cb02e26030c5",
+    "name_ar": "الهاندس - la Hollandaise 8p chedar - 100g",
+    "sku": "6111203005779",
+    "category_id": "42e40334-9e3c-4b9f-8fce-07becc534ea9",
+    "category_name": "مصبرات"
+  },
+  {
+    "id": "05ba26b1-3317-4fc6-87d6-0f4491ce7298",
+    "name_ar": "حليب معقم بدون لاكتوز جودة - lait UHT sans lactose jaouda - 500ml",
+    "sku": "6111242107441",
+    "category_id": "25c43ecd-a8e3-4c9b-96f2-285d837cbac5",
+    "category_name": "حليب"
+  },
+  {
+    "id": "39744c0f-7beb-429a-ae0a-61e4d798dcc5",
+    "name_ar": "قطع الخبز الطبيعي - Pain de mie",
+    "sku": "6111245460338",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "bf8be47c-afd4-4497-920e-1a45fa3b6f9e",
+    "name_ar": "لوتس رول  فانيلا - LOTUS BISCOFF Speculoos Fourré - Crème saveur Vanille - 150g - 150 g",
+    "sku": "5410126006377",
+    "category_id": "1aa35c38-f2e0-4ab3-8c53-c2fa7af0c5e9",
+    "category_name": "بسكويت"
+  },
+  {
+    "id": "0d5aa8b3-0db0-4ac6-a694-887303097cf0",
+    "name_ar": "لوتس رول شوكولاته - LOTUS BISCOFF Speculoos Fourré - Crème saveur Chocolat - 150g - 150 g",
+    "sku": "5410126006353",
+    "category_id": "1aa35c38-f2e0-4ab3-8c53-c2fa7af0c5e9",
+    "category_name": "بسكويت"
+  },
+  {
+    "id": "df621232-eb12-4a17-9975-2c3c2c5d12b7",
+    "name_ar": "مشروب غازي - لايكو - Laïko - 1,5 لتر",
+    "sku": "6111261060208",
+    "category_id": "7d3cde65-79a3-4266-83c7-ad1e6a38eed4",
+    "category_name": "مشروبات غازية"
+  },
+  {
+    "id": "ae2fcb1a-7a40-48e7-8f54-9e419ee902dc",
+    "name_ar": "منقوع ستيفيا، INFUSION DE STEVIA - 25 g",
+    "sku": "6111261200598",
+    "category_id": null,
+    "category_name": null
+  }
+]

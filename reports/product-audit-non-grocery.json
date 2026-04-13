@@ -1,0 +1,2102 @@
+[
+  {
+    "id": "e280bdc5-a198-400a-8051-6dea4ebe0c00",
+    "name_ar": "100% Natural Aphrodisiac Herbal Mix Paste- Epimedium Macun 240GR - 240 g",
+    "sku": "8697446210234",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "84d78674-230f-4925-9d9b-44c8a3f9307d",
+    "name_ar": "1000g - dolostop - 125",
+    "sku": "6118000093015",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "65a98dbf-7e4e-4451-b0d5-23c77db8fdca",
+    "name_ar": "15 Comprimés sécabies",
+    "sku": "6118000040934",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "4128077b-5059-444a-ba4b-447c7ef492c3",
+    "name_ar": "21st Century - Biotin, 800 mcg",
+    "sku": "0740985228814",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "38faa85c-abe6-4862-8b40-cbcfce5186a7",
+    "name_ar": "21st Century - D3",
+    "sku": "0740985270622",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "3590bc3a-c164-4d83-89c8-ec3cc9d02c75",
+    "name_ar": "21st Century - Vitamin C, 1000 mg",
+    "sku": "0740985280133",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "11830178-88cf-4352-a67b-8982fbfcf3b1",
+    "name_ar": "21st Century - Zinc citrate, 50 mg",
+    "sku": "0740985280263",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "b86999a9-4151-45cc-82d1-76cc64822718",
+    "name_ar": "21st Century, Magnesium",
+    "sku": "0740985227138",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "9a1a136f-9e9c-4ec1-a600-a4dce833d578",
+    "name_ar": "4Move Active Vitamin Lime Flavour",
+    "sku": "5900552056461",
+    "category_id": "fbc12429-e514-4745-a907-d0ef94e6d6aa",
+    "category_name": "عصير"
+  },
+  {
+    "id": "b06df392-1435-467e-bdff-bb16de53e5d8",
+    "name_ar": "A cerola Vitamine C",
+    "sku": "3700790020598",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "ae8838e0-a60b-46d6-ac5d-444e565d75bf",
+    "name_ar": "Additiva - Multivitamins Gout orange",
+    "sku": "07384481",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "64b5e699-1296-4e67-8cbe-0adcc320488d",
+    "name_ar": "Aïcha - Crème d'ipomée - 430g",
+    "sku": "6111021013505",
+    "category_id": "b69ec790-f00e-4831-97f3-d201698c2dc6",
+    "category_name": "مربى"
+  },
+  {
+    "id": "fa37ace1-960c-4e38-aff1-99acf431cdb0",
+    "name_ar": "Aicha crème d' ipomée - 240g",
+    "sku": "6111021012508",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "9efce8a3-363e-4cac-8506-47d371d87266",
+    "name_ar": "Aicha Tomato Paste - 730g",
+    "sku": "6111021090056",
+    "category_id": "42e40334-9e3c-4b9f-8fce-07becc534ea9",
+    "category_name": "مصبرات"
+  },
+  {
+    "id": "bbdbb09b-7188-45fb-a040-a9c9cf5dec23",
+    "name_ar": "Aknaz - Cream Cheese - 200g",
+    "sku": "4002671158772",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "11e4688e-b7f6-4e5f-850d-5e08c7421dad",
+    "name_ar": "Alaska - penaut butter creamy - 400",
+    "sku": "0036000291452",
+    "category_id": "42e40334-9e3c-4b9f-8fce-07becc534ea9",
+    "category_name": "مصبرات"
+  },
+  {
+    "id": "5f1919a0-48aa-40ef-ad41-d10e1afccbf0",
+    "name_ar": "Alba Crème - 110 g",
+    "sku": "6111265800053",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "9cb93a54-24a9-4975-91da-00994bf25014",
+    "name_ar": "Albane, Best Milk - Lben Pasteurisé - 450g",
+    "sku": "6111265800350",
+    "category_id": "25c43ecd-a8e3-4c9b-96f2-285d837cbac5",
+    "category_name": "حليب"
+  },
+  {
+    "id": "f63ef662-ab7b-4367-84d8-fc603d7b8f5c",
+    "name_ar": "Alsa Préparation pour crème Chantilly - 100g",
+    "sku": "6111026101856",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "5bb65c20-e1a1-4648-99eb-c247967aa72e",
+    "name_ar": "Altapharma - Eisen + Vitamine - 80 g, 20 Brausetabletten",
+    "sku": "4305615614359",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "7b915952-28d6-45e8-83bc-69daf04954ac",
+    "name_ar": "altapharma, altapharma (ROSSMANN) - Multivitamin + Mineral - 90g",
+    "sku": "4305615614397",
+    "category_id": "fbc12429-e514-4745-a907-d0ef94e6d6aa",
+    "category_name": "عصير"
+  },
+  {
+    "id": "4bbc0fec-52b4-4e16-b157-32a9b4f700a7",
+    "name_ar": "Altapharma, Rossmann - altapharma vitaminC",
+    "sku": "4305615614403",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "a52464a5-8b9e-4732-9fe1-9df5a09883d0",
+    "name_ar": "Arluy - MegaChok Chocolate Cream",
+    "sku": "8412674000934",
+    "category_id": "1aa35c38-f2e0-4ab3-8c53-c2fa7af0c5e9",
+    "category_name": "بسكويت"
+  },
+  {
+    "id": "f63e18c6-41a1-4e65-8409-8eb40ab1d468",
+    "name_ar": "AXE - Déodorant",
+    "sku": "8720181031595",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "7205ba93-13af-440b-8e77-99a0f9c94b79",
+    "name_ar": "Bahlsen Hit cocoa crème - 13gr4",
+    "sku": "4017100350535",
+    "category_id": "1aa35c38-f2e0-4ab3-8c53-c2fa7af0c5e9",
+    "category_name": "بسكويت"
+  },
+  {
+    "id": "98673c9a-8acd-4f3c-a465-293909e9fcd4",
+    "name_ar": "Bahlsen,Leibniz - LEIBNIZ  CHOCO CREAM - 228g",
+    "sku": "4017100366192",
+    "category_id": "1aa35c38-f2e0-4ab3-8c53-c2fa7af0c5e9",
+    "category_name": "بسكويت"
+  },
+  {
+    "id": "eb962c9e-7c9b-4ec7-abaa-14a17e183dbf",
+    "name_ar": "Balea - Duschgel Vanilie",
+    "sku": "4066447429398",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "61174d72-0876-48f5-abee-f77be6252076",
+    "name_ar": "Balea - Shampoo",
+    "sku": "4066447468014",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "a077e25d-3f2e-4dbc-81e6-619bb57c4552",
+    "name_ar": "Balea - Shampoo Pure Frische",
+    "sku": "4066447468175",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "66ceab88-fbbf-4918-a7e1-6a1f7db2b53a",
+    "name_ar": "Balea - Shampoo Seidenglanz",
+    "sku": "4066447467932",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "e0a2adb0-a699-4390-a80a-0169123ca0f6",
+    "name_ar": "Balea Men - Coffein Boost - 150ml",
+    "sku": "4058172880339",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "8124b791-0570-4a55-ade2-fe4b2859852f",
+    "name_ar": "beat - Crème Fraiche - 200g",
+    "sku": "6111246720431",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "d802055f-6151-4afa-9625-534fd0e9336f",
+    "name_ar": "Beurre Pasteurisé - beurre jaouda 1kg",
+    "sku": "6111242103863",
+    "category_id": "42e40334-9e3c-4b9f-8fce-07becc534ea9",
+    "category_name": "مصبرات"
+  },
+  {
+    "id": "536d71a2-5f66-4ba1-a1f7-d16b2776c59b",
+    "name_ar": "Beurre pasteurisé ac 500g - medina",
+    "sku": "6111246510025",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "67b3e389-3c76-4768-be50-efdb89ba1e54",
+    "name_ar": "bijen propolis - Maïzena fleur de maïs - 100capsules 500mg",
+    "sku": "11671275",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "149a12d0-20dd-45c9-bb3a-390dd7336c5b",
+    "name_ar": "Bioméga 3 90 Capsules",
+    "sku": "3505630901088",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "62af5048-a854-4742-a4b1-1fc598d72145",
+    "name_ar": "BiotechUSA - One-A-Day Multivitamin",
+    "sku": "5999076244737",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "134fdd05-85d4-4f4d-b1bf-37c525e581d6",
+    "name_ar": "bioxon - bio on crème oxydante",
+    "sku": "6111033001446",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "5da34a51-6230-40e4-862b-bc3039935edb",
+    "name_ar": "Bodymass - Multivitamin - 67g",
+    "sku": "8718836395802",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "78c015aa-dc18-48c6-9db7-888f10241770",
+    "name_ar": "Britannia - Hazelnut flavoured with cream wafers - biscuits  gaufrettes",
+    "sku": "6291007500424",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "b200628b-6bc5-41cc-924c-759e9901ee7b",
+    "name_ar": "Brut - Déodorant Oud - 200mL",
+    "sku": "8720181072857",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "be824f9a-12ce-4e03-a045-6a3d07c969a6",
+    "name_ar": "Buldak Cream Carbonara Hot Chicken Flavor Ramen - 140g",
+    "sku": "8801073114814",
+    "category_id": "52248356-77bb-4a9e-b6e6-f3edeb415ea7",
+    "category_name": "عجائن"
+  },
+  {
+    "id": "89c8668b-1682-46de-8b85-44f033287f98",
+    "name_ar": "Cadum - Gel douche - 750ml",
+    "sku": "3600551054490",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "d0c81d46-cf4e-4a1b-813f-69f3fe7aad1e",
+    "name_ar": "Café Capsule Marjane",
+    "sku": "6111262587605",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "6b173458-f098-4482-b145-2cee9500fa16",
+    "name_ar": "California Gold Nutrition - LactoBif 5 probiotics",
+    "sku": "0898220009633",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "7e6bba00-d4ca-4c79-9130-1d7360924a5a",
+    "name_ar": "California Gold Nutrition Superfoods - Organic maca root powder",
+    "sku": "0898220012183",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "c914793b-2aa9-49b9-8bc1-ee5045d7c13e",
+    "name_ar": "California Gold Nutrition, Bee Propolis 2X, Concentrated Extract, 500 MG, 90 Veggie Caps",
+    "sku": "0898220009459",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "a2acea76-5e2b-4e5d-83b1-af78e81415bf",
+    "name_ar": "California Gold Nutrition, CollagenUP, Hydrolyzed Marine Collagen Peptides with Hyaluronic Acid and Vitamin C, Unflavored",
+    "sku": "0898220010332",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "8aef4f6a-d234-4ece-bf13-acc32530603b",
+    "name_ar": "California Gold Nutrition, Omega-3 Premium Fish Oil - 100",
+    "sku": "0898220009527",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "c409b704-71e4-4276-939f-78b719944155",
+    "name_ar": "Candia - Crème légère - 200 ml",
+    "sku": "3533630089796",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "c6943e53-a3ce-44e1-8a07-868fe88a87cb",
+    "name_ar": "Capsules café bio sans aliminium",
+    "sku": "6111262581078",
+    "category_id": "70730a8f-ced0-4bea-ba1b-39277cdfca8c",
+    "category_name": "قهوة"
+  },
+  {
+    "id": "4db371bd-ad62-474a-8a60-639f4aafc5d3",
+    "name_ar": "Capsules Café Intense",
+    "sku": "8412956013430",
+    "category_id": "70730a8f-ced0-4bea-ba1b-39277cdfca8c",
+    "category_name": "قهوة"
+  },
+  {
+    "id": "e282e800-d6ca-4431-b05e-d11aa8fce638",
+    "name_ar": "Capsules java timor bresil",
+    "sku": "6111207002019",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "4e56d8d5-7c3b-45be-9144-540ac6269cd9",
+    "name_ar": "Carré gervais à la crème",
+    "sku": "6111032008361",
+    "category_id": "42e40334-9e3c-4b9f-8fce-07becc534ea9",
+    "category_name": "مصبرات"
+  },
+  {
+    "id": "3ad305ad-1670-41a8-b71d-08a538f3fe39",
+    "name_ar": "Carré Gervais à la crème - 36 portions",
+    "sku": "6111032008385",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "67833d9c-8cf0-420e-995d-0aa47e45ebe3",
+    "name_ar": "Casino - Crème de marron - 360 g",
+    "sku": "3222477425736",
+    "category_id": "42e40334-9e3c-4b9f-8fce-07becc534ea9",
+    "category_name": "مصبرات"
+  },
+  {
+    "id": "d9237a85-3b4e-4aa9-95c3-ed45991e9259",
+    "name_ar": "Casino - Crème glacée Vanille\r\nA la vanille de Madagascar - 500 g",
+    "sku": "3222477082014",
+    "category_id": "cee57dc6-d0c8-4524-8932-5f0fe813458d",
+    "category_name": "مثلجات"
+  },
+  {
+    "id": "1f53d6de-a031-4b30-a00a-6af0fdeb5170",
+    "name_ar": "Casino, DooDingues - Goûters ronds parfum chocolat - 300 g",
+    "sku": "3222477615991",
+    "category_id": "1aa35c38-f2e0-4ab3-8c53-c2fa7af0c5e9",
+    "category_name": "بسكويت"
+  },
+  {
+    "id": "48ded51c-4bb4-4424-a38f-6ba92c3da42d",
+    "name_ar": "Casino, DooDingues, Les Doodingues - Poudre cacaotée   7 vitamines - 450 g",
+    "sku": "3222475394577",
+    "category_id": "fbc12429-e514-4745-a907-d0ef94e6d6aa",
+    "category_name": "عصير"
+  },
+  {
+    "id": "f3fa9c66-f763-4db5-ae15-5da07fa16e18",
+    "name_ar": "Central Danone - Lben Pasteurisé - 450 g",
+    "sku": "6111032003496",
+    "category_id": "25c43ecd-a8e3-4c9b-96f2-285d837cbac5",
+    "category_name": "حليب"
+  },
+  {
+    "id": "a92258d2-56b8-49db-8072-0e08583b61ac",
+    "name_ar": "Centrale - Crème Fraîche épaisse",
+    "sku": "6111032007241",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "55395de8-bc05-4276-bd7c-30706e46c381",
+    "name_ar": "charcoal tothpaste - 6932511217056",
+    "sku": "6932511217056",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "98171ca7-eeed-44d8-958f-a88b98020e7c",
+    "name_ar": "Chergui - Crème",
+    "sku": "6111126004491",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "db95122c-be73-4c15-94f7-cd8487961372",
+    "name_ar": "Chergui - Crème",
+    "sku": "6111126004613",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "f93c02ba-f3e5-4fee-8d5d-1b9e3cd4a59e",
+    "name_ar": "Chergui - Crème Yaourt Brassé  - 110 g",
+    "sku": "6111126001841",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "4db31819-8609-4342-8ca8-50db03c78db9",
+    "name_ar": "Chergui - Lait frais pasteurisé - 500ml",
+    "sku": "6111126000455",
+    "category_id": "25c43ecd-a8e3-4c9b-96f2-285d837cbac5",
+    "category_name": "حليب"
+  },
+  {
+    "id": "6605c0da-3bf6-4c43-adcc-776f971d53d0",
+    "name_ar": "CHERGUI - قشدة طرية - Crème fraiche",
+    "sku": "6111126000905",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "0af9e520-b13f-4e7c-818c-3b8d67beb96d",
+    "name_ar": "Chupa Chups - Sparkling Strawberry & Cream - 25cl",
+    "sku": "8801069412986",
+    "category_id": "7d3cde65-79a3-4266-83c7-ad1e6a38eed4",
+    "category_name": "مشروبات غازية"
+  },
+  {
+    "id": "9cdda8fb-5c05-4418-988b-fc43fd824506",
+    "name_ar": "CMI (Carrefour Marchandises Internationales), Carrefour, Groupe Carrefour - Le Camembert - Fromage à patte molle au lait pasteurisé - 250 g",
+    "sku": "3270190020165",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "1de6015d-050c-40d4-a927-6fd84c4f982a",
+    "name_ar": "collagen",
+    "sku": "0016185129009",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "133b6dfc-f051-4cd3-aa06-24202e175530",
+    "name_ar": "comprimé - Multivitamine",
+    "sku": "3664492013336",
+    "category_id": "fbc12429-e514-4745-a907-d0ef94e6d6aa",
+    "category_name": "عصير"
+  },
+  {
+    "id": "1031cc7c-b7ad-41c4-9b1a-9cdb10c0cbe2",
+    "name_ar": "Cookies Bergen - Cookies and cream",
+    "sku": "5902379165838",
+    "category_id": "1aa35c38-f2e0-4ab3-8c53-c2fa7af0c5e9",
+    "category_name": "بسكويت"
+  },
+  {
+    "id": "fd29b8eb-fa15-4d3b-a7ac-726ed433a3f0",
+    "name_ar": "Coprima - Beurre Pasteurisé - 200 g",
+    "sku": "6111260970034",
+    "category_id": "42e40334-9e3c-4b9f-8fce-07becc534ea9",
+    "category_name": "مصبرات"
+  },
+  {
+    "id": "f255c4b3-13c7-4240-a8af-2800148dfc61",
+    "name_ar": "COSTA VERDE - capsules à café - 50g",
+    "sku": "8412956014383",
+    "category_id": "70730a8f-ced0-4bea-ba1b-39277cdfca8c",
+    "category_name": "قهوة"
+  },
+  {
+    "id": "bd2b02f5-bdda-4dce-a932-e04ccb666886",
+    "name_ar": "cream cheese",
+    "sku": "3451799034269",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "7593205b-48ad-44b6-817f-ef5000b114ee",
+    "name_ar": "Cream cheese",
+    "sku": "6111246720691",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "580b0190-96b2-4bdc-b871-1a9cdedd7a5e",
+    "name_ar": "Cream cheese - 200",
+    "sku": "6111262581955",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "c81f8d30-c091-4560-8a32-c8574bfd3a79",
+    "name_ar": "Cream cheese - 500 g",
+    "sku": "6111246722084",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "77b38c58-7f1f-427c-ae9d-4c974258fa5f",
+    "name_ar": "Cream Cheese - creme cheese le berger 900g - 900 g",
+    "sku": "6111246721964",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "8a9a1a2f-7829-4d8c-9286-d84a2ccd74cb",
+    "name_ar": "Creamy",
+    "sku": "6111251722925",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "65671e0b-d5d6-4b63-9ded-63499c12154e",
+    "name_ar": "Crème",
+    "sku": "8413479324140",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "01ec6a96-210c-4a9e-a88c-715e1b190107",
+    "name_ar": "crème à tartiner - Zahia choco - 900g",
+    "sku": "6111255092062",
+    "category_id": "42e40334-9e3c-4b9f-8fce-07becc534ea9",
+    "category_name": "مصبرات"
+  },
+  {
+    "id": "16fee41b-dfb8-41ec-940a-fcb00bf87950",
+    "name_ar": "Crème cheese",
+    "sku": "6111258061393",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "86042e9d-5f8d-481f-b4ee-144b3951c16b",
+    "name_ar": "Crème cheese or blanc - 200g",
+    "sku": "6111245343617",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "e0785b1b-da7c-44c3-a753-a9a74b9edcd1",
+    "name_ar": "crème cuisson jaouda 1L",
+    "sku": "6111242109438",
+    "category_id": "25c43ecd-a8e3-4c9b-96f2-285d837cbac5",
+    "category_name": "حليب"
+  },
+  {
+    "id": "e164783f-cba1-4fd8-b4a0-13be101b478d",
+    "name_ar": "Crème dessert pêche",
+    "sku": "3700263600609",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "f160708b-7cef-401d-bbef-e8f06e9ad95d",
+    "name_ar": "Crème fraîche - Président - 20 cl",
+    "sku": "3155253004699",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "0b77a87a-94c9-47c2-b4f2-ff8ac77686fc",
+    "name_ar": "Crème fraiche 200g araai",
+    "sku": "6111246720455",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "3a2d2df4-a903-4c1c-a95e-adb37fa6523b",
+    "name_ar": "crème fraîche Chergui - 200 g",
+    "sku": "9111680000905",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "45dc8ecd-e339-4e88-bec2-72d776b45e1b",
+    "name_ar": "Crème uht Montare D'oro - 200ml",
+    "sku": "3800112161982",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "235edc3f-4ffe-45b7-9ab9-179a90b79224",
+    "name_ar": "Cuétara - Mini go galletas de desayuno con vitaminas hierro",
+    "sku": "8434165484054",
+    "category_id": "1aa35c38-f2e0-4ab3-8c53-c2fa7af0c5e9",
+    "category_name": "بسكويت"
+  },
+  {
+    "id": "95098a1d-fc4a-4d17-8cd5-5c034e737d7e",
+    "name_ar": "Danon - X-tra creame - 110",
+    "sku": "6111032009719",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "04730619-cfc5-44b8-9b29-8edcd7837a91",
+    "name_ar": "Danone - Carré Crème COEUR DE LAIT",
+    "sku": "6111206000665",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "9b55fa30-4094-4629-9474-d2dd230f10cb",
+    "name_ar": "Danone - Crème caramel - 80g",
+    "sku": "6111032007968",
+    "category_id": "4f833acd-c996-4060-8c47-5a28963a22cb",
+    "category_name": "حلويات"
+  },
+  {
+    "id": "9a2e0f52-7016-4c32-81a7-64dcc7e2b6ae",
+    "name_ar": "Danone - Lait Frais Pasteurisé",
+    "sku": "6111032008842",
+    "category_id": "25c43ecd-a8e3-4c9b-96f2-285d837cbac5",
+    "category_name": "حليب"
+  },
+  {
+    "id": "45c75509-2ca3-40aa-8927-9fbdcf63e312",
+    "name_ar": "Dates paste - 500 g",
+    "sku": "0070312098743",
+    "category_id": "82bc4ee4-279f-4864-bd9c-668b0068f161",
+    "category_name": "فواكه"
+  },
+  {
+    "id": "7b40d6c4-4d4e-4c76-837b-5fb326fdc5ca",
+    "name_ar": "Deliplus - Magnesio + Vitaminas B1 B6 B12 sabor Naranja - 3,9 g x 20",
+    "sku": "8480000795946",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "f5942d7b-c940-4cb8-81c6-ee725c9da27b",
+    "name_ar": "Deliplus - Vitamina C + Zinc sabor Limón - 80 g (20 comprimidos)",
+    "sku": "8402001001246",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "a81b0383-96d8-4fcf-8155-cfdbece085f3",
+    "name_ar": "Deliplus - Vitamins & Minerals",
+    "sku": "8402001017995",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "64ac3c3c-22e7-4678-a42a-8a6e05288b45",
+    "name_ar": "Deva - Doci Vox - 10 Comprimé",
+    "sku": "6111269050195",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "36d7db24-26e7-4c52-a076-30d8a82d2d43",
+    "name_ar": "Deva - DociVox - 20 comprimés",
+    "sku": "02102128",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "1b368a1f-6b98-4044-b4e5-d75befbd4444",
+    "name_ar": "Dione - Ice Cream - 100ml / 62g",
+    "sku": "4770175484276",
+    "category_id": "cee57dc6-d0c8-4524-8932-5f0fe813458d",
+    "category_name": "مثلجات"
+  },
+  {
+    "id": "b705ca6d-f8a6-4a24-b071-4dad81617588",
+    "name_ar": "DIONE - Ice cream zero added sugar peanut butter - 90 ml",
+    "sku": "4770175483149",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "2f5b470f-82e6-48f2-9caf-a9c9313204df",
+    "name_ar": "disaar - jabón vitamina C",
+    "sku": "6932511223811",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "1799027a-c94e-4c0c-9a10-76ba77bcc51f",
+    "name_ar": "disaar - vitamine c - 30ml",
+    "sku": "6932511219326",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "a0328650-6741-4716-845d-a7344aa5945a",
+    "name_ar": "DM, Sportness - Energieriegel Himberr - 35g",
+    "sku": "4058172101441",
+    "category_id": "3709aa87-c19d-417d-9148-a6a19827850e",
+    "category_name": "وجبات خفيفة"
+  },
+  {
+    "id": "1a061c75-bb95-4709-b62c-73bd3d424396",
+    "name_ar": "DM,mivolis (dm) - Vitamine C 240mg/tablette - 82g",
+    "sku": "4058172310232",
+    "category_id": "fbc12429-e514-4745-a907-d0ef94e6d6aa",
+    "category_name": "عصير"
+  },
+  {
+    "id": "84494b98-c3bb-47d0-ba3f-5762e7a37ec6",
+    "name_ar": "Doliprane vitamine C",
+    "sku": "6118000041252",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "8dd552c3-10ce-4c02-93ea-da7eec01acb9",
+    "name_ar": "Dulcetto cream cheese - 200 g",
+    "sku": "6111264421228",
+    "category_id": "42e40334-9e3c-4b9f-8fce-07becc534ea9",
+    "category_name": "مصبرات"
+  },
+  {
+    "id": "c71f7e5c-d2ac-4df0-b772-ec067ff8323a",
+    "name_ar": "Eat real - LENTIL CHIPS smooth CREAMY DILL flavour.",
+    "sku": "5060878780614",
+    "category_id": "3709aa87-c19d-417d-9148-a6a19827850e",
+    "category_name": "وجبات خفيفة"
+  },
+  {
+    "id": "832b71e7-db29-4112-92a8-77235539f09d",
+    "name_ar": "Eat Real - Quinoa Chips Sour Cream And Chive Flavoir",
+    "sku": "5060878780607",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "bdf60081-e0f5-40ea-a03b-8fb7a37224d5",
+    "name_ar": "Elle & Vire Uht Excellence Whipping Cream",
+    "sku": "3161911703385",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "a4deec6d-78bc-4853-8296-b90f50affafc",
+    "name_ar": "Elle & Vire, Elle & Vire Professionnel, Savencia - Elle & Vire Excellence Cooking Cream 1lt - 1 l",
+    "sku": "3451790802249",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "65541099-9ba5-43b4-9fd8-10f91a8ba47c",
+    "name_ar": "Elle & Vire, Elle&Vire International - Crème dessert chocolat stérilisée UHT - 4 x 100 g",
+    "sku": "3451790400810",
+    "category_id": "4f833acd-c996-4060-8c47-5a28963a22cb",
+    "category_name": "حلويات"
+  },
+  {
+    "id": "9583351e-a8ba-4d33-9022-3e1c504d66c2",
+    "name_ar": "Elle & Vire, Elle&Vire International, Fromarsac, Savencia - Le Cream Cheese - 150 g",
+    "sku": "3272770014298",
+    "category_id": "42e40334-9e3c-4b9f-8fce-07becc534ea9",
+    "category_name": "مصبرات"
+  },
+  {
+    "id": "78c4b907-09d3-4eb4-a280-b2de79b04982",
+    "name_ar": "Elle & Vire, Elle&Vire International, Savencia - Crème dessert aromatisée saveur vanille stérilisée UHT - 4 x 100 g",
+    "sku": "3451790400797",
+    "category_id": "4f833acd-c996-4060-8c47-5a28963a22cb",
+    "category_name": "حلويات"
+  },
+  {
+    "id": "2330da1d-7246-4d18-b050-fc19a6d770af",
+    "name_ar": "en:creams",
+    "sku": "3400934376313",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "7c1593ea-2773-4fcd-a7b3-dc797cf88113",
+    "name_ar": "en:creams",
+    "sku": "6111255614868",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "aab36d8c-753f-4a4a-8d73-be1963504965",
+    "name_ar": "en:herbal-teas",
+    "sku": "6111069013901",
+    "category_id": "9447b9d5-f9dd-44fe-af33-830fdc978a8e",
+    "category_name": "شاي"
+  },
+  {
+    "id": "cb18ab90-3620-4b34-b5d4-32cdb784399a",
+    "name_ar": "en:ice-cream-tubs",
+    "sku": "6111178000793",
+    "category_id": "cee57dc6-d0c8-4524-8932-5f0fe813458d",
+    "category_name": "مثلجات"
+  },
+  {
+    "id": "89012080-eb95-435a-9730-99e8530ae85d",
+    "name_ar": "en:ice-cream-tubs - 640 g",
+    "sku": "8695077007803",
+    "category_id": "cee57dc6-d0c8-4524-8932-5f0fe813458d",
+    "category_name": "مثلجات"
+  },
+  {
+    "id": "4c782748-e185-4d04-bdd6-799f9ef804cf",
+    "name_ar": "en:ice-creams - 69 ml",
+    "sku": "6111243610087",
+    "category_id": "cee57dc6-d0c8-4524-8932-5f0fe813458d",
+    "category_name": "مثلجات"
+  },
+  {
+    "id": "b29c357b-e00a-48cd-889d-5a76add44442",
+    "name_ar": "en:ice-creams-and-sorbets",
+    "sku": "6111255090266",
+    "category_id": "eadc65ee-4f80-4118-89a4-22989a31169b",
+    "category_name": "مجمدات"
+  },
+  {
+    "id": "39f59648-50d3-4d70-b646-8484407d3cdd",
+    "name_ar": "en:ice-creams-and-sorbets",
+    "sku": "6111262386321",
+    "category_id": "eadc65ee-4f80-4118-89a4-22989a31169b",
+    "category_name": "مجمدات"
+  },
+  {
+    "id": "030e0136-96c5-4032-92eb-b8f2e21af3b4",
+    "name_ar": "en:vitamins",
+    "sku": "6118000180593",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "1fa19d90-2b40-4161-aec9-937809cca528",
+    "name_ar": "equilibra - Più Vitamine & Minerali - 86g",
+    "sku": "8000137002726",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "c97a2983-90ba-46b1-b1bd-3092f48819e4",
+    "name_ar": "Eti Wafe'up extra Cocoa Cream Wafer - 29g",
+    "sku": "8690526055657",
+    "category_id": "1aa35c38-f2e0-4ab3-8c53-c2fa7af0c5e9",
+    "category_name": "بسكويت"
+  },
+  {
+    "id": "54380ce5-0939-42c1-9a23-f2a6af977767",
+    "name_ar": "Ferrero group,Kinder - Kinder Riegel Einzelpackung - 100 gram",
+    "sku": "40084077",
+    "category_id": "4f833acd-c996-4060-8c47-5a28963a22cb",
+    "category_name": "حلويات"
+  },
+  {
+    "id": "3deb66bb-690c-4ee5-bf14-240b9db1be78",
+    "name_ar": "Ferrero, Hanuta - Hanuta Riegel - Milch & Nuss - 34.5g",
+    "sku": "8000500331774",
+    "category_id": "4f833acd-c996-4060-8c47-5a28963a22cb",
+    "category_name": "حلويات"
+  },
+  {
+    "id": "ad36441d-7d68-460d-89e8-9f8c6a45b148",
+    "name_ar": "Fiori creamy milk chocolate - 1",
+    "sku": "6291003081965",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "55f66987-a62c-4908-8123-5ed31ae8969f",
+    "name_ar": "Florbú - Wafer Nata Cream",
+    "sku": "8411414015139",
+    "category_id": "1aa35c38-f2e0-4ab3-8c53-c2fa7af0c5e9",
+    "category_name": "بسكويت"
+  },
+  {
+    "id": "a380efb1-dffa-4701-a744-bee5856618ea",
+    "name_ar": "Fromital - Crème fraîche - 200ml",
+    "sku": "6111243090339",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "899d1a80-dc33-44c0-b615-a421298add6c",
+    "name_ar": "Futurebiotics - Vitamins K2 + D3",
+    "sku": "0049479501335",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "bc0154c6-e613-4753-bbf5-c8ee1fccbd55",
+    "name_ar": "gastro mixte - b - Cheeslé cream cheese - 1000g",
+    "sku": "6111259093096",
+    "category_id": "4f833acd-c996-4060-8c47-5a28963a22cb",
+    "category_name": "حلويات"
+  },
+  {
+    "id": "bd6f43dd-cf0f-4cee-a7a2-23740e8dc674",
+    "name_ar": "Gaufrettes fourrées crème Cacao",
+    "sku": "6111102766030",
+    "category_id": "1aa35c38-f2e0-4ab3-8c53-c2fa7af0c5e9",
+    "category_name": "بسكويت"
+  },
+  {
+    "id": "ea1d5b51-16cb-4231-bb11-74b74799a2e6",
+    "name_ar": "Gaufrettes fourrées crème vanille Family",
+    "sku": "6111102766016",
+    "category_id": "1aa35c38-f2e0-4ab3-8c53-c2fa7af0c5e9",
+    "category_name": "بسكويت"
+  },
+  {
+    "id": "88f4998c-bc47-4abc-9bbe-86935d96c820",
+    "name_ar": "Gelatine alimentaire",
+    "sku": "6111242801561",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "11a061df-ef5b-4035-b302-59c8353b0df2",
+    "name_ar": "Gerblé,Gerblé Vitalité,Nutrition & Santé - Biscuit lait chocolat - 230 g",
+    "sku": "3175680011534",
+    "category_id": "1aa35c38-f2e0-4ab3-8c53-c2fa7af0c5e9",
+    "category_name": "بسكويت"
+  },
+  {
+    "id": "c96754ca-205f-4d78-b8cd-67900a0e267e",
+    "name_ar": "Gervais crème fraiche",
+    "sku": "6111032008316",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "f604c51d-3630-45af-9bab-9851b7248e2f",
+    "name_ar": "Gervais fromage à la crème",
+    "sku": "6111032008408",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "7cb4965b-223c-4d85-a00f-ff1729cb1953",
+    "name_ar": "gleamy - collagene",
+    "sku": "0679771821208",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "73b4df10-6053-4b14-a800-2f28e8aad21a",
+    "name_ar": "Good Calories - Protein Peanut Cream & Vanilla",
+    "sku": "5903548003371",
+    "category_id": "4f833acd-c996-4060-8c47-5a28963a22cb",
+    "category_name": "حلويات"
+  },
+  {
+    "id": "23cebf04-cd4b-4561-b8e1-f07818d68dbc",
+    "name_ar": "Gourmés cream cheese - 200 g",
+    "sku": "6111255392216",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "032cd9e9-d8e6-4d68-a2ba-14d2b24cdb66",
+    "name_ar": "Gummies Multivitaminées - 60 Gommes - Pediakid - 138 g",
+    "sku": "3700225602283",
+    "category_id": "4f833acd-c996-4060-8c47-5a28963a22cb",
+    "category_name": "حلويات"
+  },
+  {
+    "id": "9b473396-4068-4cbf-a8ac-75a2d0e7842b",
+    "name_ar": "halo gel",
+    "sku": "4031626710789",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "b87fb63a-666e-4794-89d1-e290d488fe40",
+    "name_ar": "Hell energy drink multivitamin - 250 ml",
+    "sku": "5999885747023",
+    "category_id": "fbc12429-e514-4745-a907-d0ef94e6d6aa",
+    "category_name": "عصير"
+  },
+  {
+    "id": "a2022dd6-19b0-4613-8334-17b9e894f70e",
+    "name_ar": "Henry's ice cream",
+    "sku": "6111178001813",
+    "category_id": "eadc65ee-4f80-4118-89a4-22989a31169b",
+    "category_name": "مجمدات"
+  },
+  {
+    "id": "48fecfae-6e79-4d9c-a6c0-00756b33e58a",
+    "name_ar": "Himalaya herbals",
+    "sku": "8901138825614",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "448f804f-0e69-4026-8e71-768a33049b96",
+    "name_ar": "hollandais - Omela creamer - 3",
+    "sku": "8716200395878",
+    "category_id": "0249c8f2-2a2f-4abd-8d98-58332e96742e",
+    "category_name": "خمارات فلون"
+  },
+  {
+    "id": "1f084cae-9b7c-444d-9b27-bd8b95a144b1",
+    "name_ar": "Hollywood - Green Fresh parfum menthe verte - 14g",
+    "sku": "7622210722140",
+    "category_id": "4f833acd-c996-4060-8c47-5a28963a22cb",
+    "category_name": "حلويات"
+  },
+  {
+    "id": "b9058aa5-7db2-4e6f-abf2-f16a191b22ca",
+    "name_ar": "Huile De Foie De Morue 270 MG - 140 Capsules - MGD",
+    "sku": "3505631400016",
+    "category_id": "afe52f4a-50c2-4b97-8caa-ebf9217cae0a",
+    "category_name": "مأكولات بحرية"
+  },
+  {
+    "id": "f9175173-4d71-4678-9d40-03d47b21dd7b",
+    "name_ar": "HuilOr - RICHE EN Vitamine E Oméga 3 et 6 - 5 L",
+    "sku": "6111024001226",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "fc92c6c4-c201-498c-9b4c-65ae428357b8",
+    "name_ar": "HXNUTRITION NATURE - Micronized Creatine Monohydrate - 300 g",
+    "sku": "8436037960420",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "88df784c-57a3-4e99-9f81-132fef8c8fce",
+    "name_ar": "Ice cream",
+    "sku": "6111255520800",
+    "category_id": "cee57dc6-d0c8-4524-8932-5f0fe813458d",
+    "category_name": "مثلجات"
+  },
+  {
+    "id": "a4b7c5b7-b4e0-4f72-883a-9fc55d5ceb3c",
+    "name_ar": "ice cream with oreo cookie pieces",
+    "sku": "8436575298764",
+    "category_id": "cee57dc6-d0c8-4524-8932-5f0fe813458d",
+    "category_name": "مثلجات"
+  },
+  {
+    "id": "4cba8ebb-9e65-4a74-996c-0153a1c1c7e6",
+    "name_ar": "idéal - Crème patissière au parfum vanille",
+    "sku": "6111180000354",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "dde51489-8289-4290-a4e3-79a260536983",
+    "name_ar": "Idéal - Flan parfum fraise - 2,5g",
+    "sku": "6111180003850",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "95d742ae-0286-4006-b856-0cfdcc34decc",
+    "name_ar": "Infusion en gelée à la grenade et coco - 280 g",
+    "sku": "3610340017476",
+    "category_id": "42e40334-9e3c-4b9f-8fce-07becc534ea9",
+    "category_name": "مصبرات"
+  },
+  {
+    "id": "5d9f5fda-fc2b-4bbd-8936-57c2f1cef5fe",
+    "name_ar": "Innovit - Vitamine D 10 - 57 g",
+    "sku": "8723300710739",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "6a28d380-a7c6-4879-97c1-b0ec3b5cb1b7",
+    "name_ar": "Jaouda - Beurre Frais Pasteurisé - 200g",
+    "sku": "6111242105331",
+    "category_id": "42e40334-9e3c-4b9f-8fce-07becc534ea9",
+    "category_name": "مصبرات"
+  },
+  {
+    "id": "de38b661-9faa-4ff0-8c1b-5cf7f98be965",
+    "name_ar": "Jaouda - crème cuisson",
+    "sku": "6111242104617",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "5954a91a-c477-4715-aad6-24eecded616e",
+    "name_ar": "Jaouda - Crème cuisson",
+    "sku": "6111242109391",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "d29c6381-902c-4c2f-9eb6-59ea5a00fdc0",
+    "name_ar": "Jaouda - LBEN CARTON PASTEURISER - 450g",
+    "sku": "6111242101050",
+    "category_id": "25c43ecd-a8e3-4c9b-96f2-285d837cbac5",
+    "category_name": "حليب"
+  },
+  {
+    "id": "11ff2453-400f-457e-902f-857eaf205af0",
+    "name_ar": "JDE - Capsules espresso Ristretto l'Or 11 - 10",
+    "sku": "8711000891643",
+    "category_id": "70730a8f-ced0-4bea-ba1b-39277cdfca8c",
+    "category_name": "قهوة"
+  },
+  {
+    "id": "d48bed97-4ba1-43b0-a720-b1757542d3d6",
+    "name_ar": "Jibal - Lait Frais entier pasteurisé - 47cl",
+    "sku": "6111246951682",
+    "category_id": "25c43ecd-a8e3-4c9b-96f2-285d837cbac5",
+    "category_name": "حليب"
+  },
+  {
+    "id": "9308152e-a6ea-48fb-8b22-fe64fff18075",
+    "name_ar": "Juva santé - Juvatonus effervescent - 30 comprimés",
+    "sku": "3160929670382",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "299a3d91-e4a6-4629-abf9-a24df65a194e",
+    "name_ar": "Juver - Disfruta 10 frutas +10 vitaminas - 1,5 l",
+    "sku": "8410707007998",
+    "category_id": "fbc12429-e514-4745-a907-d0ef94e6d6aa",
+    "category_name": "عصير"
+  },
+  {
+    "id": "33715f1c-d837-4d35-b946-4b018cc6cff7",
+    "name_ar": "Juver - Disfruta Frutas Y Vitaminas Brik imp",
+    "sku": "8410707000241",
+    "category_id": "fbc12429-e514-4745-a907-d0ef94e6d6aa",
+    "category_name": "عصير"
+  },
+  {
+    "id": "5f14b040-0562-4689-897b-955315fe7e62",
+    "name_ar": "Juver - Néctar de frutas vitaminas sin azúcares añadidos brik - jus de fruits - 2 L",
+    "sku": "8410707175451",
+    "category_id": "fbc12429-e514-4745-a907-d0ef94e6d6aa",
+    "category_name": "عصير"
+  },
+  {
+    "id": "21bb3802-4f05-4b39-8dc4-22a0011f394d",
+    "name_ar": "Kiri à la crème de lait",
+    "sku": "6111028000584",
+    "category_id": "42e40334-9e3c-4b9f-8fce-07becc534ea9",
+    "category_name": "مصبرات"
+  },
+  {
+    "id": "b5b5eaff-9828-4093-97d0-48a53e135dd4",
+    "name_ar": "Kiri à la Crème de Lait - 192 g",
+    "sku": "6111028000577",
+    "category_id": "42e40334-9e3c-4b9f-8fce-07becc534ea9",
+    "category_name": "مصبرات"
+  },
+  {
+    "id": "7c62a6d7-6e74-43a8-8643-fd84407cbe99",
+    "name_ar": "Kvinna multivitamin kosttillskott",
+    "sku": "7312489994989",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "98ba6260-0e47-49b8-a8ff-2b21747e8191",
+    "name_ar": "la ruche par dietaroma - gouttes de propolis bio - 15ml",
+    "sku": "3460341503665",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "ec348142-6d31-4bf6-9c84-103327fbdbd4",
+    "name_ar": "Lait Demi écrème Uht Jaouda - 1000g",
+    "sku": "6111242101197",
+    "category_id": "25c43ecd-a8e3-4c9b-96f2-285d837cbac5",
+    "category_name": "حليب"
+  },
+  {
+    "id": "3305b929-e9f1-4724-986f-f849b56cbd48",
+    "name_ar": "lala bona vida peanut butter creamy - 410g",
+    "sku": "8414606650002",
+    "category_id": "42e40334-9e3c-4b9f-8fce-07becc534ea9",
+    "category_name": "مصبرات"
+  },
+  {
+    "id": "4ce3027c-64cd-4f72-9fc8-127367b30cb5",
+    "name_ar": "Latino - Biscuit Sandwich Fourré Crème Fraise",
+    "sku": "6111269980577",
+    "category_id": "1aa35c38-f2e0-4ab3-8c53-c2fa7af0c5e9",
+    "category_name": "بسكويت"
+  },
+  {
+    "id": "1b38aa9d-df1e-4b4b-86dd-04058f73eb6e",
+    "name_ar": "Lay's Stax sour cream & onion flavour - 170 g",
+    "sku": "8710398502957",
+    "category_id": "3709aa87-c19d-417d-9148-a6a19827850e",
+    "category_name": "وجبات خفيفة"
+  },
+  {
+    "id": "9d135221-7cb6-48be-b3a6-7fbc51bd9c3a",
+    "name_ar": "leaderfood - X trem sour cream - 35",
+    "sku": "6111242043008",
+    "category_id": "3709aa87-c19d-417d-9148-a6a19827850e",
+    "category_name": "وجبات خفيفة"
+  },
+  {
+    "id": "73474204-569a-4c92-9fb1-acaa3c354779",
+    "name_ar": "Leibniz milk cream promotion - 190غ",
+    "sku": "4017100360268",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "34605bf2-71ce-4daf-ad76-37b594eb235b",
+    "name_ar": "leka Cream",
+    "sku": "6111195018818",
+    "category_id": "42e40334-9e3c-4b9f-8fce-07becc534ea9",
+    "category_name": "مصبرات"
+  },
+  {
+    "id": "503b2874-dc76-40b8-9ff1-c4e1349c1be6",
+    "name_ar": "Leka Cream",
+    "sku": "6111195023423",
+    "category_id": "eadc65ee-4f80-4118-89a4-22989a31169b",
+    "category_name": "مجمدات"
+  },
+  {
+    "id": "43755323-9326-4936-9330-f8019f042da9",
+    "name_ar": "Lipton - Thé infusé glacé parfum Pêche Blanche - 1 l",
+    "sku": "3401312345624",
+    "category_id": "fbc12429-e514-4745-a907-d0ef94e6d6aa",
+    "category_name": "عصير"
+  },
+  {
+    "id": "c2817c8f-ae9b-4e3f-abd1-0f2456d57777",
+    "name_ar": "LLC, Madre Labs - Bee propolis 2x - 240 × 500mg",
+    "sku": "0898220009466",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "4c61edce-63b6-4dc1-a76a-56db05e81a78",
+    "name_ar": "London dairy - Ice cream double chocolate - 1 litre",
+    "sku": "6291003096433",
+    "category_id": "cee57dc6-d0c8-4524-8932-5f0fe813458d",
+    "category_name": "مثلجات"
+  },
+  {
+    "id": "f9fcc0c4-553a-4158-957e-a97253140408",
+    "name_ar": "Lotus - Biscoff creamy - 200 g e",
+    "sku": "5410126026924",
+    "category_id": "42e40334-9e3c-4b9f-8fce-07becc534ea9",
+    "category_name": "مصبرات"
+  },
+  {
+    "id": "2a9954fa-861d-4699-9304-82fa543080cd",
+    "name_ar": "LOTUS BISCOFF Speculoos Fourré - Crème Speculoos - 150g - 150 g",
+    "sku": "5410126006360",
+    "category_id": "1aa35c38-f2e0-4ab3-8c53-c2fa7af0c5e9",
+    "category_name": "بسكويت"
+  },
+  {
+    "id": "1c6867c9-05d2-4877-97d4-ddb8b45906e9",
+    "name_ar": "Maretti - Bruschette sour cream - 70 г",
+    "sku": "3800205877325",
+    "category_id": "3709aa87-c19d-417d-9148-a6a19827850e",
+    "category_name": "وجبات خفيفة"
+  },
+  {
+    "id": "7f33eb76-20d1-4c18-b4d4-f57fb5e8221f",
+    "name_ar": "Maretti - sour Cream & Onion - 1pcs",
+    "sku": "0804145877325",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "6abb67ed-cb64-4f09-8d07-93231944421e",
+    "name_ar": "Mars, Snickers - Snickers ice cream - 91 ml",
+    "sku": "5000159515481",
+    "category_id": "cee57dc6-d0c8-4524-8932-5f0fe813458d",
+    "category_name": "مثلجات"
+  },
+  {
+    "id": "5fcfd4cc-e15f-475e-b01e-f40f3f724306",
+    "name_ar": "McVitie's - Digestive creams المدائن",
+    "sku": "5000396043655",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "79258d18-2dac-48f2-a17a-ea6de08e4350",
+    "name_ar": "McVitie's - Mcvities Cream Chocolate - 40g",
+    "sku": "5000396044645",
+    "category_id": "1aa35c38-f2e0-4ab3-8c53-c2fa7af0c5e9",
+    "category_name": "بسكويت"
+  },
+  {
+    "id": "f65dee29-66ad-4cb4-9fc6-710db3986709",
+    "name_ar": "McVitie's, McVities - داجستيف - Digestive creams chocolate - مستودع",
+    "sku": "5000396043624",
+    "category_id": "1aa35c38-f2e0-4ab3-8c53-c2fa7af0c5e9",
+    "category_name": "بسكويت"
+  },
+  {
+    "id": "11a1bc33-8d78-4eba-864b-fea55038f9f4",
+    "name_ar": "Meggle - Crème Dual à base végétale - 200 ml",
+    "sku": "8585002507594",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "30453bc0-1017-42dc-b7dd-66338f4280b3",
+    "name_ar": "MGD - Gelée Royale Et Pollen Bio 90 Gélules",
+    "sku": "3505630901316",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "bf1f6c27-5fc4-44b2-868c-2c51adcba192",
+    "name_ar": "michoc - Leka Cream - Leka Gream - 500g",
+    "sku": "6111195018467",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "ced413b4-e431-4125-822f-8ae19e32538f",
+    "name_ar": "michoc - Leka cream noisettes & cacao - 500g",
+    "sku": "6111195021030",
+    "category_id": "42e40334-9e3c-4b9f-8fce-07becc534ea9",
+    "category_name": "مصبرات"
+  },
+  {
+    "id": "e9d0cf97-bc3b-4641-a905-b775d4fd6ce6",
+    "name_ar": "michok - leka cream",
+    "sku": "6111195019594",
+    "category_id": "4f833acd-c996-4060-8c47-5a28963a22cb",
+    "category_name": "حلويات"
+  },
+  {
+    "id": "0d9db897-69ba-45ff-9a4e-6168e80d548f",
+    "name_ar": "Milbona - Koffiecreamer - 400 g",
+    "sku": "4056489535768",
+    "category_id": "0249c8f2-2a2f-4abd-8d98-58332e96742e",
+    "category_name": "خمارات فلون"
+  },
+  {
+    "id": "6961164f-1869-4562-ac6b-51a1e6bb5664",
+    "name_ar": "Milka - Toffee Cream Chocolate - 100 g",
+    "sku": "5998711723491",
+    "category_id": "bf1d6fd7-bbd2-414a-a10e-f5f4b3b8c9d5",
+    "category_name": "شوكولاتة"
+  },
+  {
+    "id": "6e7b1f3d-944a-4e05-bdf0-580b1569ad35",
+    "name_ar": "Milka,Mondelez - Sensations cookies Oreo cream - 156 g",
+    "sku": "7622201401900",
+    "category_id": "1aa35c38-f2e0-4ab3-8c53-c2fa7af0c5e9",
+    "category_name": "بسكويت"
+  },
+  {
+    "id": "abab2f9d-a3ef-4b24-bd56-551de3d06f6c",
+    "name_ar": "milky food - Cream Cheese",
+    "sku": "6111246720981",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "6252380a-2c10-4085-9606-e8ae5b7a246c",
+    "name_ar": "Mississippi Belle - Peanut Butter Creamy - 510 g",
+    "sku": "0613668024501",
+    "category_id": "42e40334-9e3c-4b9f-8fce-07becc534ea9",
+    "category_name": "مصبرات"
+  },
+  {
+    "id": "26c642a5-cc0d-47b8-9fd2-08362096d359",
+    "name_ar": "Mivolis - Vitamin B12 - 20 Brausetabletten 82g",
+    "sku": "4058172922077",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "06458fee-1b12-46ec-890f-e8f6bf2c4f9f",
+    "name_ar": "Mivolis, dm - Multivitamin - 20pcs",
+    "sku": "4058172309519",
+    "category_id": "fbc12429-e514-4745-a907-d0ef94e6d6aa",
+    "category_name": "عصير"
+  },
+  {
+    "id": "dc7bb44f-0a43-41f3-9a44-2967d37b1bc4",
+    "name_ar": "Mondelez International - Original Philadelphia - Spécialité fromagère pasteurisée - 150 g",
+    "sku": "7622300441937",
+    "category_id": "42e40334-9e3c-4b9f-8fce-07becc534ea9",
+    "category_name": "مصبرات"
+  },
+  {
+    "id": "2afa4ba2-3598-44d0-890c-f16afbf9072f",
+    "name_ar": "Mr Bite - Mr.Bite PISTACHIO WAFERS CRUNCHY & CREAM - Pistachio Wafer",
+    "sku": "8697439305039",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "963bdb0a-7614-4e91-940e-bcc8f915d14b",
+    "name_ar": "Mr.bites Nutrition Facts /",
+    "sku": "8697439303578",
+    "category_id": "1aa35c38-f2e0-4ab3-8c53-c2fa7af0c5e9",
+    "category_name": "بسكويت"
+  },
+  {
+    "id": "ed9416df-525a-4062-85ef-6639f82095b3",
+    "name_ar": "Muscletech - Mass Tech Cookies and Cream Flavor",
+    "sku": "0631656708851",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "aeb6d682-4863-477b-a65b-c42692265f65",
+    "name_ar": "MuscleTech, Platinum Multivitamin - 90 tablets",
+    "sku": "0631656610178",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "5c66c65d-32d5-4da8-94b1-7d6ce0cae5c4",
+    "name_ar": "my.    day - crème chantilly - 241ml",
+    "sku": "3800112168004",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "68a24777-a07c-4813-831a-e2ef8d522946",
+    "name_ar": "N.A! - Crispeas - Saveur Crème Oingon暈 - 50 g",
+    "sku": "3609200009126",
+    "category_id": "3709aa87-c19d-417d-9148-a6a19827850e",
+    "category_name": "وجبات خفيفة"
+  },
+  {
+    "id": "9f39ffbc-260d-4060-8e0f-d46886d6bf57",
+    "name_ar": "Natrol - Biotin 10,000MCG Tablets - 100 CT",
+    "sku": "0047469053963",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "4cb8b2b7-54ae-4c42-9026-fe6125574a63",
+    "name_ar": "Neocell - Super Collagen plus Vitamin C and Biotin",
+    "sku": "0016185132603",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "518a1205-7c9d-4a28-abc0-7e526ef477f0",
+    "name_ar": "Nestlé - Full cream sweetened condensed milk في ١٠٠ غرام 271 سعرة حرارية - 370 g (32) dh",
+    "sku": "7613038323701",
+    "category_id": "25c43ecd-a8e3-4c9b-96f2-285d837cbac5",
+    "category_name": "حليب"
+  },
+  {
+    "id": "ce623248-3ca3-41de-b0fb-ce79fcb3f40b",
+    "name_ar": "Nestle nutrition - Solis - 200 g",
+    "sku": "8445291209039",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "4ef81dae-9370-4f29-b145-bdf4f648d683",
+    "name_ar": "Nocilla,Idilia Foods - Cookies & cream - 180 g",
+    "sku": "8410014493392",
+    "category_id": "42e40334-9e3c-4b9f-8fce-07becc534ea9",
+    "category_name": "مصبرات"
+  },
+  {
+    "id": "e0f6ee71-8a7f-49ee-99c1-8eeff46b4d8c",
+    "name_ar": "NOOCO - Creamy milk chocolate",
+    "sku": "6111270960353",
+    "category_id": "bf1d6fd7-bbd2-414a-a10e-f5f4b3b8c9d5",
+    "category_name": "شوكولاتة"
+  },
+  {
+    "id": "e308adcf-5b59-4203-adb9-bf8adae6d05e",
+    "name_ar": "now - omega_3 - 100 softgels",
+    "sku": "0733739016508",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "38186bbd-cec4-4fa1-a382-d9bf24b5491f",
+    "name_ar": "NOW - Vitamin D-3 & K-2 - 120 capsules",
+    "sku": "0733739003690",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "8c86fa64-039c-4b2b-8f60-fd3eafeef3aa",
+    "name_ar": "Now Foods - propolis 1500 - 100 capsule",
+    "sku": "0733739025401",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "ad44a337-b530-4bdb-afb5-7ef2f46d235b",
+    "name_ar": "Ocean's Essentials - Premium fish oil - Omega-3 - 300 capsules",
+    "sku": "8718836393303",
+    "category_id": "adbd8c38-0972-4e40-8dad-8cf80f590606",
+    "category_name": "زيت"
+  },
+  {
+    "id": "e495b46e-cd25-4b23-9e2a-a79d838e86c3",
+    "name_ar": "Optimum Nutrition - 317 g e",
+    "sku": "5060245605397",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "83bae808-f875-4168-b061-f14bb5575d02",
+    "name_ar": "Optimum Nutrition - Gold Standard 100 % Whey - 5lb",
+    "sku": "0748927024142",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "dd73016d-f154-45e6-b385-5ab1ee1ba57b",
+    "name_ar": "Optimum Nutrition - Opti-men - 90 comprimés/132g",
+    "sku": "5060469986890",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "50a25bc6-8426-4ac7-b56f-49de94f04e08",
+    "name_ar": "Optimum Nutrition - Protéine 100% Whey Gold Standard Double Chocolat - 4,54 Kg",
+    "sku": "0748927028713",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "2e6bd765-6567-4d94-adda-29229230ab41",
+    "name_ar": "Orange, altapharma - Multivitamin - 20pcs",
+    "sku": "4305615614380",
+    "category_id": "fbc12429-e514-4745-a907-d0ef94e6d6aa",
+    "category_name": "عصير"
+  },
+  {
+    "id": "ca1a63b3-c471-467c-9c83-57683a1dddfc",
+    "name_ar": "Original - Cream cheese - 1 kg",
+    "sku": "6111246721278",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "2090feff-372e-4d31-9e72-14398ef47629",
+    "name_ar": "P'tits granulés cacaotés 400 g - 7 vitamines et calcium - les doodingues de casino",
+    "sku": "3222475394683",
+    "category_id": "fbc12429-e514-4745-a907-d0ef94e6d6aa",
+    "category_name": "عصير"
+  },
+  {
+    "id": "f8def761-e0aa-4841-8a4d-f4e2c7e72def",
+    "name_ar": "Pascual - Creamy Strawberry - 125 g",
+    "sku": "8410128113100",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "878b3d37-25c6-4854-9258-dd016dc65b6b",
+    "name_ar": "Pascual Creamy Greek Style Estilo Griego 125G 1X4 Pack - 125 g",
+    "sku": "8410128120979",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "130070a4-2cd5-44e9-b947-84eafd6e10d7",
+    "name_ar": "Pascual, พาสควาล - Yaourt Creamy - 125 g",
+    "sku": "8410128113131",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "33481d17-fac3-4e1f-8042-5a5c2ee22353",
+    "name_ar": "Pediakid Gommes Vitamine C",
+    "sku": "3700225602313",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "3632748d-f40e-4be5-89d6-a2c72f3451a6",
+    "name_ar": "pervital - 20comprimès enrobès",
+    "sku": "6118000190790",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "a96435cf-5578-4c41-935b-c6e10b473927",
+    "name_ar": "Pigmentio foaming cream",
+    "sku": "3701129800546",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "39806ee4-2912-4ff6-8c56-38331d099865",
+    "name_ar": "Préparation en poudre pour crème pâtissière - 200 g",
+    "sku": "6111180013446",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "61de7432-5bdf-4c04-b5af-0f1637a30461",
+    "name_ar": "Président - Light cream",
+    "sku": "3155253004675",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "5be4024c-b749-499c-968d-6b5e0a61e92e",
+    "name_ar": "President Cream Cheese. bolv - 180 g.medina",
+    "sku": "5941192110359",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "270e5495-8e36-4c4b-a0b2-7514cf10fbad",
+    "name_ar": "President Fresh Cream",
+    "sku": "3228021000114",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "2879085b-3431-47f7-b17a-3e78e51b6e51",
+    "name_ar": "Président Professionnel, President - Crème UHT  COOKING CRÈME PRESIDENT 1L",
+    "sku": "8410285101705",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "8c325491-eeb8-4039-8195-e3f152327645",
+    "name_ar": "President,Lactalis - Crème de camembert - 125g",
+    "sku": "3228021000145",
+    "category_id": "42e40334-9e3c-4b9f-8fce-07becc534ea9",
+    "category_name": "مصبرات"
+  },
+  {
+    "id": "beb18b74-f869-45c1-a871-94df46273bfa",
+    "name_ar": "Pringels - Sel et vinaigre - 165 g",
+    "sku": "5053990101580",
+    "category_id": "3709aa87-c19d-417d-9148-a6a19827850e",
+    "category_name": "وجبات خفيفة"
+  },
+  {
+    "id": "2296e03e-8827-4e9f-9329-953b5ff4be7b",
+    "name_ar": "Pringles - Flame Medium Kickin' Sour Cream - 160g",
+    "sku": "5053990160037",
+    "category_id": "3709aa87-c19d-417d-9148-a6a19827850e",
+    "category_name": "وجبات خفيفة"
+  },
+  {
+    "id": "9cfe510e-8d84-4046-8669-e2027a97fdda",
+    "name_ar": "Pringles - Sour Cream & Onion - 165 g",
+    "sku": "5053990101597",
+    "category_id": "3709aa87-c19d-417d-9148-a6a19827850e",
+    "category_name": "وجبات خفيفة"
+  },
+  {
+    "id": "e1954dc2-85eb-4a32-98f2-68096a198504",
+    "name_ar": "Pringles Sour Cream & Onion - 200 g",
+    "sku": "5053990138753",
+    "category_id": "3709aa87-c19d-417d-9148-a6a19827850e",
+    "category_name": "وجبات خفيفة"
+  },
+  {
+    "id": "5daef8fa-ae14-4e64-85e8-fe1e008b01f1",
+    "name_ar": "Pringles,Kellogg's - Pringles Sour Cream Onion - 165g",
+    "sku": "5053990127740",
+    "category_id": "3709aa87-c19d-417d-9148-a6a19827850e",
+    "category_name": "وجبات خفيفة"
+  },
+  {
+    "id": "e51d4b0c-fcc9-4bbb-b795-8dfdd1445ae3",
+    "name_ar": "Pringles,Kellogg's - Sour Cream & Onion - 40g",
+    "sku": "5053990107384",
+    "category_id": "3709aa87-c19d-417d-9148-a6a19827850e",
+    "category_name": "وجبات خفيفة"
+  },
+  {
+    "id": "a89e80c3-47da-422c-b125-2dd5d5e61431",
+    "name_ar": "Propolis",
+    "sku": "0035120185412",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "99ab3fb9-950b-4864-b9fe-d93bce03808c",
+    "name_ar": "Propolis",
+    "sku": "3505631200432",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "41e14909-a1dc-4b45-b3d6-cc8e8c2b6f74",
+    "name_ar": "Racine vita - vitamine e - 10ml",
+    "sku": "6111255614424",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "e00e05da-b54a-4e23-b2c8-d8dacdbc104e",
+    "name_ar": "reese's - Creamy Peanut Butter - 1",
+    "sku": "0034000400126",
+    "category_id": "42e40334-9e3c-4b9f-8fce-07becc534ea9",
+    "category_name": "مصبرات"
+  },
+  {
+    "id": "c190d262-d0f6-47af-9259-88378c2eeade",
+    "name_ar": "samar - crème express - 1.8g",
+    "sku": "8714599312629",
+    "category_id": "70730a8f-ced0-4bea-ba1b-39277cdfca8c",
+    "category_name": "قهوة"
+  },
+  {
+    "id": "65349efe-fd48-4365-a383-db9f628edce9",
+    "name_ar": "Sante - Vitamin coconut bar - 50g",
+    "sku": "5900617034809",
+    "category_id": "3709aa87-c19d-417d-9148-a6a19827850e",
+    "category_name": "وجبات خفيفة"
+  },
+  {
+    "id": "00fab643-abaf-48ac-8f6a-2d8d2b4d7e4d",
+    "name_ar": "Sante, Nutrition sante - Crunchy Muesli Fruit - 350g",
+    "sku": "5900617002211",
+    "category_id": "82bc4ee4-279f-4864-bd9c-668b0068f161",
+    "category_name": "فواكه"
+  },
+  {
+    "id": "53ac0680-143f-4014-b61f-06b9154eb614",
+    "name_ar": "Sante, Nutrition sante - Granola chocolate / pieces of chocolate - 350 g",
+    "sku": "5900617002983",
+    "category_id": "bf1d6fd7-bbd2-414a-a10e-f5f4b3b8c9d5",
+    "category_name": "شوكولاتة"
+  },
+  {
+    "id": "4bd17d4b-5c22-4d2c-bd64-c17b39fd03c8",
+    "name_ar": "Sante, Nutrition sante - Granola Nut / peanuts & peanut butter - 350g",
+    "sku": "5900617002976",
+    "category_id": "5aa6a060-3adb-45a6-bf6f-26a9b68ef46c",
+    "category_name": "حبوب"
+  },
+  {
+    "id": "b1a0ace6-d9ee-46f8-8d38-0891a56739e2",
+    "name_ar": "Scitec nutrition",
+    "sku": "5999100031777",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "54bf49a8-cb99-4519-9975-4a762ffd45f8",
+    "name_ar": "Scorpion gel",
+    "sku": "6182000105368",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "1c768c29-c17f-4b41-8528-b9ff0511225d",
+    "name_ar": "Sensibio Gel moUSSant 200 ml",
+    "sku": "3401381507565",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "43323598-c90d-4bb3-92b9-f9250faad63e",
+    "name_ar": "Serum Niacidamida 10% - 30 ml",
+    "sku": "5060565101364",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "1d3a3ce5-d15c-4270-8e4b-1e18db8206da",
+    "name_ar": "Shampoo",
+    "sku": "4066447238891",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "b86df3a8-e3a1-4cea-a2e5-90673e002f80",
+    "name_ar": "Since 1883 - Almendro turrón creamy almond blando - 75g",
+    "sku": "0638564905396",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "24806f16-2f23-4eea-b770-c67b3baf3bcc",
+    "name_ar": "Snatt's - Natuchips sour cream",
+    "sku": "8413164021033",
+    "category_id": "3709aa87-c19d-417d-9148-a6a19827850e",
+    "category_name": "وجبات خفيفة"
+  },
+  {
+    "id": "a9046833-7ca2-4944-a88a-838208844cf0",
+    "name_ar": "Snickers - alba gourmet crème dessert au chocolat",
+    "sku": "6111265800145",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "b56773f7-3494-4688-bc38-a4c54588d0e1",
+    "name_ar": "SO GOOD - Creamy Peanut butter - 340g",
+    "sku": "8906021073400",
+    "category_id": "42e40334-9e3c-4b9f-8fce-07becc534ea9",
+    "category_name": "مصبرات"
+  },
+  {
+    "id": "dc61f9b5-f0e9-440c-9454-86b76ad77f1c",
+    "name_ar": "Sojasun - Boisson de soja Calcium  Vitamine D - 1 litre",
+    "sku": "3273220080207",
+    "category_id": "fbc12429-e514-4745-a907-d0ef94e6d6aa",
+    "category_name": "عصير"
+  },
+  {
+    "id": "3e36743c-1781-48e7-9cd9-769d9f6b949d",
+    "name_ar": "Storck, Werther's Original - Soft cream toffes",
+    "sku": "4014400910155",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "d131e663-c174-42c3-9cce-3a48b79a7c42",
+    "name_ar": "Sudocrem Antiseptic Healing Cream",
+    "sku": "5017007601326",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "c4cc38f3-749e-41d3-a570-57afcc2e2a92",
+    "name_ar": "Sudocrem, Sudicre - Sudocrem Antiseptic Healing Cream - 125g",
+    "sku": "5017007601289",
+    "category_id": "f9660e7f-fd78-4e14-8c32-c8440e659c3d",
+    "category_name": "مشتقات الحليب"
+  },
+  {
+    "id": "d39f6560-8fbf-4c39-b6d6-251cd9ab9e7c",
+    "name_ar": "SWANSON 450 mg per capsule",
+    "sku": "0087614019574",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "ebdcb4f7-07f8-4b2b-a8a9-daf5bd51b694",
+    "name_ar": "Tea tree cream",
+    "sku": "9555274501353",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "38ad3bef-ccba-4285-8ffb-09d40da77f82",
+    "name_ar": "The verde al Gelsomino - 200 g",
+    "sku": "6111251100297",
+    "category_id": "9447b9d5-f9dd-44fe-af33-830fdc978a8e",
+    "category_name": "شاي"
+  },
+  {
+    "id": "3736a1e7-e4f7-405e-9f0c-5aa1d7086cde",
+    "name_ar": "Tiffany - Creams Coconut",
+    "sku": "6291003003219",
+    "category_id": "1aa35c38-f2e0-4ab3-8c53-c2fa7af0c5e9",
+    "category_name": "بسكويت"
+  },
+  {
+    "id": "603baf86-dce3-44d7-9ede-fae495ea2ea7",
+    "name_ar": "Tiffany - Custard Biscuit Creams vanilla - 80 g",
+    "sku": "6291003003202",
+    "category_id": "1aa35c38-f2e0-4ab3-8c53-c2fa7af0c5e9",
+    "category_name": "بسكويت"
+  },
+  {
+    "id": "2b4af68c-aada-4826-950e-7cc99ab0f9bf",
+    "name_ar": "TOBIGO - Bléo vanille cream",
+    "sku": "6111262384785",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "a25ad3d7-8d84-4916-b6a4-aa96f316b3f4",
+    "name_ar": "tobigo wafer filled with chocolate cream",
+    "sku": "6111262385164",
+    "category_id": "1aa35c38-f2e0-4ab3-8c53-c2fa7af0c5e9",
+    "category_name": "بسكويت"
+  },
+  {
+    "id": "c8db5803-51d6-486f-9d6b-fa7fac2dd66d",
+    "name_ar": "tobigo wafer filled with lemon cream",
+    "sku": "6111262385171",
+    "category_id": "1aa35c38-f2e0-4ab3-8c53-c2fa7af0c5e9",
+    "category_name": "بسكويت"
+  },
+  {
+    "id": "007eaa09-1b16-43e7-b226-37823b0a601f",
+    "name_ar": "Toren Cocoa Cream Prem Crispy Waffer - 55gm",
+    "sku": "8697439300287",
+    "category_id": "1aa35c38-f2e0-4ab3-8c53-c2fa7af0c5e9",
+    "category_name": "بسكويت"
+  },
+  {
+    "id": "46c7a813-8436-4725-abfd-9379e32e17ef",
+    "name_ar": "Torren WafMilkCream Crispy - 1livre",
+    "sku": "8697439300256",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "16c70764-4a0b-4d27-8f59-0d71fb7f5f6f",
+    "name_ar": "Tuc Sour Cream & Onion",
+    "sku": "7622210604316",
+    "category_id": "3709aa87-c19d-417d-9148-a6a19827850e",
+    "category_name": "وجبات خفيفة"
+  },
+  {
+    "id": "b12da112-d413-4bc9-ad3f-37fba0d26a39",
+    "name_ar": "Tukas Tomato Paste - 830g",
+    "sku": "8690508101426",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "8a7255b1-c44b-497d-af49-a3ea34436758",
+    "name_ar": "Veet hair removal cream - 100",
+    "sku": "5000309002601",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "e3216274-5bee-40e8-b5b9-078eb20042a7",
+    "name_ar": "visage et corps  BYPHASSE - crème hydratans et nourrisante",
+    "sku": "8436097092734",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "516a6eee-926c-4cab-9923-b9e6c3d8fcad",
+    "name_ar": "VITA KID'S - Boisson orange pasteurisée - 200 ml",
+    "sku": "6111242923829",
+    "category_id": "fbc12429-e514-4745-a907-d0ef94e6d6aa",
+    "category_name": "عصير"
+  },
+  {
+    "id": "b0b1cd57-5d77-4b59-bde2-a968a343cbf6",
+    "name_ar": "Vitalia - No Sugar Added Granola Bar chocolate & cocoa cream",
+    "sku": "5310099019698",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "4fcd2320-1360-4e86-9876-f25f3e9ac3ac",
+    "name_ar": "Vitalis - Multivitamin - 20pcs, 86g",
+    "sku": "4061458007771",
+    "category_id": "fbc12429-e514-4745-a907-d0ef94e6d6aa",
+    "category_name": "عصير"
+  },
+  {
+    "id": "7d52abe2-e696-412a-8aa2-a68d4576dfb8",
+    "name_ar": "Vitamin B12",
+    "sku": "4058172100963",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "8cd08f45-dbb8-4d34-9e10-225d4ea83f40",
+    "name_ar": "vitamin c - dissar",
+    "sku": "6932511219357",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "2a3c77ab-e953-4257-af71-390557787295",
+    "name_ar": "Vitamin C 1000 mg",
+    "sku": "8723300710791",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "e721f9b6-02cc-4143-bb63-f0ee9fe10f6e",
+    "name_ar": "Vitamin c powder 5000 mg ascorbic acid",
+    "sku": "0031315190483",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "7406dda6-65a6-4240-a2ff-7ddb0b1dfd11",
+    "name_ar": "Vitamine C",
+    "sku": "6118000032069",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "356e06c0-2fca-491e-a7d1-cf107c9d1304",
+    "name_ar": "Vitamine D-3",
+    "sku": "0733739003768",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "5459d830-b398-492d-a965-c00a5e854f72",
+    "name_ar": "Vitamines Et Minéraux 120 Gélules (10 Vitamines Et",
+    "sku": "3505631200593",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "b99fb3ff-7c8e-4ca3-835a-aac418eb9384",
+    "name_ar": "Vossko - Escalope de poulet pané surgelé halal - 250 g",
+    "sku": "4004155028359",
+    "category_id": "38ed14b1-fad2-49ee-a9e5-2a9c68eca20b",
+    "category_name": "لحوم"
+  },
+  {
+    "id": "fa11df70-a4af-4464-94fa-189753d01ef4",
+    "name_ar": "Wafers Black & White Extra Creamy Flavour",
+    "sku": "8697439300409",
+    "category_id": "1aa35c38-f2e0-4ab3-8c53-c2fa7af0c5e9",
+    "category_name": "بسكويت"
+  },
+  {
+    "id": "998c1379-970d-42cd-962c-219f7f5623a5",
+    "name_ar": "Wao - Mochi ice cream cheesecake",
+    "sku": "8421826410064",
+    "category_id": "eadc65ee-4f80-4118-89a4-22989a31169b",
+    "category_name": "مجمدات"
+  },
+  {
+    "id": "7e51af31-2e74-4171-8963-990638789cff",
+    "name_ar": "Wao - Mochi ice cream Mango - 6×35g",
+    "sku": "8421826410088",
+    "category_id": "eadc65ee-4f80-4118-89a4-22989a31169b",
+    "category_name": "مجمدات"
+  },
+  {
+    "id": "85475468-1359-4a44-b7ad-fd3df25c5894",
+    "name_ar": "الراعي,Le Berger - Crème Cuisine",
+    "sku": "6111246720448",
+    "category_id": null,
+    "category_name": null
+  },
+  {
+    "id": "bf8be47c-afd4-4497-920e-1a45fa3b6f9e",
+    "name_ar": "لوتس رول  فانيلا - LOTUS BISCOFF Speculoos Fourré - Crème saveur Vanille - 150g - 150 g",
+    "sku": "5410126006377",
+    "category_id": "1aa35c38-f2e0-4ab3-8c53-c2fa7af0c5e9",
+    "category_name": "بسكويت"
+  },
+  {
+    "id": "0d5aa8b3-0db0-4ac6-a694-887303097cf0",
+    "name_ar": "لوتس رول شوكولاته - LOTUS BISCOFF Speculoos Fourré - Crème saveur Chocolat - 150g - 150 g",
+    "sku": "5410126006353",
+    "category_id": "1aa35c38-f2e0-4ab3-8c53-c2fa7af0c5e9",
+    "category_name": "بسكويت"
+  },
+  {
+    "id": "cd7706cd-9b71-425b-84dc-68ffb974bd1c",
+    "name_ar": "نستله كنوبيرس  فول سوداني - Knoppers Erdnuss Riegel - 40g",
+    "sku": "40144467",
+    "category_id": "4f833acd-c996-4060-8c47-5a28963a22cb",
+    "category_name": "حلويات"
+  }
+]
