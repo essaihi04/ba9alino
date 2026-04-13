@@ -147,7 +147,6 @@ export default function PurchasesPage() {
 
   useEffect(() => {
     loadPurchases()
-    loadProducts()
     loadCategories()
     loadWarehouses()
     loadSuppliers()
@@ -226,10 +225,11 @@ export default function PurchasesPage() {
       let allProducts: any[] = []
       let from = 0
       const pageSize = 1000
+      const maxPages = 10
 
       // Premier essai avec filtre is_active
       let useIsActiveFilter = true
-      while (true) {
+      for (let pageIndex = 0; pageIndex < maxPages; pageIndex += 1) {
         let query = supabase
           .from('products')
           .select(selectFields)
@@ -237,7 +237,7 @@ export default function PurchasesPage() {
           .range(from, from + pageSize - 1)
 
         if (useIsActiveFilter) {
-          query = query.neq('is_active', false)
+          query = query.or('is_active.is.null,is_active.eq.true')
         }
 
         const { data: page, error: pageError } = await query
@@ -251,6 +251,7 @@ export default function PurchasesPage() {
             useIsActiveFilter = false
             allProducts = []
             from = 0
+            pageIndex = -1
             continue
           }
           throw pageError
@@ -280,7 +281,7 @@ export default function PurchasesPage() {
           .from('product_primary_variants')
           .select('id, product_id, variant_name, barcode, is_default, is_active')
           .in('product_id', chunk)
-          .neq('is_active', false)
+          .or('is_active.is.null,is_active.eq.true')
         if (batchError) {
           console.warn('Error loading product primary variants batch:', batchError)
         } else {
@@ -357,6 +358,12 @@ export default function PurchasesPage() {
     if (pvs.length === 0) return [{ key: p.id, product: p }]
     return pvs.map((pv) => ({ key: `${p.id}:${pv.id}`, product: p, primaryVariant: pv }))
   })
+
+  const purchaseInitialVisibleLimit = 120
+  const shouldLimitPurchaseItems = !normalizedPurchaseQuery && !selectedCategory
+  const visiblePurchaseSelectableItems = shouldLimitPurchaseItems
+    ? purchaseSelectableItems.slice(0, purchaseInitialVisibleLimit)
+    : purchaseSelectableItems
 
   // Ajouter un produit à la facture
   const calculateBaseQuantity = (form: { quantity: number; unit_type: UnitType; units_per_carton?: number | null; weight_per_unit?: number | null; packaging_mode?: 'none' | 'carton' | 'sachet' }) => {
@@ -2412,14 +2419,20 @@ export default function PurchasesPage() {
                     <h3 className="text-lg font-bold text-gray-800 mb-3">
                       {selectedCategory ? 'المنتجات' : 'جميع المنتجات'}
                     </h3>
-                    {purchaseSelectableItems.length === 0 ? (
+                    {visiblePurchaseSelectableItems.length === 0 ? (
                       <div className="text-center py-8 text-gray-500">
                         <Package size={48} className="mx-auto mb-4 opacity-50" />
                         <p>لا توجد منتجات في هذه الفئة</p>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                        {purchaseSelectableItems.map((item) => (
+                      <>
+                        {shouldLimitPurchaseItems && purchaseSelectableItems.length > purchaseInitialVisibleLimit && (
+                          <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                            يتم عرض أول {purchaseInitialVisibleLimit} عنصر فقط لتسريع النافذة. استخدم البحث أو اختر عائلة لعرض نتائج أدق.
+                          </div>
+                        )}
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {visiblePurchaseSelectableItems.map((item) => (
                           <button
                             key={item.key}
                             onClick={() => addProductToInvoice(item.product, item.primaryVariant)}
@@ -2446,7 +2459,8 @@ export default function PurchasesPage() {
                             <p className="text-xs text-gray-500 mt-1">المخزون: {item.product.stock}</p>
                           </button>
                         ))}
-                      </div>
+                        </div>
+                      </>
                     )}
                   </div>
                 </div>
