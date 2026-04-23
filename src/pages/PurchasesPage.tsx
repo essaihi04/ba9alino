@@ -3085,6 +3085,7 @@ export default function PurchasesPage() {
                       <th className="px-4 py-2 text-center">كمية الوحدة</th>
                       <th className="px-4 py-2 text-right">سعر الوحدة</th>
                       <th className="px-4 py-2 text-right">الإجمالي</th>
+                      <th className="px-4 py-2 text-center">إجراء</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -3095,6 +3096,7 @@ export default function PurchasesPage() {
                             type="button"
                             className="text-left hover:text-blue-600"
                             onClick={() => openEditModal(item, index)}
+                            title="تعديل تفاصيل المنتج (الوحدة، التعبئة...)"
                           >
                             <p className="font-bold">{item.product_name_ar}</p>
                             <p className="text-xs text-gray-500">SKU: {item.product_sku}</p>
@@ -3103,33 +3105,80 @@ export default function PurchasesPage() {
                             ) : null}
                           </button>
                         </td>
-                        <td className="px-4 py-2 text-center">{item.quantity}</td>
+                        <td className="px-4 py-2 text-center">
+                          <input
+                            type="number"
+                            className="w-24 p-1 border rounded text-center"
+                            min={0}
+                            step={0.01}
+                            value={item.quantity}
+                            onChange={(e) => updateEditItem(index, 'quantity', parseFloat(e.target.value) || 0)}
+                          />
+                        </td>
                         <td className="px-4 py-2 text-center">
                           {(Number(item.base_quantity ?? calculateBaseQuantityFromLine(item)) || 0).toFixed(2)}
                         </td>
-                        <td className="px-4 py-2 text-right">{item.unit_price.toFixed(2)} MAD</td>
+                        <td className="px-4 py-2 text-right">
+                          <input
+                            type="number"
+                            className="w-24 p-1 border rounded text-right"
+                            min={0}
+                            step={0.01}
+                            value={item.unit_price}
+                            onChange={(e) => updateEditItem(index, 'unit_price', parseFloat(e.target.value) || 0)}
+                          />
+                        </td>
                         <td className="px-4 py-2 text-right font-bold">{item.line_total.toFixed(2)} MAD</td>
+                        <td className="px-4 py-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirm('هل تريد حذف هذا المنتج من الفاتورة؟')) {
+                                setEditPurchaseItems(prev => prev.filter((_, i) => i !== index))
+                              }
+                            }}
+                            className="text-red-600 hover:text-red-800"
+                            title="حذف السطر"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+              <p className="text-xs text-gray-500 mt-2">💡 اضغط على اسم المنتج لتعديل تفاصيل الوحدة والتعبئة</p>
             </div>
 
-            <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
-              <div>
-                <p className="text-sm text-gray-600">الإجمالي</p>
-                <p className="font-bold text-gray-800">{editingPurchase.total_amount.toFixed(2)} MAD</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">المدفوع</p>
-                <p className="font-bold text-green-600">{editingPurchase.paid_amount.toFixed(2)} MAD</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">المتبقي</p>
-                <p className="font-bold text-red-600">{editingPurchase.remaining_amount.toFixed(2)} MAD</p>
-              </div>
-            </div>
+            {(() => {
+              const newSubtotal = editPurchaseItems.reduce((sum, it) => sum + (Number(it.line_total) || 0), 0)
+              const taxRate = editingPurchase.tax_rate || 0
+              const newTax = newSubtotal * (taxRate / 100)
+              const newTotal = newSubtotal + newTax
+              const paid = editingPurchase.paid_amount || 0
+              const newRemaining = Math.max(0, newTotal - paid)
+              return (
+                <div className="grid grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
+                  <div>
+                    <p className="text-sm text-gray-600">الإجمالي الفرعي</p>
+                    <p className="font-bold text-gray-800">{newSubtotal.toFixed(2)} MAD</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">الإجمالي</p>
+                    <p className="font-bold text-gray-800">{newTotal.toFixed(2)} MAD</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">المدفوع</p>
+                    <p className="font-bold text-green-600">{paid.toFixed(2)} MAD</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">المتبقي</p>
+                    <p className="font-bold text-red-600">{newRemaining.toFixed(2)} MAD</p>
+                  </div>
+                </div>
+              )
+            })()}
 
             <div className="flex gap-3 mt-6">
               <button
