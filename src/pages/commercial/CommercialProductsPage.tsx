@@ -188,7 +188,7 @@ export default function CommercialProductsPage() {
                          product.sku?.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesCategory = !selectedCategory || product.category_id === selectedCategory
     return matchesSearch && matchesCategory
-  }), [products, searchQuery, selectedCategory])
+  }).sort((a, b) => (b.stock || 0) - (a.stock || 0)), [products, searchQuery, selectedCategory])
 
   // Reset visible count when filters change
   useEffect(() => { setVisibleCount(PAGE_SIZE) }, [searchQuery, selectedCategory])
