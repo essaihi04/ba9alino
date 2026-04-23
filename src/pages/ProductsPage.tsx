@@ -739,7 +739,8 @@ export default function ProductsPage() {
     const barcode = String(barcodeRaw ?? barcodeInput).trim()
     if (!barcode) return
 
-    const existingProduct = products.find((p) => String(p.sku || '').trim() === barcode)
+    // Ignore archived products — they can be reactivated on add
+    const existingProduct = products.find((p) => String(p.sku || '').trim() === barcode && (p as any).is_active !== false)
     if (existingProduct) {
       setBarcodeLookupError('هذا المنتج مُسجّل مسبقاً في لائحة المنتجات')
       setBarcodeLookupResult(null)
@@ -1513,11 +1514,49 @@ export default function ProductsPage() {
       if (skuToCheck) {
         const { data: existingSku } = await supabase
           .from('products')
-          .select('id')
+          .select('id, is_active')
           .eq('sku', skuToCheck)
           .maybeSingle()
 
         if (existingSku) {
+          // If archived, offer to reactivate it with new data
+          if ((existingSku as any).is_active === false) {
+            const reactivate = confirm('يوجد منتج مؤرشف بنفس الكود. هل تريد إعادة تفعيله وتحديثه بالبيانات الجديدة؟')
+            if (reactivate) {
+              const updateData: any = {
+                name_ar: formData.name_ar,
+                category_id: formData.category_id || null,
+                cost_price: parsePrice(formData.cost_price),
+                price_a: parsePrice(formData.price_a),
+                price_b: parsePrice(formData.price_b),
+                price_c: parsePrice(formData.price_c),
+                price_d: parsePrice(formData.price_d),
+                price_e: parsePrice(formData.price_e),
+                stock: parseQuantity(formData.quantity_in_stock),
+                image_url: formData.image_url || null,
+                is_active: true,
+              }
+              const { error: updErr } = await supabase
+                .from('products')
+                .update(updateData)
+                .eq('id', (existingSku as any).id)
+              if (updErr) throw updErr
+              // Reactivate related variants
+              await supabase
+                .from('product_primary_variants')
+                .update({ is_active: true })
+                .eq('product_id', (existingSku as any).id)
+              alert('✅ تم إعادة تفعيل المنتج بنجاح')
+              setShowAddModal(false)
+              setBarcodeInput('')
+              setBarcodeLookupError(null)
+              setBarcodeLookupResult(null)
+              await loadProducts(true)
+              return
+            } else {
+              return
+            }
+          }
           alert('❌ هذا الكود موجود مسبقًا، يرجى اختيار كود/باركود آخر')
           return
         }
