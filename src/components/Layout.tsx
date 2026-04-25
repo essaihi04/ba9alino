@@ -107,7 +107,11 @@ export default function Layout({ children }: LayoutProps) {
             <div className="space-y-6">
               {/* Titre Ba9alino */}
               <div className="text-center">
-                <h1 className="text-5xl font-bold text-white mb-2">بقالينو</h1>
+                <img 
+                  src="/ba9alino_logo.jpeg" 
+                  alt="بقالينو" 
+                  className="h-24 w-auto object-contain mx-auto mb-3 drop-shadow-lg"
+                />
                 <p className="text-white/80 text-lg">نظام إدارة المتجر المتكامل</p>
               </div>
               

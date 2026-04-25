@@ -244,6 +244,38 @@ export default function UserAccountsPage() {
           throw new Error(msg)
         }
 
+        // S'assurer qu'une ligne user_accounts existe et est correctement liée à
+        // l'employé (le trigger DB ne renseigne pas employee_id, et peut être absent).
+        const newAuthUserId = String((rpcData as any)?.user_id || '')
+        try {
+          const { data: existingUA } = await supabase
+            .from('user_accounts')
+            .select('id')
+            .eq('email', email)
+            .maybeSingle()
+
+          const accountPayload: any = {
+            username: formData.username,
+            email,
+            full_name: formData.full_name,
+            role: formData.role,
+            employee_id: formData.role !== 'admin' ? (formData.employee_id || null) : null,
+            is_active: formData.is_active,
+          }
+          if (newAuthUserId) accountPayload.auth_user_id = newAuthUserId
+
+          if (existingUA?.id) {
+            await supabase.from('user_accounts').update(accountPayload).eq('id', existingUA.id)
+          } else {
+            await supabase.from('user_accounts').insert({
+              id: newAuthUserId || undefined,
+              ...accountPayload,
+            })
+          }
+        } catch (uaErr) {
+          console.warn('user_accounts sync warning:', uaErr)
+        }
+
         alert(`✅ تم إنشاء الحساب بنجاح\n\nاسم المستخدم: ${formData.username}\nكلمة المرور: ${password}`)
       }
       

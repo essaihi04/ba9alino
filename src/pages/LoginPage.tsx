@@ -37,13 +37,47 @@ export default function LoginPage() {
     }
 
     try {
-      const { data, error: rpcError } = await supabase.rpc('virtual_login', {
-        p_name: normalizedName,
-        p_password: normalizedPassword,
-      })
-      if (rpcError) throw rpcError
+      let row: any = null
 
-      const row = Array.isArray(data) ? data[0] : null
+      // 1) Essai compte virtuel (virtual_accounts)
+      try {
+        const { data, error: rpcError } = await supabase.rpc('virtual_login', {
+          p_name: normalizedName,
+          p_password: normalizedPassword,
+        })
+        if (!rpcError) {
+          row = Array.isArray(data) ? data[0] : null
+        }
+      } catch (_) {
+        // virtual_login indisponible: ignorer et passer au fallback
+      }
+
+      // 2) Fallback: user_accounts + Supabase Auth (comptes créés via le grand formulaire)
+      if (!row) {
+        const { data: ua } = await supabase
+          .from('user_accounts')
+          .select('id, email, role, employee_id, full_name, username, is_active')
+          .ilike('username', normalizedName)
+          .limit(1)
+          .maybeSingle()
+
+        if (ua && ua.email && ua.is_active !== false) {
+          const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
+            email: ua.email,
+            password: normalizedPassword,
+          })
+          if (!signInErr && signInData?.user) {
+            // Pour les comptes commerciaux, lier au vrai employee_id si disponible
+            const linkedId = ua.role === 'commercial' && ua.employee_id ? String(ua.employee_id) : String(ua.id || signInData.user.id)
+            row = {
+              id: linkedId,
+              role: ua.role,
+              name: ua.full_name || ua.username || normalizedName,
+            }
+          }
+        }
+      }
+
       if (!row) {
         setError('الاسم أو كلمة المرور غير صحيحة')
         return

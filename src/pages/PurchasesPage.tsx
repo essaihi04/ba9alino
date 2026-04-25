@@ -95,6 +95,7 @@ export default function PurchasesPage() {
   const [primaryVariantsByProductId, setPrimaryVariantsByProductId] = useState<Record<string, ProductPrimaryVariant[]>>({})
   const [categories, setCategories] = useState<Category[]>([])
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
+  const [syncingOldPurchases, setSyncingOldPurchases] = useState(false)
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -185,10 +186,10 @@ export default function PurchasesPage() {
 
   const loadWarehouses = async () => {
     try {
+      // Charger tous les dépôts (actifs ET inactifs) pour ne rien masquer dans le dropdown
       const { data, error } = await supabase
         .from('warehouses')
         .select('id, name, is_active')
-        .eq('is_active', true)
         .order('name')
 
       if (error) throw error
@@ -749,129 +750,204 @@ export default function PurchasesPage() {
   }) => {
     const { productId, primaryVariantId, warehouseId, delta, costPrice } = params
 
-    // Try with warehouse_id (per-warehouse stock)
+    // SELECT en cascade: on essaie successivement des filtres plus restrictifs,
+    // sans dépendre du contenu textuel du message d'erreur (Supabase peut renvoyer
+    // un 400 sans nommer la colonne manquante).
+    const trySelect = async (filters: { primary?: boolean; wh?: boolean }) => {
+      let q = supabase.from('stock').select('*').eq('product_id', productId)
+      if (filters.wh) q = q.eq('warehouse_id', warehouseId)
+      if (filters.primary && primaryVariantId) q = q.eq('primary_variant_id', primaryVariantId)
+      return await q.maybeSingle()
+    }
+
     let existingStock: any = null
-    let stockSelectError: any = null
     {
-      let q = supabase
-        .from('stock')
-        .select('*')
-        .eq('product_id', productId)
-        .eq('warehouse_id', warehouseId)
-      if (primaryVariantId) q = q.eq('primary_variant_id', primaryVariantId)
-      const res = await q.maybeSingle()
-      existingStock = res.data
-      stockSelectError = res.error
+      let res = await trySelect({ primary: true, wh: true })
+      if (res.error) res = await trySelect({ primary: false, wh: true })
+      if (res.error) res = await trySelect({ primary: true, wh: false })
+      if (res.error) res = await trySelect({ primary: false, wh: false })
+      if (res.error) {
+        console.warn('stock select failed, will try insert:', res.error.message)
+      } else {
+        existingStock = res.data
+      }
     }
-
-    if (stockSelectError && isMissingColumnError(stockSelectError, 'primary_variant_id')) {
-      const res = await supabase
-        .from('stock')
-        .select('*')
-        .eq('product_id', productId)
-        .eq('warehouse_id', warehouseId)
-        .maybeSingle()
-      existingStock = res.data
-      stockSelectError = res.error
-    }
-
-    // Fallback: stock table without warehouse_id
-    if (stockSelectError && isMissingColumnError(stockSelectError, 'warehouse_id')) {
-      const res = await supabase
-        .from('stock')
-        .select('*')
-        .eq('product_id', productId)
-        .maybeSingle()
-      existingStock = res.data
-      stockSelectError = res.error
-    }
-
-    if (stockSelectError) throw stockSelectError
 
     if (existingStock?.id) {
       const currentInStock = Number(existingStock.quantity_in_stock ?? existingStock.quantity_available ?? 0) || 0
       const nextQty = Math.max(0, currentInStock + delta)
 
-      // Try rich update, fallback to minimal update if some columns are missing
-      let updateRes = await supabase
-        .from('stock')
-        .update({
-          quantity_in_stock: nextQty,
-          cost_price: costPrice,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', existingStock.id)
+      // UPDATE en cascade: rich → sans cost_price/updated_at → minimal
+      const tryUpdate = async (payload: Record<string, any>) =>
+        await supabase.from('stock').update(payload).eq('id', existingStock.id)
 
-      if (
-        updateRes.error &&
-        (isMissingColumnError(updateRes.error, 'cost_price') ||
-          isMissingColumnError(updateRes.error, 'updated_at') ||
-          isGeneratedColumnError(updateRes.error, 'quantity_available') ||
-          isMissingColumnError(updateRes.error, 'quantity_in_stock'))
-      ) {
-        updateRes = await supabase
-          .from('stock')
-          .update({ quantity_in_stock: nextQty })
-          .eq('id', existingStock.id)
-      }
-
+      let updateRes = await tryUpdate({
+        quantity_in_stock: nextQty,
+        cost_price: costPrice,
+        updated_at: new Date().toISOString(),
+      })
+      if (updateRes.error) updateRes = await tryUpdate({ quantity_in_stock: nextQty, cost_price: costPrice })
+      if (updateRes.error) updateRes = await tryUpdate({ quantity_in_stock: nextQty })
       if (updateRes.error) throw updateRes.error
       return
     }
 
-    // Insert
-    let insertRes = await supabase
-      .from('stock')
-      .insert({
+    // INSERT en cascade: rich → sans timestamps/cost_price → sans warehouse/variant
+    const tryInsert = async (payload: Record<string, any>) =>
+      await supabase.from('stock').insert(payload)
+
+    const richPayload: Record<string, any> = {
+      product_id: productId,
+      primary_variant_id: primaryVariantId || null,
+      warehouse_id: warehouseId,
+      quantity_in_stock: Math.max(0, delta),
+      quantity_reserved: 0,
+      cost_price: costPrice,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+
+    let insertRes = await tryInsert(richPayload)
+    if (insertRes.error) {
+      // sans timestamps
+      insertRes = await tryInsert({
         product_id: productId,
         primary_variant_id: primaryVariantId || null,
         warehouse_id: warehouseId,
         quantity_in_stock: Math.max(0, delta),
         quantity_reserved: 0,
         cost_price: costPrice,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
       })
-
-    // Fallback if schema doesn't include some columns
-    if (insertRes.error && (isMissingColumnError(insertRes.error, 'primary_variant_id') || isMissingColumnError(insertRes.error, 'warehouse_id'))) {
-      insertRes = await supabase
-        .from('stock')
-        .insert({
-          product_id: productId,
-          quantity_in_stock: Math.max(0, delta),
-          quantity_reserved: 0,
-        })
-    } else if (
-      insertRes.error &&
-      (
-        isMissingColumnError(insertRes.error, 'cost_price') ||
-        isMissingColumnError(insertRes.error, 'created_at') ||
-        isMissingColumnError(insertRes.error, 'updated_at') ||
-        isGeneratedColumnError(insertRes.error, 'quantity_available')
-      )
-    ) {
-      insertRes = await supabase
-        .from('stock')
-        .insert({
-          product_id: productId,
-          primary_variant_id: primaryVariantId || null,
-          warehouse_id: warehouseId,
-          quantity_in_stock: Math.max(0, delta),
-          quantity_reserved: 0,
-        })
-      if (insertRes.error && (isMissingColumnError(insertRes.error, 'primary_variant_id') || isMissingColumnError(insertRes.error, 'warehouse_id'))) {
-        insertRes = await supabase
-          .from('stock')
-          .insert({
-            product_id: productId,
-            quantity_in_stock: Math.max(0, delta),
-            quantity_reserved: 0,
-          })
-      }
     }
-
+    if (insertRes.error) {
+      // sans cost_price
+      insertRes = await tryInsert({
+        product_id: productId,
+        primary_variant_id: primaryVariantId || null,
+        warehouse_id: warehouseId,
+        quantity_in_stock: Math.max(0, delta),
+        quantity_reserved: 0,
+      })
+    }
+    if (insertRes.error) {
+      // sans primary_variant_id
+      insertRes = await tryInsert({
+        product_id: productId,
+        warehouse_id: warehouseId,
+        quantity_in_stock: Math.max(0, delta),
+        quantity_reserved: 0,
+      })
+    }
+    if (insertRes.error) {
+      // sans warehouse_id
+      insertRes = await tryInsert({
+        product_id: productId,
+        quantity_in_stock: Math.max(0, delta),
+        quantity_reserved: 0,
+      })
+    }
+    if (insertRes.error) {
+      // minimal absolu
+      insertRes = await tryInsert({
+        product_id: productId,
+        quantity_in_stock: Math.max(0, delta),
+      })
+    }
     if (insertRes.error) throw insertRes.error
+  }
+
+  // Backfill: pour chaque achat reçu sans warehouse_id, on l'attribue au premier
+  // dépôt (stock 1) et on applique les quantités achetées au stock de ce dépôt.
+  const syncOldPurchasesToFirstWarehouse = async () => {
+    if (syncingOldPurchases) return
+    if (warehouses.length === 0) {
+      alert('لا يوجد أي مستودع. أنشئ مستودعاً أولاً.')
+      return
+    }
+    const targetWarehouse = warehouses[0]
+    const ok = confirm(
+      `سيتم ترحيل جميع المشتريات السابقة بدون مستودع إلى "${targetWarehouse.name}". متابعة؟`
+    )
+    if (!ok) return
+
+    setSyncingOldPurchases(true)
+    try {
+      const syncMarker = `[warehouse-sync:${targetWarehouse.id}]`
+
+      // Charger les achats reçus non encore synchronisés
+      const { data: oldPurchases, error: fetchErr } = await supabase
+        .from('purchases')
+        .select('id, items, status, notes')
+        .eq('status', 'received')
+
+      if (fetchErr) throw fetchErr
+
+      const list = ((oldPurchases || []) as any[]).filter((p) => !String(p.notes || '').includes(syncMarker))
+      if (list.length === 0) {
+        alert('لا توجد مشتريات سابقة بحاجة إلى مزامنة.')
+        return
+      }
+
+      let migratedCount = 0
+      for (const p of list) {
+        const items = Array.isArray(p.items) ? p.items : []
+        for (const it of items) {
+          const productId = it.product_id
+          if (!productId) continue
+          const baseQty = Number(it.base_quantity ?? it.quantity ?? 0) || 0
+          if (baseQty <= 0) continue
+
+          // 1) warehouse_stock — source de vérité par dépôt
+          // (la table `stock` étant globale avec UNIQUE(product_id), elle n'est
+          // plus utilisée ici pour éviter les conflits.)
+          try {
+            const { data: existingWS } = await supabase
+              .from('warehouse_stock')
+              .select('id, quantity')
+              .eq('warehouse_id', targetWarehouse.id)
+              .eq('product_id', productId)
+              .maybeSingle()
+
+            if (existingWS?.id) {
+              const nextQty = Math.max(0, (Number((existingWS as any).quantity) || 0) + baseQty)
+              await supabase
+                .from('warehouse_stock')
+                .update({ quantity: nextQty, updated_at: new Date().toISOString() })
+                .eq('id', (existingWS as any).id)
+            } else {
+              await supabase
+                .from('warehouse_stock')
+                .insert({
+                  warehouse_id: targetWarehouse.id,
+                  product_id: productId,
+                  quantity: Math.max(0, baseQty),
+                  min_alert_level: 0,
+                })
+            }
+          } catch (e) {
+            console.warn('warehouse_stock sync skipped for purchase', p.id, e)
+          }
+        }
+
+        // Marquer l'achat comme synchronisé pour ne pas le retraiter
+        const existingNotes = String(p.notes || '').trim()
+        const nextNotes = existingNotes ? `${existingNotes}\n${syncMarker}` : syncMarker
+        await supabase
+          .from('purchases')
+          .update({ notes: nextNotes })
+          .eq('id', p.id)
+
+        migratedCount += 1
+      }
+
+      alert(`✅ تمت مزامنة ${migratedCount} فاتورة شراء إلى "${targetWarehouse.name}"`)
+      await loadPurchases()
+    } catch (err) {
+      console.error('syncOldPurchasesToFirstWarehouse error:', err)
+      alert('❌ حدث خطأ أثناء المزامنة. راجع الكونسول.')
+    } finally {
+      setSyncingOldPurchases(false)
+    }
   }
 
   const deleteDerivedKiloVariants = async (productId: string, primaryVariantId?: string) => {
@@ -996,14 +1072,37 @@ export default function PurchasesPage() {
           const packagingMode = item.packaging_mode || 'none'
           const primaryVariantId = item.primary_variant_id
 
-          // 1) Mettre à jour stock par entrepôt (stock table)
-          await upsertWarehouseStock({
-            productId: item.product_id,
-            primaryVariantId,
-            warehouseId: purchaseForm.warehouse_id,
-            delta: baseQuantity,
-            costPrice: unitPrice,
-          })
+          // 1) Mettre à jour warehouse_stock — SOURCE DE VÉRITÉ par dépôt
+          // (la table `stock` est globale avec UNIQUE(product_id) chez vous,
+          // donc inutilisable pour le multi-dépôt; on ne l'écrit plus.)
+          try {
+            const { data: existingWS } = await supabase
+              .from('warehouse_stock')
+              .select('id, quantity')
+              .eq('warehouse_id', purchaseForm.warehouse_id)
+              .eq('product_id', item.product_id)
+              .maybeSingle()
+
+            if (existingWS?.id) {
+              const nextQty = Math.max(0, (Number((existingWS as any).quantity) || 0) + baseQuantity)
+              await supabase
+                .from('warehouse_stock')
+                .update({ quantity: nextQty, updated_at: new Date().toISOString() })
+                .eq('id', (existingWS as any).id)
+            } else {
+              await supabase
+                .from('warehouse_stock')
+                .insert({
+                  warehouse_id: purchaseForm.warehouse_id,
+                  product_id: item.product_id,
+                  quantity: Math.max(0, baseQuantity),
+                  min_alert_level: 0,
+                })
+            }
+          } catch (wsErr) {
+            // table warehouse_stock peut ne pas exister selon le schéma; on ignore proprement
+            console.warn('warehouse_stock sync skipped:', wsErr)
+          }
 
           // 2) Mettre à jour le stock total du produit avec coût moyen pondéré
           const { data: product } = await supabase
@@ -2030,13 +2129,23 @@ export default function PurchasesPage() {
           </h1>
           <p className="text-white mt-2">إنشاء وإدارة فواتير الشراء</p>
         </div>
-        <button
-          onClick={() => setShowCreatePurchaseModal(true)}
-          className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700"
-        >
-          <Plus className="w-5 h-5" />
-          فاتورة شراء جديدة
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={syncOldPurchasesToFirstWarehouse}
+            disabled={syncingOldPurchases}
+            className="bg-amber-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-amber-700 disabled:opacity-60"
+            title="ترحيل المشتريات السابقة بدون مستودع إلى أول مستودع (stock 1)"
+          >
+            {syncingOldPurchases ? '...' : 'مزامنة المشتريات السابقة'}
+          </button>
+          <button
+            onClick={() => setShowCreatePurchaseModal(true)}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700"
+          >
+            <Plus className="w-5 h-5" />
+            فاتورة شراء جديدة
+          </button>
+        </div>
       </div>
 
       {/* البحث */}
@@ -2208,7 +2317,6 @@ export default function PurchasesPage() {
                       onChange={(e) => setPurchaseForm({ ...purchaseForm, warehouse_id: e.target.value })}
                       className="w-full p-2 border rounded-lg text-sm"
                     >
-                      <option value="">اختر المستودع</option>
                       {warehouses.map((warehouse) => (
                         <option key={warehouse.id} value={warehouse.id}>
                           {warehouse.name}

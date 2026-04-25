@@ -81,6 +81,7 @@ export default function ProductsPage() {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [stockFilter, setStockFilter] = useState<'all' | 'out' | 'low' | 'available'>('all')
   const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set())
   const [bulkTargetCategoryId, setBulkTargetCategoryId] = useState<string>('')
   const [bulkLoading, setBulkLoading] = useState(false)
@@ -786,11 +787,14 @@ export default function ProductsPage() {
         const skuMatch = product.sku?.toLowerCase().includes(search)
         if (!nameMatch && !skuMatch) return false
       }
+      if (stockFilter === 'out' && product.stock !== 0) return false
+      if (stockFilter === 'low' && !(product.stock > 0 && product.stock < 10)) return false
+      if (stockFilter === 'available' && product.stock < 10) return false
       if (selectedCategory === null) return true
       if (selectedCategory === 'no-family') return !product.category_id
       return product.category_id === selectedCategory
     })
-  }, [products, debouncedSearch, selectedCategory])
+  }, [products, debouncedSearch, selectedCategory, stockFilter])
 
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PRODUCTS_PER_PAGE))
   const safePage = Math.min(currentPage, totalPages)
@@ -1967,7 +1971,11 @@ export default function ProductsPage() {
 
       {/* Statistiques rapides */}
       <div className="flex-none grid grid-cols-2 md:grid-cols-4 gap-1.5 px-4 py-1.5 bg-gray-50 border-b">
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-lg px-2 py-1.5 shadow-sm">
+        <button
+          type="button"
+          onClick={() => { setStockFilter('all'); setCurrentPage(1) }}
+          className={`bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-lg px-2 py-1.5 shadow-sm text-right transition-all hover:brightness-110 ${stockFilter === 'all' ? 'ring-2 ring-offset-1 ring-purple-700 scale-[1.02]' : ''}`}
+        >
           <div className="flex items-center justify-between">
             <div>
               <p className="text-purple-100 text-xs">إجمالي المنتجات</p>
@@ -1975,9 +1983,13 @@ export default function ProductsPage() {
             </div>
             <Package size={14} className="text-purple-200" />
           </div>
-        </div>
+        </button>
 
-        <div className="bg-gradient-to-br from-red-500 to-red-600 text-white rounded-lg px-2 py-1.5 shadow-sm">
+        <button
+          type="button"
+          onClick={() => { setStockFilter(stockFilter === 'out' ? 'all' : 'out'); setCurrentPage(1) }}
+          className={`bg-gradient-to-br from-red-500 to-red-600 text-white rounded-lg px-2 py-1.5 shadow-sm text-right transition-all hover:brightness-110 ${stockFilter === 'out' ? 'ring-2 ring-offset-1 ring-red-700 scale-[1.02]' : ''}`}
+        >
           <div className="flex items-center justify-between">
             <div>
               <p className="text-red-100 text-xs">نفذ المخزون</p>
@@ -1985,9 +1997,13 @@ export default function ProductsPage() {
             </div>
             <AlertCircle size={14} className="text-red-200" />
           </div>
-        </div>
+        </button>
 
-        <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-lg px-2 py-1.5 shadow-sm">
+        <button
+          type="button"
+          onClick={() => { setStockFilter(stockFilter === 'low' ? 'all' : 'low'); setCurrentPage(1) }}
+          className={`bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-lg px-2 py-1.5 shadow-sm text-right transition-all hover:brightness-110 ${stockFilter === 'low' ? 'ring-2 ring-offset-1 ring-orange-700 scale-[1.02]' : ''}`}
+        >
           <div className="flex items-center justify-between">
             <div>
               <p className="text-orange-100 text-xs">منخفض المخزون</p>
@@ -1995,9 +2011,13 @@ export default function ProductsPage() {
             </div>
             <TrendingUp size={14} className="text-orange-200" />
           </div>
-        </div>
+        </button>
 
-        <div className="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-lg px-2 py-1.5 shadow-sm">
+        <button
+          type="button"
+          onClick={() => { setStockFilter(stockFilter === 'available' ? 'all' : 'available'); setCurrentPage(1) }}
+          className={`bg-gradient-to-br from-green-500 to-green-600 text-white rounded-lg px-2 py-1.5 shadow-sm text-right transition-all hover:brightness-110 ${stockFilter === 'available' ? 'ring-2 ring-offset-1 ring-green-700 scale-[1.02]' : ''}`}
+        >
           <div className="flex items-center justify-between">
             <div>
               <p className="text-green-100 text-xs">متوفر</p>
@@ -2005,7 +2025,7 @@ export default function ProductsPage() {
             </div>
             <Package size={14} className="text-green-200" />
           </div>
-        </div>
+        </button>
       </div>
 
       {/* Barre compacte : actions + catégories + recherche */}
