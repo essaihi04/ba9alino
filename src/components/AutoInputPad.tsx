@@ -1,5 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { X, Globe, Keyboard, ChevronDown } from 'lucide-react'
+import { X, Globe, Keyboard, ChevronDown, Move } from 'lucide-react'
+
+const KB_WIDTH = 720 // largeur en px du clavier
+const KB_HEIGHT_EST = 360 // hauteur estimée pour clamping initial
 
 type PadMode = 'number' | 'decimal' | 'text' | 'email' | 'phone'
 type PadLang = 'ar' | 'fr'
@@ -137,6 +140,8 @@ export default function AutoInputPad() {
   const [minimized, setMinimized] = useState(false)
   const [mode, setMode] = useState<PadMode>('text')
   const [lang, setLang] = useState<PadLang>('ar')
+  // Vue active en mode texte/email: lettres ou chiffres (séparés)
+  const [textView, setTextView] = useState<'letters' | 'numbers'>('letters')
   const activeRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null)
   const padRef = useRef<HTMLDivElement>(null)
 
@@ -145,6 +150,56 @@ export default function AutoInputPad() {
     const saved = localStorage.getItem('vkb_enabled')
     return saved !== 'false' // Enabled by default
   })
+
+  // Position du clavier (drag & drop). Persistée dans localStorage.
+  const [pos, setPos] = useState<{ x: number; y: number }>(() => {
+    try {
+      const raw = localStorage.getItem('vkb_pos')
+      if (raw) {
+        const p = JSON.parse(raw)
+        if (typeof p?.x === 'number' && typeof p?.y === 'number') return p
+      }
+    } catch {}
+    // Position par défaut: centrée horizontalement, en bas
+    const x = Math.max(0, (window.innerWidth - KB_WIDTH) / 2)
+    const y = Math.max(0, window.innerHeight - KB_HEIGHT_EST - 16)
+    return { x, y }
+  })
+
+  const draggingRef = useRef<{ startX: number; startY: number; baseX: number; baseY: number } | null>(null)
+
+  const onDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    draggingRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      baseX: pos.x,
+      baseY: pos.y,
+    }
+    const onMove = (ev: MouseEvent) => {
+      if (!draggingRef.current) return
+      const dx = ev.clientX - draggingRef.current.startX
+      const dy = ev.clientY - draggingRef.current.startY
+      const w = padRef.current?.offsetWidth ?? KB_WIDTH
+      const h = padRef.current?.offsetHeight ?? KB_HEIGHT_EST
+      const nextX = Math.max(0, Math.min(window.innerWidth - w, draggingRef.current.baseX + dx))
+      const nextY = Math.max(0, Math.min(window.innerHeight - h, draggingRef.current.baseY + dy))
+      setPos({ x: nextX, y: nextY })
+    }
+    const onUp = () => {
+      draggingRef.current = null
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      try { localStorage.setItem('vkb_pos', JSON.stringify({ x: pos.x, y: pos.y })) } catch {}
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [pos.x, pos.y])
+
+  // Persiste la position après chaque déplacement
+  useEffect(() => {
+    try { localStorage.setItem('vkb_pos', JSON.stringify(pos)) } catch {}
+  }, [pos])
 
   const toggleEnabled = useCallback(() => {
     setEnabled(prev => {
@@ -265,13 +320,24 @@ export default function AutoInputPad() {
       {toggleButton}
       <div
         ref={padRef}
-        className="fixed bottom-0 left-0 right-0 z-[80] bg-gray-100 border-t-2 border-gray-300 shadow-[0_-4px_20px_rgba(0,0,0,0.15)]"
-        style={{ touchAction: 'manipulation' }}
+        className="fixed z-[80] bg-gray-100 border-2 border-gray-300 shadow-[0_8px_30px_rgba(0,0,0,0.25)] rounded-xl overflow-hidden"
+        style={{
+          touchAction: 'manipulation',
+          left: pos.x,
+          top: pos.y,
+          width: KB_WIDTH,
+          maxWidth: '96vw',
+        }}
         onMouseDown={(e) => e.preventDefault()} // Prevent blur on input
       >
-        {/* Header bar */}
-        <div className="flex items-center justify-between px-3 py-1.5 bg-gray-200 border-b border-gray-300">
+        {/* Header bar (drag handle) */}
+        <div
+          className="flex items-center justify-between px-3 py-1.5 bg-gray-200 border-b border-gray-300 cursor-move select-none"
+          onMouseDown={onDragStart}
+          title="اسحب لتحريك لوحة المفاتيح"
+        >
           <div className="flex items-center gap-2">
+            <Move size={14} className="text-gray-500" />
             <span className="text-xs font-bold text-gray-600">
               {mode === 'number' ? '🔢 أرقام' :
                mode === 'decimal' ? '🔢 أرقام عشرية' :
@@ -280,25 +346,47 @@ export default function AutoInputPad() {
                '⌨️ نص'}
             </span>
             {!isNumeric && (
-              <button
-                onMouseDown={(e) => { e.preventDefault(); setLang(l => l === 'ar' ? 'fr' : 'ar') }}
-                className="flex items-center gap-1 px-2 py-1 rounded bg-white border border-gray-300 hover:bg-gray-50 text-xs font-bold"
-              >
-                <Globe size={12} />
-                {lang === 'ar' ? 'عربي' : 'FR'}
-              </button>
+              <>
+                <button
+                  onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setLang(l => l === 'ar' ? 'fr' : 'ar') }}
+                  className="flex items-center gap-1 px-2 py-1 rounded bg-white border border-gray-300 hover:bg-gray-50 text-xs font-bold"
+                >
+                  <Globe size={12} />
+                  {lang === 'ar' ? 'عربي' : 'FR'}
+                </button>
+                <div className="flex items-center gap-0 rounded border border-gray-300 overflow-hidden">
+                  <button
+                    onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setTextView('letters') }}
+                    className={`px-2 py-1 text-xs font-bold transition-colors ${
+                      textView === 'letters' ? 'bg-green-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'
+                    }`}
+                    title="عرض الحروف"
+                  >
+                    أ ب
+                  </button>
+                  <button
+                    onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setTextView('numbers') }}
+                    className={`px-2 py-1 text-xs font-bold transition-colors ${
+                      textView === 'numbers' ? 'bg-green-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'
+                    }`}
+                    title="عرض الأرقام"
+                  >
+                    123
+                  </button>
+                </div>
+              </>
             )}
           </div>
           <div className="flex items-center gap-1">
             <button
-              onMouseDown={(e) => { e.preventDefault(); setMinimized(true) }}
+              onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setMinimized(true) }}
               className="p-1.5 hover:bg-gray-300 rounded transition-colors"
               title="تصغير"
             >
               <ChevronDown size={16} className="text-gray-600" />
             </button>
             <button
-              onMouseDown={(e) => { e.preventDefault(); close() }}
+              onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); close() }}
               className="p-1.5 hover:bg-red-100 rounded transition-colors"
               title="إغلاق"
             >
@@ -308,7 +396,36 @@ export default function AutoInputPad() {
         </div>
 
         {/* Keyboard body */}
-        <div className="p-2 max-h-[45vh] overflow-auto">
+        <div className="p-3 max-h-[60vh] overflow-auto">
+          {/* Action row STICKY en haut (uniquement en mode texte/email) */}
+          {!isNumeric && (
+            <div className="sticky top-0 z-10 bg-gray-100 pb-2 mb-2 border-b border-gray-200 flex gap-1.5">
+              <button
+                onMouseDown={(e) => { e.preventDefault(); handleKey('done') }}
+                className="px-4 py-3 rounded-lg font-bold bg-green-600 hover:bg-green-700 text-white text-base transition-all active:scale-95"
+              >
+                ✓ تم
+              </button>
+              <button
+                onMouseDown={(e) => { e.preventDefault(); handleKey('clear') }}
+                className="px-3 py-3 rounded-lg font-bold bg-red-100 hover:bg-red-200 text-red-700 text-base transition-all active:scale-95"
+              >
+                مسح
+              </button>
+              <button
+                onMouseDown={(e) => { e.preventDefault(); handleKey('space') }}
+                className="flex-1 py-3 rounded-lg font-bold bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 text-base transition-all active:scale-95"
+              >
+                مسافة
+              </button>
+              <button
+                onMouseDown={(e) => { e.preventDefault(); handleKey('backspace') }}
+                className="px-4 py-3 rounded-lg font-bold bg-orange-100 hover:bg-orange-200 text-orange-700 text-base transition-all active:scale-95"
+              >
+                ⌫
+              </button>
+            </div>
+          )}
           {isNumeric ? (
             <div className="grid grid-cols-3 gap-1.5 max-w-xs mx-auto">
               {(mode === 'decimal' ? decimalKeys : mode === 'phone' ? phoneKeys : numberKeys).map((k) => (
@@ -337,91 +454,90 @@ export default function AutoInputPad() {
             </div>
           ) : (
             <div className="space-y-1.5 max-w-2xl mx-auto">
-              {/* Digits row */}
-              <div className="grid grid-cols-10 gap-1">
-                {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map((d) => (
-                  <button
-                    key={d}
-                    onMouseDown={(e) => { e.preventDefault(); handleKey(d) }}
-                    className="py-3 rounded-lg font-bold bg-white hover:bg-gray-50 text-gray-800 border border-gray-200 text-xl transition-all active:scale-95"
-                  >
-                    {d}
-                  </button>
-                ))}
-              </div>
+              {textView === 'numbers' ? (
+                <div className="space-y-1.5">
+                  {/* Raccourcis email (uniquement en mode email) */}
+                  {mode === 'email' && (
+                    <div className="grid grid-cols-4 gap-1.5 max-w-xl mx-auto">
+                      {['@', '.com', '.ma', '.fr'].map((s) => (
+                        <button
+                          key={s}
+                          onMouseDown={(e) => { e.preventDefault(); handleKey(s) }}
+                          className="py-3 rounded-lg font-bold bg-blue-100 hover:bg-blue-200 text-blue-800 text-base transition-all active:scale-95"
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
-              {/* Symbols for email mode */}
-              {mode === 'email' && (
-                <div className="grid grid-cols-8 gap-1">
-                  {['@', '.', '-', '_', '+', '.com', '.ma', '.fr'].map((s) => (
-                    <button
-                      key={s}
-                      onMouseDown={(e) => { e.preventDefault(); handleKey(s) }}
-                      className="py-3 rounded-lg font-bold bg-blue-50 hover:bg-blue-100 text-blue-800 text-base transition-all active:scale-95"
-                    >
-                      {s}
-                    </button>
-                  ))}
+                  {/* Pavé numérique avec TOUS les symboles latéraux */}
+                  <div className="flex justify-center items-stretch gap-1.5 max-w-2xl mx-auto">
+                    {/* Bloc gauche: 2 colonnes × 4 rangées = 8 symboles */}
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {['.', ',', ':', '؛', '(', ')', '،', '؟'].map((s) => (
+                        <button
+                          key={s}
+                          onMouseDown={(e) => { e.preventDefault(); handleKey(s) }}
+                          className="w-12 py-5 rounded-lg font-bold bg-blue-50 hover:bg-blue-100 text-blue-800 text-xl transition-all active:scale-95"
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Pavé numérique central 3 colonnes (sans clear/backspace, déjà dans la barre sticky) */}
+                    <div className="grid grid-cols-3 gap-1.5 flex-1 max-w-xs">
+                      {['7', '8', '9', '4', '5', '6', '1', '2', '3'].map((k) => (
+                        <button
+                          key={k}
+                          onMouseDown={(e) => { e.preventDefault(); handleKey(k) }}
+                          className="py-5 rounded-lg font-bold text-2xl bg-white hover:bg-gray-50 text-gray-800 border border-gray-200 transition-all active:scale-95"
+                        >
+                          {k}
+                        </button>
+                      ))}
+                      <button
+                        onMouseDown={(e) => { e.preventDefault(); handleKey('0') }}
+                        className="col-span-3 py-5 rounded-lg font-bold text-2xl bg-white hover:bg-gray-50 text-gray-800 border border-gray-200 transition-all active:scale-95"
+                      >
+                        0
+                      </button>
+                    </div>
+
+                    {/* Bloc droit: 2 colonnes × 4 rangées = 8 symboles */}
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {['+', '-', '/', '*', '@', '_', '#', '"'].map((s) => (
+                        <button
+                          key={s}
+                          onMouseDown={(e) => { e.preventDefault(); handleKey(s) }}
+                          className="w-12 py-5 rounded-lg font-bold bg-blue-50 hover:bg-blue-100 text-blue-800 text-xl transition-all active:scale-95"
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
+              ) : (
+                <>
+                  {/* Mode lettres: uniquement les rangées de lettres (les symboles sont dans le mode chiffres) */}
+                  {letterRows.map((row, idx) => (
+                    <div key={idx} className="flex justify-center gap-1">
+                      {row.map((c) => (
+                        <button
+                          key={c}
+                          onMouseDown={(e) => { e.preventDefault(); handleKey(c) }}
+                          className="flex-1 max-w-[56px] py-5 rounded-lg font-bold bg-white hover:bg-gray-50 text-gray-800 border border-gray-200 text-2xl transition-all active:scale-95"
+                        >
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+                  ))}
+                </>
               )}
 
-              {/* Common symbols for text */}
-              {mode === 'text' && (
-                <div className="grid grid-cols-8 gap-1">
-                  {['@', '.', '-', '/', '+', ':', '،', '؟'].map((s) => (
-                    <button
-                      key={s}
-                      onMouseDown={(e) => { e.preventDefault(); handleKey(s) }}
-                      className="py-3 rounded-lg font-bold bg-blue-50 hover:bg-blue-100 text-blue-800 text-lg transition-all active:scale-95"
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* Letter rows */}
-              {letterRows.map((row, idx) => (
-                <div key={idx} className="flex justify-center gap-1">
-                  {row.map((c) => (
-                    <button
-                      key={c}
-                      onMouseDown={(e) => { e.preventDefault(); handleKey(c) }}
-                      className="flex-1 max-w-[56px] py-3.5 rounded-lg font-bold bg-white hover:bg-gray-50 text-gray-800 border border-gray-200 text-2xl transition-all active:scale-95"
-                    >
-                      {c}
-                    </button>
-                  ))}
-                </div>
-              ))}
-
-              {/* Bottom action row */}
-              <div className="flex gap-1.5 pt-1">
-                <button
-                  onMouseDown={(e) => { e.preventDefault(); handleKey('clear') }}
-                  className="px-3 py-3 rounded-lg font-bold bg-red-100 hover:bg-red-200 text-red-700 text-base transition-all active:scale-95"
-                >
-                  مسح
-                </button>
-                <button
-                  onMouseDown={(e) => { e.preventDefault(); handleKey('space') }}
-                  className="flex-1 py-3 rounded-lg font-bold bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 text-base transition-all active:scale-95"
-                >
-                  مسافة
-                </button>
-                <button
-                  onMouseDown={(e) => { e.preventDefault(); handleKey('backspace') }}
-                  className="px-4 py-3 rounded-lg font-bold bg-orange-100 hover:bg-orange-200 text-orange-700 text-base transition-all active:scale-95"
-                >
-                  ⌫
-                </button>
-                <button
-                  onMouseDown={(e) => { e.preventDefault(); handleKey('done') }}
-                  className="px-4 py-3 rounded-lg font-bold bg-green-600 hover:bg-green-700 text-white text-base transition-all active:scale-95"
-                >
-                  ✓ تم
-                </button>
-              </div>
             </div>
           )}
         </div>
