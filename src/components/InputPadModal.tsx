@@ -200,7 +200,7 @@ export default function InputPadModal({
                       key={d}
                       type="button"
                       onClick={() => handleKey(d)}
-                      className="py-3 rounded-xl font-bold bg-gray-100 hover:bg-gray-200 text-gray-800"
+                      className="py-3 rounded-xl font-bold bg-gray-100 hover:bg-gray-200 text-gray-800 text-xl"
                     >
                       {d}
                     </button>
@@ -213,7 +213,7 @@ export default function InputPadModal({
                       key={s}
                       type="button"
                       onClick={() => handleKey(s)}
-                      className="py-3 rounded-xl font-bold bg-blue-50 hover:bg-blue-100 text-blue-800"
+                      className="py-3 rounded-xl font-bold bg-blue-50 hover:bg-blue-100 text-blue-800 text-lg"
                     >
                       {s}
                     </button>
@@ -227,7 +227,7 @@ export default function InputPadModal({
                         key={c}
                         type="button"
                         onClick={() => handleKey(c)}
-                        className="py-3 rounded-xl font-bold bg-gray-100 hover:bg-gray-200 text-gray-800"
+                        className="py-3.5 rounded-xl font-bold bg-gray-100 hover:bg-gray-200 text-gray-800 text-2xl"
                       >
                         {c}
                       </button>

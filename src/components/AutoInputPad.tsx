@@ -315,9 +315,9 @@ export default function AutoInputPad() {
                 <button
                   key={k}
                   onMouseDown={(e) => { e.preventDefault(); handleKey(k) }}
-                  className={`py-3 rounded-lg font-bold text-lg transition-all active:scale-95 ${
+                  className={`py-4 rounded-lg font-bold text-2xl transition-all active:scale-95 ${
                     k === 'clear'
-                      ? 'bg-red-100 hover:bg-red-200 text-red-700 text-sm'
+                      ? 'bg-red-100 hover:bg-red-200 text-red-700 text-base'
                       : k === 'backspace'
                         ? 'bg-orange-100 hover:bg-orange-200 text-orange-700'
                         : k === '.' || k === '+'
@@ -343,7 +343,7 @@ export default function AutoInputPad() {
                   <button
                     key={d}
                     onMouseDown={(e) => { e.preventDefault(); handleKey(d) }}
-                    className="py-2 rounded-lg font-bold bg-white hover:bg-gray-50 text-gray-800 border border-gray-200 text-sm transition-all active:scale-95"
+                    className="py-3 rounded-lg font-bold bg-white hover:bg-gray-50 text-gray-800 border border-gray-200 text-xl transition-all active:scale-95"
                   >
                     {d}
                   </button>
@@ -357,7 +357,7 @@ export default function AutoInputPad() {
                     <button
                       key={s}
                       onMouseDown={(e) => { e.preventDefault(); handleKey(s) }}
-                      className="py-2 rounded-lg font-bold bg-blue-50 hover:bg-blue-100 text-blue-800 text-xs transition-all active:scale-95"
+                      className="py-3 rounded-lg font-bold bg-blue-50 hover:bg-blue-100 text-blue-800 text-base transition-all active:scale-95"
                     >
                       {s}
                     </button>
@@ -372,7 +372,7 @@ export default function AutoInputPad() {
                     <button
                       key={s}
                       onMouseDown={(e) => { e.preventDefault(); handleKey(s) }}
-                      className="py-2 rounded-lg font-bold bg-blue-50 hover:bg-blue-100 text-blue-800 text-sm transition-all active:scale-95"
+                      className="py-3 rounded-lg font-bold bg-blue-50 hover:bg-blue-100 text-blue-800 text-lg transition-all active:scale-95"
                     >
                       {s}
                     </button>
@@ -387,7 +387,7 @@ export default function AutoInputPad() {
                     <button
                       key={c}
                       onMouseDown={(e) => { e.preventDefault(); handleKey(c) }}
-                      className="flex-1 max-w-[42px] py-2.5 rounded-lg font-bold bg-white hover:bg-gray-50 text-gray-800 border border-gray-200 text-sm transition-all active:scale-95"
+                      className="flex-1 max-w-[56px] py-3.5 rounded-lg font-bold bg-white hover:bg-gray-50 text-gray-800 border border-gray-200 text-2xl transition-all active:scale-95"
                     >
                       {c}
                     </button>
@@ -399,25 +399,25 @@ export default function AutoInputPad() {
               <div className="flex gap-1.5 pt-1">
                 <button
                   onMouseDown={(e) => { e.preventDefault(); handleKey('clear') }}
-                  className="px-3 py-2.5 rounded-lg font-bold bg-red-100 hover:bg-red-200 text-red-700 text-sm transition-all active:scale-95"
+                  className="px-3 py-3 rounded-lg font-bold bg-red-100 hover:bg-red-200 text-red-700 text-base transition-all active:scale-95"
                 >
                   مسح
                 </button>
                 <button
                   onMouseDown={(e) => { e.preventDefault(); handleKey('space') }}
-                  className="flex-1 py-2.5 rounded-lg font-bold bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 text-sm transition-all active:scale-95"
+                  className="flex-1 py-3 rounded-lg font-bold bg-white hover:bg-gray-50 text-gray-600 border border-gray-200 text-base transition-all active:scale-95"
                 >
                   مسافة
                 </button>
                 <button
                   onMouseDown={(e) => { e.preventDefault(); handleKey('backspace') }}
-                  className="px-4 py-2.5 rounded-lg font-bold bg-orange-100 hover:bg-orange-200 text-orange-700 text-sm transition-all active:scale-95"
+                  className="px-4 py-3 rounded-lg font-bold bg-orange-100 hover:bg-orange-200 text-orange-700 text-base transition-all active:scale-95"
                 >
                   ⌫
                 </button>
                 <button
                   onMouseDown={(e) => { e.preventDefault(); handleKey('done') }}
-                  className="px-4 py-2.5 rounded-lg font-bold bg-green-600 hover:bg-green-700 text-white text-sm transition-all active:scale-95"
+                  className="px-4 py-3 rounded-lg font-bold bg-green-600 hover:bg-green-700 text-white text-base transition-all active:scale-95"
                 >
                   ✓ تم
                 </button>
