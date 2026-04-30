@@ -786,24 +786,61 @@ export default function InvoicePage() {
           .single()
       }
 
-      let { data: savedInvoice, error: invoiceError } = await tryInsertInvoice(invoiceToSave)
+      const tryUpdateInvoiceById = async (id: string, payload: any) => {
+        return await supabase
+          .from('invoices')
+          .update(payload)
+          .eq('id', id)
+          .select()
+          .single()
+      }
 
-      if (invoiceError) {
-        const msg = String((invoiceError as any)?.message || '')
-        const code = String((invoiceError as any)?.code || '')
-        const missingCols = code === 'PGRST204' || code === '42703' || msg.includes("Could not find the '")
+      // Si on édite une facture existante, on UPDATE au lieu de créer une nouvelle.
+      // On retire `created_at` du payload pour ne pas écraser la date de création initiale.
+      let savedInvoice: any = null
+      let invoiceError: any = null
 
-        if (missingCols) {
-          const stripped: any = { ...invoiceToSave }
-          delete stripped.items
-          delete stripped.payment_method
-          delete stripped.discount_amount
-          delete stripped.created_at
-          delete stripped.bank_name
-          delete stripped.check_number
-          delete stripped.check_date
-          delete stripped.credit_due_date
-          ;({ data: savedInvoice, error: invoiceError } = await tryInsertInvoice(stripped))
+      if (isEditMode && editingInvoiceId) {
+        const updatePayload: any = { ...invoiceToSave }
+        delete updatePayload.created_at
+        ;({ data: savedInvoice, error: invoiceError } = await tryUpdateInvoiceById(editingInvoiceId, updatePayload))
+
+        if (invoiceError) {
+          const msg = String((invoiceError as any)?.message || '')
+          const code = String((invoiceError as any)?.code || '')
+          const missingCols = code === 'PGRST204' || code === '42703' || msg.includes("Could not find the '")
+          if (missingCols) {
+            const stripped: any = { ...updatePayload }
+            delete stripped.items
+            delete stripped.payment_method
+            delete stripped.discount_amount
+            delete stripped.bank_name
+            delete stripped.check_number
+            delete stripped.check_date
+            delete stripped.credit_due_date
+            ;({ data: savedInvoice, error: invoiceError } = await tryUpdateInvoiceById(editingInvoiceId, stripped))
+          }
+        }
+      } else {
+        ;({ data: savedInvoice, error: invoiceError } = await tryInsertInvoice(invoiceToSave))
+
+        if (invoiceError) {
+          const msg = String((invoiceError as any)?.message || '')
+          const code = String((invoiceError as any)?.code || '')
+          const missingCols = code === 'PGRST204' || code === '42703' || msg.includes("Could not find the '")
+
+          if (missingCols) {
+            const stripped: any = { ...invoiceToSave }
+            delete stripped.items
+            delete stripped.payment_method
+            delete stripped.discount_amount
+            delete stripped.created_at
+            delete stripped.bank_name
+            delete stripped.check_number
+            delete stripped.check_date
+            delete stripped.credit_due_date
+            ;({ data: savedInvoice, error: invoiceError } = await tryInsertInvoice(stripped))
+          }
         }
       }
 
