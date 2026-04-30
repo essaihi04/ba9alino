@@ -4,6 +4,7 @@ import { Search, Plus, Eye, Edit2, Truck, Package, CheckCircle, XCircle, Clock, 
 import { supabase } from '../lib/supabase'
 import { useNavigate } from 'react-router-dom'
 import { useInputPad } from '../components/useInputPad'
+import { normalizeSearch } from '../utils/searchNormalize'
 
 interface Order {
   id: string
@@ -580,15 +581,15 @@ export default function OrdersPage() {
   }
 
   const filteredProducts = useMemo(() => {
-    const search = productSearchTerm.trim().toLowerCase()
+    const search = normalizeSearch(productSearchTerm)
     return (products || []).filter((p) => {
       const matchesCategory = !selectedCategoryId || p.category_id === selectedCategoryId
       if (!matchesCategory) return false
       if (!search) return true
 
       return (
-        (p.name_ar || '').toLowerCase().includes(search) ||
-        (p.sku || '').toLowerCase().includes(search)
+        normalizeSearch(p.name_ar).includes(search) ||
+        normalizeSearch(p.sku).includes(search)
       )
     })
   }, [products, productSearchTerm, selectedCategoryId])

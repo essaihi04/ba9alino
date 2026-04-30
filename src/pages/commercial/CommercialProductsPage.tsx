@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { Search, Package } from 'lucide-react'
 import CommercialLayout from '../../components/commercial/CommercialLayout'
+import { normalizeSearch } from '../../utils/searchNormalize'
 
 const PAGE_SIZE = 60
 
@@ -183,12 +184,16 @@ export default function CommercialProductsPage() {
     return () => document.removeEventListener('visibilitychange', handleVisibility)
   }, [])
 
-  const filteredProducts = useMemo(() => products.filter(product => {
-    const matchesSearch = product.name_ar.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         product.sku?.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesCategory = !selectedCategory || product.category_id === selectedCategory
-    return matchesSearch && matchesCategory
-  }).sort((a, b) => (b.stock || 0) - (a.stock || 0)), [products, searchQuery, selectedCategory])
+  const filteredProducts = useMemo(() => {
+    const search = normalizeSearch(searchQuery)
+    return products.filter(product => {
+      const matchesSearch = !search ||
+        normalizeSearch(product.name_ar).includes(search) ||
+        normalizeSearch(product.sku).includes(search)
+      const matchesCategory = !selectedCategory || product.category_id === selectedCategory
+      return matchesSearch && matchesCategory
+    }).sort((a, b) => (b.stock || 0) - (a.stock || 0))
+  }, [products, searchQuery, selectedCategory])
 
   // Reset visible count when filters change
   useEffect(() => { setVisibleCount(PAGE_SIZE) }, [searchQuery, selectedCategory])

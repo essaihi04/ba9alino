@@ -43,6 +43,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { ArrowLeft, Plus, Minus, ShoppingCart, User, Check, Package, Navigation, MapPin, Image as ImageIcon } from 'lucide-react'
 import { useInputPad } from '../../components/useInputPad'
+import { normalizeSearch } from '../../utils/searchNormalize'
 
 const PAGE_SIZE = 60
 
@@ -776,13 +777,16 @@ export default function CommercialNewOrderPage() {
     }
   }
 
-  const filteredProducts = useMemo(() => products.filter(p => {
-    const matchesSearch =
-      p.name_ar.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.sku?.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesCategory = !selectedCategory || p.category_id === selectedCategory
-    return matchesSearch && matchesCategory
-  }), [products, searchQuery, selectedCategory])
+  const filteredProducts = useMemo(() => {
+    const search = normalizeSearch(searchQuery)
+    return products.filter(p => {
+      const matchesSearch = !search ||
+        normalizeSearch(p.name_ar).includes(search) ||
+        normalizeSearch(p.sku).includes(search)
+      const matchesCategory = !selectedCategory || p.category_id === selectedCategory
+      return matchesSearch && matchesCategory
+    })
+  }, [products, searchQuery, selectedCategory])
 
   useEffect(() => { setVisibleCount(PAGE_SIZE) }, [searchQuery, selectedCategory])
 

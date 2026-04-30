@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Search, Plus, Package, DollarSign, CheckCircle, Truck, AlertCircle, Trash2, X, ShoppingCart, CreditCard, Edit, PlusCircle, Eye } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useInputPad } from '../components/useInputPad'
+import { normalizeSearch } from '../utils/searchNormalize'
 
 interface Supplier {
   id: string
@@ -344,13 +345,13 @@ export default function PurchasesPage() {
     ? products.filter(p => p.category_id === selectedCategory)
     : products
 
-  const normalizedPurchaseQuery = purchaseProductQuery.trim().toLowerCase()
+  const normalizedPurchaseQuery = normalizeSearch(purchaseProductQuery)
   const filteredProductsForPurchase = normalizedPurchaseQuery
     ? filteredProducts.filter(p => {
-        const hay = `${String(p.name_ar || '')} ${String(p.sku || '')}`.toLowerCase()
+        const hay = normalizeSearch(`${p.name_ar || ''} ${p.sku || ''}`)
         if (hay.includes(normalizedPurchaseQuery)) return true
         const pvs = primaryVariantsByProductId[p.id] || []
-        return pvs.some(v => String(v.variant_name || '').toLowerCase().includes(normalizedPurchaseQuery))
+        return pvs.some(v => normalizeSearch(v.variant_name).includes(normalizedPurchaseQuery))
       })
     : filteredProducts
 

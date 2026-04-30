@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import * as XLSX from 'xlsx'
 import { BarcodeScanner } from '../components/BarcodeScanner'
 import { useInputPad } from '../components/useInputPad'
+import { normalizeSearch } from '../utils/searchNormalize'
 
 interface ProductVariant {
   id?: string
@@ -780,11 +781,11 @@ export default function ProductsPage() {
   }
 
   const filteredProducts = useMemo(() => {
-    const search = debouncedSearch.toLowerCase()
+    const search = normalizeSearch(debouncedSearch)
     return products.filter(product => {
       if (search) {
-        const nameMatch = product.name_ar?.toLowerCase().includes(search)
-        const skuMatch = product.sku?.toLowerCase().includes(search)
+        const nameMatch = normalizeSearch(product.name_ar).includes(search)
+        const skuMatch = normalizeSearch(product.sku).includes(search)
         if (!nameMatch && !skuMatch) return false
       }
       if (stockFilter === 'out' && product.stock !== 0) return false

@@ -74,7 +74,35 @@ export default function LoginPage() {
               role: ua.role,
               name: ua.full_name || ua.username || normalizedName,
             }
+          } else if (signInErr) {
+            console.warn('signInWithPassword failed, trying user_accounts_login RPC fallback:', signInErr.message)
           }
+        }
+      }
+
+      // 3) Fallback ultime: RPC user_accounts_login (vérifie le hash bcrypt directement,
+      // contourne GoTrue qui refuse parfois les comptes insérés via SQL).
+      if (!row) {
+        try {
+          const { data: rpcRows, error: rpcErr } = await supabase.rpc('user_accounts_login', {
+            p_name: normalizedName,
+            p_password: normalizedPassword,
+          })
+          if (!rpcErr) {
+            const ua = Array.isArray(rpcRows) ? rpcRows[0] : null
+            if (ua) {
+              const linkedId = ua.role === 'commercial' && ua.employee_id ? String(ua.employee_id) : String(ua.id)
+              row = {
+                id: linkedId,
+                role: ua.role,
+                name: ua.name || normalizedName,
+              }
+            }
+          } else {
+            console.warn('user_accounts_login RPC error:', rpcErr.message)
+          }
+        } catch (e) {
+          console.warn('user_accounts_login RPC unavailable:', e)
         }
       }
 

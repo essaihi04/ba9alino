@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useInputPad } from '../components/useInputPad'
 import { getCategoryLabelArabic } from '../utils/categoryLabels'
+import { normalizeSearch } from '../utils/searchNormalize'
 import { 
   Search, 
   ShoppingCart, 
@@ -1091,19 +1092,19 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     }
   }
 
-  // Filtrer les clients selon la recherche
+  // Filtrer les clients selon la recherche (normalisation arabe incluse)
   const filteredClients = useMemo(() => {
     if (!clientSearchQuery.trim()) return clients
-    
-    const query = clientSearchQuery.toLowerCase()
-    return clients.filter(client => 
-      (client.company_name_ar && client.company_name_ar.toLowerCase().includes(query)) ||
-      (client.company_name_en && client.company_name_en.toLowerCase().includes(query)) ||
-      (client.name_ar && client.name_ar.toLowerCase().includes(query)) ||
-      (client.name && client.name.toLowerCase().includes(query)) ||
-      (client.contact_person_name && client.contact_person_name.toLowerCase().includes(query)) ||
-      (client.contact_person_email && client.contact_person_email.toLowerCase().includes(query)) ||
-      (client.contact_person_phone && client.contact_person_phone.includes(query))
+
+    const query = normalizeSearch(clientSearchQuery)
+    return clients.filter(client =>
+      normalizeSearch(client.company_name_ar).includes(query) ||
+      normalizeSearch(client.company_name_en).includes(query) ||
+      normalizeSearch(client.name_ar).includes(query) ||
+      normalizeSearch(client.name).includes(query) ||
+      normalizeSearch(client.contact_person_name).includes(query) ||
+      normalizeSearch(client.contact_person_email).includes(query) ||
+      (client.contact_person_phone && client.contact_person_phone.includes(clientSearchQuery))
     )
   }, [clients, clientSearchQuery])
 
@@ -1252,12 +1253,12 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
   }
 
   const filteredProducts = useMemo(() => {
-    const search = debouncedSearchQuery.toLowerCase()
+    const search = normalizeSearch(debouncedSearchQuery)
     let result = products
     if (search) {
       result = result.filter(p =>
-        p.name_ar?.toLowerCase().includes(search) ||
-        p.barcode?.includes(debouncedSearchQuery)
+        normalizeSearch(p.name_ar).includes(search) ||
+        (p.barcode || '').includes(debouncedSearchQuery)
       )
     }
     if (selectedCategory === 'no-category') {
