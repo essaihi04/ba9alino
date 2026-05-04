@@ -2112,9 +2112,12 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         }))
       })
 
+      const rawInvoiceId = String(currentInvoice.id || '')
       const isEditingExistingInvoice = Boolean(
-        currentInvoice.id &&
-        !String(currentInvoice.id).startsWith('temp_')
+        rawInvoiceId &&
+        !rawInvoiceId.startsWith('temp_') &&
+        !rawInvoiceId.startsWith('draft-') &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawInvoiceId)
       )
 
       let invoice: any = null
