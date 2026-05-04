@@ -1,49 +1,10 @@
-  const handlePhotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    setUploadingPhoto(true)
-    setPhotoError(null)
-    try {
-      if (!SHOP_PHOTO_BUCKET) throw new Error('SHOP_PHOTO_BUCKET not configured')
-      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg'
-      const uniqueId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`
-      const filePath = `shops/${uniqueId}-${file.name}`
-
-      const { error: uploadError } = await supabase.storage
-        .from(SHOP_PHOTO_BUCKET)
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: true,
-          contentType: file.type || `image/${fileExt}`,
-        })
-
-      if (uploadError) throw uploadError
-
-      const { data: publicUrlData } = supabase.storage
-        .from(SHOP_PHOTO_BUCKET)
-        .getPublicUrl(filePath)
-
-      if (!publicUrlData?.publicUrl) throw new Error('No public URL returned')
-
-      setClientForm((prev) => ({ ...prev, shop_photo_url: publicUrlData.publicUrl }))
-    } catch (error: any) {
-      console.error('Error uploading shop photo:', error)
-      if (error?.message === 'SHOP_PHOTO_BUCKET not configured') {
-        setPhotoError('لم يتم ضبط حاوية صور المتاجر. حدِّد VITE_SHOP_PHOTO_BUCKET.')
-      } else {
-        setPhotoError('تعذر رفع الصورة، حاول مرة أخرى')
-      }
-    } finally {
-      setUploadingPhoto(false)
-    }
-  }
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { ArrowLeft, Plus, Minus, ShoppingCart, User, Check, Package, Navigation, MapPin, Image as ImageIcon } from 'lucide-react'
 import { useInputPad } from '../../components/useInputPad'
 import { normalizeSearch } from '../../utils/searchNormalize'
+import { CATEGORY_LABELS_AR } from '../../utils/categoryLabels'
 
 const PAGE_SIZE = 60
 
@@ -176,6 +137,47 @@ export default function CommercialNewOrderPage() {
   const [photoError, setPhotoError] = useState<string | null>(null)
   const cacheDisabledRef = useRef(false)
   const SHOP_PHOTO_BUCKET = import.meta.env.VITE_SHOP_PHOTO_BUCKET
+
+  const handlePhotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setUploadingPhoto(true)
+    setPhotoError(null)
+    try {
+      if (!SHOP_PHOTO_BUCKET) throw new Error('SHOP_PHOTO_BUCKET not configured')
+      const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+      const uniqueId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`
+      const filePath = `shops/${uniqueId}-${file.name}`
+
+      const { error: uploadError } = await supabase.storage
+        .from(SHOP_PHOTO_BUCKET)
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: file.type || `image/${fileExt}`,
+        })
+
+      if (uploadError) throw uploadError
+
+      const { data: publicUrlData } = supabase.storage
+        .from(SHOP_PHOTO_BUCKET)
+        .getPublicUrl(filePath)
+
+      if (!publicUrlData?.publicUrl) throw new Error('No public URL returned')
+
+      setClientForm((prev) => ({ ...prev, shop_photo_url: publicUrlData.publicUrl }))
+    } catch (error: any) {
+      console.error('Error uploading shop photo:', error)
+      if (error?.message === 'SHOP_PHOTO_BUCKET not configured') {
+        setPhotoError('لم يتم ضبط حاوية صور المتاجر. حدِّد VITE_SHOP_PHOTO_BUCKET.')
+      } else {
+        setPhotoError('تعذر رفع الصورة، حاول مرة أخرى')
+      }
+    } finally {
+      setUploadingPhoto(false)
+    }
+  }
 
   const handleLocate = () => {
     if (!navigator.geolocation) {
@@ -411,31 +413,41 @@ export default function CommercialNewOrderPage() {
   }
 
   const getPriceForTier = (product: Product, tier: string): number => {
-    // Utiliser les prix depuis product_variants si disponibles, sinon depuis le produit directement
-    const variant = product.product_variants && product.product_variants.length > 0 ? product.product_variants[0] : null
-    
-    if (variant) {
-      // Utiliser les prix du variant
-      switch (tier) {
-        case 'A': return variant.price_a > 0 ? variant.price_a : variant.price_a
-        case 'B': return variant.price_b > 0 ? variant.price_b : variant.price_b
-        case 'C': return variant.price_c > 0 ? variant.price_c : variant.price_c
-        case 'D': return variant.price_d > 0 ? variant.price_d : variant.price_d
-        case 'E': return variant.price_e > 0 ? variant.price_e : variant.price_e
-        default: return variant.price_e > 0 ? variant.price_e : variant.price_e
-      }
-    } else {
-      // Fallback vers les prix du produit
-      const fallbackPrice = product.price || 0
-      switch (tier) {
-        case 'A': return (product.price_a || 0) > 0 ? (product.price_a || 0) : fallbackPrice
-        case 'B': return (product.price_b || 0) > 0 ? (product.price_b || 0) : fallbackPrice
-        case 'C': return (product.price_c || 0) > 0 ? (product.price_c || 0) : fallbackPrice
-        case 'D': return (product.price_d || 0) > 0 ? (product.price_d || 0) : fallbackPrice
-        case 'E': return (product.price_e || 0) > 0 ? (product.price_e || 0) : fallbackPrice
-        default: return (product.price_e || 0) > 0 ? (product.price_e || 0) : fallbackPrice
+    // Normaliser le tier (gérer 'a'/'A', 'd'/'D', espaces, valeurs inconnues comme 'basic')
+    const normalizedTier = String(tier || '').trim().toUpperCase()
+    const safeTier = ['A', 'B', 'C', 'D', 'E'].includes(normalizedTier) ? normalizedTier : 'E'
+
+    const tierPriceFrom = (src: any): number => {
+      if (!src) return 0
+      switch (safeTier) {
+        case 'A': return Number(src.price_a) || 0
+        case 'B': return Number(src.price_b) || 0
+        case 'C': return Number(src.price_c) || 0
+        case 'D': return Number(src.price_d) || 0
+        case 'E': return Number(src.price_e) || 0
+        default: return Number(src.price_e) || 0
       }
     }
+
+    // 1) Chercher dans toutes les variantes une qui a un prix > 0 pour ce tier
+    const variants = product.product_variants || []
+    for (const v of variants) {
+      const p = tierPriceFrom(v)
+      if (p > 0) return p
+    }
+
+    // 2) Sinon, fallback au prix du produit pour ce tier
+    const productTierPrice = tierPriceFrom(product)
+    if (productTierPrice > 0) return productTierPrice
+
+    // 3) Sinon, fallback au prix E de toute variante
+    for (const v of variants) {
+      const p = Number(v?.price_e) || 0
+      if (p > 0) return p
+    }
+
+    // 4) Sinon, fallback au prix E du produit puis au prix de base
+    return Number(product.price_e) || Number(product.price) || 0
   }
 
   const addToCart = (product: Product) => {
@@ -631,44 +643,58 @@ export default function CommercialNewOrderPage() {
         throw new Error('Commercial ID not found')
       }
 
-      // Vérifier si l'employé existe dans la table employees
-      const { data: employee, error: employeeError } = await supabase
+      // Vérifier si l'employé existe dans la table employees (maybeSingle pour éviter 406)
+      const { data: employee } = await supabase
         .from('employees')
         .select('id')
         .eq('id', commercialId)
-        .single()
+        .maybeSingle()
 
-      if (employeeError || !employee) {
-        // Créer l'employé s'il n'existe pas avec le vrai nom depuis localStorage
+      if (!employee) {
+        // Créer l'employé s'il n'existe pas, avec un téléphone unique (sinon conflit
+        // sur la contrainte employees_phone_key si '0000000000' déjà pris)
         const commercialName = localStorage.getItem('commercial_name') || 'Commercial User'
-        const { data: newEmployee, error: createEmployeeError } = await supabase
+        const uniqueSuffix = String(commercialId).replace(/[^0-9a-f]/gi, '').slice(0, 8) || String(Date.now()).slice(-8)
+        const placeholderPhone = `00${uniqueSuffix}`.slice(0, 15)
+        const { error: createEmployeeError } = await supabase
           .from('employees')
           .insert({
             id: commercialId,
             name: commercialName,
             email: `commercial-${commercialId}@ba9alino.com`,
-            phone: '0000000000', // Téléphone par défaut obligatoire
+            phone: placeholderPhone,
             role: 'commercial'
           })
-          .select()
-          .single()
+        if (createEmployeeError) {
+          // Si l'employé a déjà été créé entre-temps (race) ou conflit non bloquant,
+          // on continue tant que la ligne existe désormais.
+          const { data: retry } = await supabase
+            .from('employees')
+            .select('id')
+            .eq('id', commercialId)
+            .maybeSingle()
+          if (!retry) throw createEmployeeError
+        }
+      }
 
-        if (createEmployeeError) throw createEmployeeError
-        console.log('Employee created:', newEmployee)
+      const name = String(clientForm.company_name_ar || '').trim()
+      if (!name) {
+        alert('يرجى إدخال اسم العميل')
+        setLoading(false)
+        return
       }
 
       const { error } = await supabase
         .from('clients')
         .insert({
-          company_name_ar: clientForm.company_name_ar,
-          company_name_en: clientForm.company_name_en || clientForm.company_name_ar,
-          contact_person_name: clientForm.contact_person_name,
-          contact_person_phone: clientForm.contact_person_phone,
-          contact_person_email: clientForm.contact_person_email || null,
+          company_name_ar: name,
+          company_name_en: name,
+          contact_person_name: name,
+          contact_person_phone: clientForm.contact_person_phone || null,
           address: clientForm.address || null,
           city: clientForm.city || null,
-          subscription_tier: clientForm.subscription_tier,
-          credit_limit: clientForm.credit_limit ? parseFloat(clientForm.credit_limit) : 0,
+          subscription_tier: clientForm.subscription_tier || 'E',
+          credit_limit: 0,
           gps_lat: clientForm.gps_lat ? parseFloat(clientForm.gps_lat) : null,
           gps_lng: clientForm.gps_lng ? parseFloat(clientForm.gps_lng) : null,
           shop_photo_url: clientForm.shop_photo_url || null,
@@ -695,10 +721,11 @@ export default function CommercialNewOrderPage() {
         gps_lng: '',
         shop_photo_url: ''
       })
-      await loadData(commercialId)
-    } catch (error) {
+      await loadData(commercialId, true)
+    } catch (error: any) {
       console.error('Error adding client:', error)
-      alert('❌ حدث خطأ أثناء إضافة العميل')
+      const msg = error?.message || error?.error_description || error?.details || JSON.stringify(error)
+      alert('❌ حدث خطأ أثناء إضافة العميل:\n' + msg)
     } finally {
       setLoading(false)
     }
@@ -779,12 +806,21 @@ export default function CommercialNewOrderPage() {
 
   const filteredProducts = useMemo(() => {
     const search = normalizeSearch(searchQuery)
-    return products.filter(p => {
+    const list = products.filter(p => {
       const matchesSearch = !search ||
         normalizeSearch(p.name_ar).includes(search) ||
         normalizeSearch(p.sku).includes(search)
       const matchesCategory = !selectedCategory || p.category_id === selectedCategory
       return matchesSearch && matchesCategory
+    })
+    // Tri: produits en stock d'abord (quantité décroissante), ruptures à la fin
+    return [...list].sort((a, b) => {
+      const sa = Number(a.stock) || 0
+      const sb = Number(b.stock) || 0
+      const aIn = sa > 0 ? 1 : 0
+      const bIn = sb > 0 ? 1 : 0
+      if (aIn !== bIn) return bIn - aIn // en stock avant rupture
+      return sb - sa // stock élevé avant stock faible
     })
   }, [products, searchQuery, selectedCategory])
 
@@ -1237,42 +1273,14 @@ export default function CommercialNewOrderPage() {
             
             <form onSubmit={handleCreateClient} className="p-4 space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1">اسم الشركة (عربي) *</label>
+                <label className="block text-sm font-medium mb-1">الاسم *</label>
                 <input
                   type="text"
                   required
                   value={clientForm.company_name_ar}
                   onChange={(e) => setClientForm({ ...clientForm, company_name_ar: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="أدخل اسم الشركة..."
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  اسم الشركة (English)
-                  <span className="text-xs text-gray-400 mr-2">اختياري</span>
-                </label>
-                <input
-                  type="text"
-                  value={clientForm.company_name_en}
-                  onChange={(e) => setClientForm({ ...clientForm, company_name_en: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Company name..."
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  اسم جهة الاتصال
-                  <span className="text-xs text-gray-400 mr-2">اختياري</span>
-                </label>
-                <input
-                  type="text"
-                  value={clientForm.contact_person_name}
-                  onChange={(e) => setClientForm({ ...clientForm, contact_person_name: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="أدخل اسم جهة الاتصال..."
+                  placeholder="اسم العميل / المتجر..."
                 />
               </div>
 
@@ -1296,32 +1304,7 @@ export default function CommercialNewOrderPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  البريد الإلكتروني
-                  <span className="text-xs text-gray-400 mr-2">اختياري</span>
-                </label>
-                <button
-                  type="button"
-                  onClick={() =>
-                    inputPad.open({
-                      title: 'البريد الإلكتروني',
-                      mode: 'alphanumeric',
-                      dir: 'ltr',
-                      initialValue: clientForm.contact_person_email || '',
-                      onConfirm: (v) => setClientForm({ ...clientForm, contact_person_email: v }),
-                    })
-                  }
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-left"
-                >
-                  {clientForm.contact_person_email || 'email@example.com'}
-                </button>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  العنوان
-                  <span className="text-xs text-gray-400 mr-2">اختياري</span>
-                </label>
+                <label className="block text-sm font-medium mb-1">العنوان</label>
                 <button
                   type="button"
                   onClick={() =>
@@ -1339,10 +1322,7 @@ export default function CommercialNewOrderPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  المدينة
-                  <span className="text-xs text-gray-400 mr-2">اختياري</span>
-                </label>
+                <label className="block text-sm font-medium mb-1">المدينة</label>
                 <button
                   type="button"
                   onClick={() =>
@@ -1360,44 +1340,52 @@ export default function CommercialNewOrderPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  فئة الاشتراك
-                  <span className="text-xs text-gray-400 mr-2">افتراضي = E</span>
-                </label>
+                <label className="block text-sm font-medium mb-1">الفئة *</label>
                 <select
                   value={clientForm.subscription_tier}
                   onChange={(e) => setClientForm({ ...clientForm, subscription_tier: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="A">A - سعر أ</option>
-                  <option value="B">B - سعر ب</option>
-                  <option value="C">C - سعر ج</option>
-                  <option value="D">D - سعر د</option>
-                  <option value="E">E - سعر هـ</option>
+                  {Object.entries(CATEGORY_LABELS_AR).map(([key, label]) => (
+                    <option key={key} value={key}>{label}</option>
+                  ))}
                 </select>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  حد الائتمان
-                  <span className="text-xs text-gray-400 mr-2">اختياري</span>
-                </label>
-                <button
-                  type="button"
-                  onClick={() =>
-                    inputPad.open({
-                      title: 'حد الائتمان',
-                      mode: 'decimal',
-                      dir: 'ltr',
-                      initialValue: clientForm.credit_limit || '0',
-                      min: 0,
-                      onConfirm: (v) => setClientForm({ ...clientForm, credit_limit: v }),
-                    })
-                  }
-                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-left"
-                >
-                  {clientForm.credit_limit || '0.00'}
-                </button>
+              {/* Photo du magasin */}
+              <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="font-semibold text-gray-800">صورة المتجر</p>
+                  {clientForm.shop_photo_url && (
+                    <button
+                      type="button"
+                      onClick={() => setClientForm({ ...clientForm, shop_photo_url: '' })}
+                      className="text-xs text-red-600 hover:underline"
+                    >
+                      إزالة
+                    </button>
+                  )}
+                </div>
+                {clientForm.shop_photo_url ? (
+                  <img
+                    src={clientForm.shop_photo_url}
+                    alt="shop"
+                    className="w-full h-40 object-cover rounded-lg border"
+                  />
+                ) : (
+                  <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-300 rounded-lg p-6 cursor-pointer hover:border-blue-400 hover:bg-white transition-colors">
+                    <ImageIcon size={28} className="text-gray-400" />
+                    <span className="text-sm text-gray-600">{uploadingPhoto ? 'جاري الرفع...' : 'اختر صورة'}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handlePhotoChange}
+                      disabled={uploadingPhoto}
+                    />
+                  </label>
+                )}
+                {photoError && <p className="text-xs text-red-600">{photoError}</p>}
               </div>
 
               <div className="bg-gray-50 rounded-xl p-4 space-y-3">
