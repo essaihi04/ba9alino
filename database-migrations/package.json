@@ -1,0 +1,8 @@
+{
+  "name": "ba9alino-migrations",
+  "version": "1.0.0",
+  "type": "commonjs",
+  "dependencies": {
+    "pg": "^8.x"
+  }
+}
