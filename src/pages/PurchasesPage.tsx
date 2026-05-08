@@ -274,21 +274,21 @@ export default function PurchasesPage() {
         return
       }
 
-      // Charger les variantes par lots de 300 pour éviter la limite d'URL de Supabase
-      const BATCH_SIZE = 300
+      // Charger toutes les variantes actives par pagination (sans filtre IN = pas de limite d'URL)
       let allPrimaryVariants: any[] = []
-      for (let i = 0; i < productIds.length; i += BATCH_SIZE) {
-        const chunk = productIds.slice(i, i + BATCH_SIZE)
-        const { data: batchVariants, error: batchError } = await supabase
+      let pvFrom = 0
+      const pvPageSize = 1000
+      while (true) {
+        const { data: pvPage, error: pvErr } = await supabase
           .from('product_primary_variants')
           .select('id, product_id, variant_name, barcode, is_default, is_active')
-          .in('product_id', chunk)
-          .or('is_active.is.null,is_active.eq.true')
-        if (batchError) {
-          console.warn('Error loading product primary variants batch:', batchError)
-        } else {
-          allPrimaryVariants = allPrimaryVariants.concat(batchVariants || [])
-        }
+          .eq('is_active', true)
+          .range(pvFrom, pvFrom + pvPageSize - 1)
+        if (pvErr) { console.warn('Error loading product primary variants:', pvErr); break }
+        if (!pvPage || pvPage.length === 0) break
+        allPrimaryVariants = allPrimaryVariants.concat(pvPage)
+        if (pvPage.length < pvPageSize) break
+        pvFrom += pvPageSize
       }
 
       const byProduct: Record<string, ProductPrimaryVariant[]> = {}

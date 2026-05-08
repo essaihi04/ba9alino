@@ -919,15 +919,23 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         return
       }
 
-      // Fetch variants first, then fetch stock in scoped way (warehouse + variant ids)
+      // Fetch ALL active primary variants via pagination (no IN filter = no URL limit issues)
       console.time('⏱️ fetch primary variants')
-      const primaryVariants = await batchInParallel(
-        'product_primary_variants',
-        'id, product_id, variant_name, barcode, price_a, price_b, price_c, price_d, price_e, is_active',
-        'product_id',
-        productIds,
-        (q: any) => q.eq('is_active', true)
-      )
+      const primaryVariants: any[] = []
+      let pvFrom = 0
+      const pvPageSize = 1000
+      while (true) {
+        const { data: pvPage, error: pvErr } = await supabase
+          .from('product_primary_variants')
+          .select('id, product_id, variant_name, barcode, price_a, price_b, price_c, price_d, price_e, is_active')
+          .eq('is_active', true)
+          .range(pvFrom, pvFrom + pvPageSize - 1)
+        if (pvErr) throw pvErr
+        if (!pvPage || pvPage.length === 0) break
+        primaryVariants.push(...pvPage)
+        if (pvPage.length < pvPageSize) break
+        pvFrom += pvPageSize
+      }
       console.timeEnd('⏱️ fetch primary variants')
 
       let stockRows: any[] = []

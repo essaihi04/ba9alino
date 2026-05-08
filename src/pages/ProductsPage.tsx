@@ -325,15 +325,23 @@ export default function ProductsPage() {
       console.log('Produits récupérés:', allData.length, 'produits')
 
       if (allData.length > 0) {
-        const productIds = allData.map(p => p.id)
         const fetchVariantsStartedAt = performance.now()
-        const variants = await batchInParallel(
-          'product_variants',
-          'product_id, primary_variant_id, unit_type, quantity_contained, stock',
-          'product_id',
-          productIds,
-          (q: any) => q.eq('is_active', true)
-        )
+        // Fetch ALL active variants via pagination (no IN filter = no URL length issues)
+        const variants: any[] = []
+        let varFrom = 0
+        const varPageSize = 1000
+        while (true) {
+          const { data: varPage, error: varErr } = await supabase
+            .from('product_variants')
+            .select('product_id, primary_variant_id, unit_type, quantity_contained, stock')
+            .eq('is_active', true)
+            .range(varFrom, varFrom + varPageSize - 1)
+          if (varErr) { console.warn('Error loading product variants:', varErr); break }
+          if (!varPage || varPage.length === 0) break
+          variants.push(...varPage)
+          if (varPage.length < varPageSize) break
+          varFrom += varPageSize
+        }
         console.log('⏱️ fetch variants:', (performance.now() - fetchVariantsStartedAt).toFixed(2), 'ms')
 
         const byProduct = new Map<string, any[]>()
