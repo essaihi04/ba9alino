@@ -1119,18 +1119,46 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
   const handleSelectClient = (client: any) => {
     setSelectedClient(client)
 
-    // Si une facture est déjà en cours, synchroniser le client dessus
-    setCurrentInvoice((prev) => {
-      if (!prev) return prev
-      return {
-        ...prev,
-        client_id: client.id,
-        client_name: client.company_name_ar || client.company_name_en || client.name || 'زبون'
+    if (currentInvoice) {
+      const newTier = (client.subscription_tier || '').trim().toUpperCase()
+      const getFirstNz = (arr: number[]) => arr.find(p => Number(p) > 0) || 0
+      const tierPrice = (prod: any, tier: string): number => {
+        switch (tier) {
+          case 'A': return getFirstNz([prod.price_a, prod.price_b, prod.price_c, prod.price_d, prod.price_e])
+          case 'B': return getFirstNz([prod.price_b, prod.price_a, prod.price_c, prod.price_d, prod.price_e])
+          case 'C': return getFirstNz([prod.price_c, prod.price_a, prod.price_b, prod.price_d, prod.price_e])
+          case 'D': return getFirstNz([prod.price_d, prod.price_a, prod.price_b, prod.price_c, prod.price_e])
+          default:  return getFirstNz([prod.price_e, prod.price_a, prod.price_b, prod.price_c, prod.price_d])
+        }
       }
-    })
+
+      currentInvoice.client_id = client.id
+      currentInvoice.client_name = client.company_name_ar || client.company_name_en || client.name || 'زبون'
+
+      currentInvoice.lines.forEach(line => {
+        if (line.deleted || line.is_gift) return
+        if (line.pricing_tier && line.pricing_tier !== 'auto') return
+
+        const prod = (line.primary_variant_id
+          ? products.find(p => p.primary_variant_id === line.primary_variant_id)
+          : null) || products.find(p => p.id === line.product_id)
+        if (!prod) return
+
+        const newPrice = tierPrice(prod, newTier) || line.unit_price
+        line.unit_price = newPrice
+        line.original_unit_price = newPrice
+        line.total = calculateLineTotal(line)
+      })
+
+      recalcInvoiceTotals(currentInvoice)
+      currentInvoice.paid_amount = currentInvoice.total_amount
+      currentInvoice.remaining_amount = 0
+      setCurrentInvoice({ ...currentInvoice })
+      setPaidAmount(currentInvoice.paid_amount)
+    }
 
     setShowClientModal(false)
-    setClientSearchQuery('') // Réinitialiser la recherche
+    setClientSearchQuery('')
   }
 
   const loadOnHoldInvoices = async () => {
