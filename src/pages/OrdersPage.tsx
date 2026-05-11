@@ -1704,15 +1704,15 @@ export default function OrdersPage() {
 
   const updateStockForDeliveredTransition = async (order: Order, mode: 'deduct' | 'restock') => {
     try {
-      // Fetch order items if not available
+      // Fetch order items — order_items has: product_id, variant_id, quantity
       let orderItems = order.items
       if (!orderItems || !Array.isArray(orderItems)) {
         const { data: items, error: itemsError } = await supabase
           .from('order_items')
-          .select('product_id, variant_id, quantity, primary_variant_id')
+          .select('product_id, variant_id, quantity')
           .eq('order_id', order.id)
         if (itemsError) {
-          console.error('Error fetching order items:', itemsError)
+          console.error('Error fetching order items for stock update:', itemsError)
           return
         }
         orderItems = items || []
@@ -1722,16 +1722,19 @@ export default function OrdersPage() {
         const qty = Number(item.quantity) || 0
         if (qty <= 0) continue
         const delta = mode === 'deduct' ? -qty : qty
-        const primaryVariantId: string | null = item.primary_variant_id || item.variant_id || null
 
-        // 1) Update product_variants.stock (legacy column)
-        if (primaryVariantId) {
+        // Resolve primary_variant_id from product_variants (same logic as POSPage)
+        // product_variants.primary_variant_id links packaging variant → stock table key
+        let primaryVariantId: string | null = null
+        if (item.variant_id) {
           const { data: pv } = await supabase
             .from('product_variants')
-            .select('id, stock')
-            .eq('id', primaryVariantId)
+            .select('id, stock, primary_variant_id')
+            .eq('id', item.variant_id)
             .maybeSingle()
           if (pv?.id) {
+            primaryVariantId = pv.primary_variant_id || null
+            // Update legacy product_variants.stock column
             await supabase
               .from('product_variants')
               .update({ stock: Math.max(0, Number(pv.stock || 0) + delta) })
@@ -1739,7 +1742,7 @@ export default function OrdersPage() {
           }
         }
 
-        // 2) Update stock.quantity_in_stock (main stock table — same as POSPage)
+        // Update stock.quantity_in_stock (canonical stock table)
         let stockQuery = supabase
           .from('stock')
           .select('id, quantity_in_stock')
@@ -1750,23 +1753,23 @@ export default function OrdersPage() {
         const { data: stockRow } = await stockQuery.maybeSingle()
 
         if (stockRow?.id) {
-          const nextQty = Math.max(0, Number(stockRow.quantity_in_stock || 0) + delta)
           await supabase
             .from('stock')
-            .update({ quantity_in_stock: nextQty })
+            .update({ quantity_in_stock: Math.max(0, Number(stockRow.quantity_in_stock || 0) + delta) })
             .eq('id', stockRow.id)
+          console.log(`Stock ${mode}: product=${item.product_id} qty=${qty} new=${Math.max(0, Number(stockRow.quantity_in_stock || 0) + delta)}`)
         } else if (mode === 'restock') {
-          // Row might not exist yet — create it on restock
           await supabase.from('stock').insert({
             product_id: item.product_id,
             primary_variant_id: primaryVariantId || null,
             quantity_in_stock: qty,
           })
+        } else {
+          console.warn(`Stock row not found for product=${item.product_id}, primaryVariant=${primaryVariantId}`)
         }
       }
     } catch (error) {
       console.error('Error updating stock on delivery:', error)
-      // Don't throw to avoid blocking the status update
     }
   }
 
