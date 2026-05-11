@@ -941,24 +941,29 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       }
       console.timeEnd('⏱️ fetch primary variants')
 
+      // Fetch ALL stock for this org in pages — RLS filters by organization_id automatically.
+      // This replaces the old batch-by-primary_variant_id approach that generated ~180 HTTP
+      // requests (one per 30 IDs). Now it's 1–2 requests total regardless of product count.
       let stockRows: any[] = []
-      const primaryVariantIds = (primaryVariants || []).map((pv: any) => String(pv.id)).filter(Boolean)
-      if (primaryVariantIds.length > 0) {
-        try {
-          console.time('⏱️ fetch stock scoped')
-          stockRows = await batchInParallel(
-            'stock',
-            'product_id, primary_variant_id, quantity_in_stock',
-            'primary_variant_id',
-            primaryVariantIds,
-            (q: any) => q, // Pas de filtre warehouse_id car la colonne n'existe pas
-            30, // Réduit de 80 à 30 pour éviter les URL trop longues
-          )
-          console.timeEnd('⏱️ fetch stock scoped')
-        } catch (stockError) {
-          console.warn('Stock scoped query failed, fallback to base product stock:', stockError)
-          stockRows = []
+      try {
+        console.time('⏱️ fetch stock scoped')
+        let sFrom = 0
+        const sPageSize = 2000
+        while (true) {
+          const { data: sPage, error: sErr } = await supabase
+            .from('stock')
+            .select('product_id, primary_variant_id, quantity_in_stock')
+            .range(sFrom, sFrom + sPageSize - 1)
+          if (sErr) throw sErr
+          if (!sPage || sPage.length === 0) break
+          stockRows = stockRows.concat(sPage)
+          if (sPage.length < sPageSize) break
+          sFrom += sPageSize
         }
+        console.timeEnd('⏱️ fetch stock scoped')
+      } catch (stockError) {
+        console.warn('Stock query failed, fallback to base product stock:', stockError)
+        stockRows = []
       }
 
       setPackagingVariantsByPrimaryId({})
