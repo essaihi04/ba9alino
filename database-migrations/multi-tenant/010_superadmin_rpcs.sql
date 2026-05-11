@@ -43,7 +43,7 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.superadmin_login(TEXT, TEXT) TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION public.superadmin_login(TEXT, TEXT) TO PUBLIC;
 
 -- ---------------------------------------------------------------------------
 -- Internal helper: validate that the call carries valid SuperAdmin creds.
@@ -109,7 +109,7 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.superadmin_list_organizations(TEXT, TEXT) TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION public.superadmin_list_organizations(TEXT, TEXT) TO PUBLIC;
 
 -- ---------------------------------------------------------------------------
 -- superadmin_create_organization
@@ -200,7 +200,7 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.superadmin_create_organization(TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT) TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION public.superadmin_create_organization(TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT) TO PUBLIC;
 
 -- ---------------------------------------------------------------------------
 -- superadmin_toggle_organization
@@ -228,7 +228,7 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.superadmin_toggle_organization(TEXT,TEXT,UUID,BOOLEAN) TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION public.superadmin_toggle_organization(TEXT,TEXT,UUID,BOOLEAN) TO PUBLIC;
 
 -- ---------------------------------------------------------------------------
 -- superadmin_delete_organization (soft delete = is_active=false)
@@ -261,7 +261,7 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.superadmin_delete_organization(TEXT,TEXT,UUID,BOOLEAN) TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION public.superadmin_delete_organization(TEXT,TEXT,UUID,BOOLEAN) TO PUBLIC;
 
 -- ---------------------------------------------------------------------------
 -- resolve_organization_for_user(username)
@@ -283,4 +283,4 @@ AS $$
   LIMIT 1;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.resolve_organization_for_user(TEXT) TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION public.resolve_organization_for_user(TEXT) TO PUBLIC;
