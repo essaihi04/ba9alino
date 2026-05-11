@@ -2307,7 +2307,6 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
 
         const orderUpdatePayload: any = {
           total_amount: nextOrderTotal,
-          final_amount: nextOrderTotal,
           discount_amount: Number(currentInvoice.discount_amount || 0),
           payment_method: currentInvoice.payment_method || normalizedPaymentMethod,
           payment_status: nextPaymentStatus,
@@ -2316,11 +2315,6 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         // Try progressively smaller payloads to handle any missing columns / schema mismatch
         const orderUpdateAttempts: any[] = [
           orderUpdatePayload,
-          {
-            total_amount: nextOrderTotal,
-            final_amount: nextOrderTotal,
-            payment_status: nextPaymentStatus,
-          },
           {
             total_amount: nextOrderTotal,
             payment_status: nextPaymentStatus,
