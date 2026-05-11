@@ -34,10 +34,12 @@ function makeTokens(user) {
   const payload = {
     sub: String(user.id),
     role: 'ba9alino_anon',
+    organization_id: user.organization_id || null,
     user_metadata: {
       role: user.role,
       name: user.name || user.full_name || user.username,
       employee_id: user.employee_id || null,
+      organization_id: user.organization_id || null,
     },
     aud: 'authenticated',
     iat: Math.floor(Date.now() / 1000),
