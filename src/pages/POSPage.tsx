@@ -2308,29 +2308,37 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         const orderUpdatePayload: any = {
           total_amount: nextOrderTotal,
           final_amount: nextOrderTotal,
+          discount_amount: Number(currentInvoice.discount_amount || 0),
+          payment_method: currentInvoice.payment_method || normalizedPaymentMethod,
           payment_status: nextPaymentStatus,
         }
 
-        let { error: orderUpdateError } = await supabase
-          .from('orders')
-          .update(orderUpdatePayload)
-          .eq('id', currentInvoice.order_id)
+        // Try progressively smaller payloads to handle any missing columns / schema mismatch
+        const orderUpdateAttempts: any[] = [
+          orderUpdatePayload,
+          {
+            total_amount: nextOrderTotal,
+            final_amount: nextOrderTotal,
+            payment_status: nextPaymentStatus,
+          },
+          {
+            total_amount: nextOrderTotal,
+            payment_status: nextPaymentStatus,
+          },
+          {
+            total_amount: nextOrderTotal,
+          },
+        ]
 
-        if (orderUpdateError) {
-          const msg = String((orderUpdateError as any)?.message || '')
-          const code = String((orderUpdateError as any)?.code || '')
-          const missingCols = code === 'PGRST204' || code === '42703' || msg.includes("Could not find the '")
-
-          if (missingCols) {
-            const retry = await supabase
-              .from('orders')
-              .update({
-                total_amount: nextOrderTotal,
-                payment_status: nextPaymentStatus,
-              })
-              .eq('id', currentInvoice.order_id)
-            orderUpdateError = retry.error
-          }
+        let orderUpdateError: any = null
+        for (const payload of orderUpdateAttempts) {
+          const res = await supabase
+            .from('orders')
+            .update(payload)
+            .eq('id', currentInvoice.order_id)
+          orderUpdateError = res.error
+          if (!orderUpdateError) break
+          console.warn('orders update failed, retrying with smaller payload:', orderUpdateError, payload)
         }
 
         if (orderUpdateError) throw orderUpdateError
@@ -2454,12 +2462,14 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
           let stockErr: any = null
 
           {
-            const res = await supabase
+            let stockQuery = supabase
               .from('stock')
               .select('id, quantity_in_stock')
               .eq('product_id', line.product_id)
-              .eq('primary_variant_id', primaryVariantId)
-              .maybeSingle()
+            stockQuery = primaryVariantId
+              ? stockQuery.eq('primary_variant_id', primaryVariantId)
+              : stockQuery.is('primary_variant_id', null)
+            const res = await stockQuery.maybeSingle()
             stockRow = res.data
             stockErr = res.error
           }
