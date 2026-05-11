@@ -1927,8 +1927,9 @@ export default function OrdersPage() {
         payment_method: order.payment_method || 'cash',
         created_at: order.order_date || new Date().toISOString(),
         items: items.map((item) => ({
-          id: `${order.id}-${item.product_id}-${item.id}`,
-          primary_variant_id: '',
+          id: item.id,
+          product_id: item.product_id,
+          primary_variant_id: item.variant_id || '',
           name_ar: getOrderItemDisplayName(item),
           description: getOrderItemDisplayName(item),
           unit_price: Number(item.unit_price || 0),
