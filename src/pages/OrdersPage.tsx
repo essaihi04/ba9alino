@@ -1709,48 +1709,64 @@ export default function OrdersPage() {
       if (!orderItems || !Array.isArray(orderItems)) {
         const { data: items, error: itemsError } = await supabase
           .from('order_items')
-          .select('product_id, variant_id, quantity')
+          .select('product_id, variant_id, quantity, primary_variant_id')
           .eq('order_id', order.id)
-        
         if (itemsError) {
           console.error('Error fetching order items:', itemsError)
           return
         }
         orderItems = items || []
       }
-      
+
       for (const item of orderItems) {
-        // Get current stock from product_variants table (since we use variant_id)
-        const { data: stockItem, error: fetchError } = await supabase
-          .from('product_variants')
-          .select('id, stock')
-          .eq('id', item.variant_id || item.product_id)
-          .single()
-        
-        if (fetchError) {
-          console.error('Error fetching stock item:', fetchError)
-          continue
+        const qty = Number(item.quantity) || 0
+        if (qty <= 0) continue
+        const delta = mode === 'deduct' ? -qty : qty
+        const primaryVariantId: string | null = item.primary_variant_id || item.variant_id || null
+
+        // 1) Update product_variants.stock (legacy column)
+        if (primaryVariantId) {
+          const { data: pv } = await supabase
+            .from('product_variants')
+            .select('id, stock')
+            .eq('id', primaryVariantId)
+            .maybeSingle()
+          if (pv?.id) {
+            await supabase
+              .from('product_variants')
+              .update({ stock: Math.max(0, Number(pv.stock || 0) + delta) })
+              .eq('id', pv.id)
+          }
         }
-        
-        const currentInStock = stockItem?.stock || 0
-        const delta = mode === 'deduct' ? -item.quantity : item.quantity
-        const newInStock = Math.max(0, currentInStock + delta)
-        
-        const { error: updateError } = await supabase
-          .from('product_variants')
-          .update({
-            stock: newInStock,
-            updated_at: new Date().toISOString()
+
+        // 2) Update stock.quantity_in_stock (main stock table — same as POSPage)
+        let stockQuery = supabase
+          .from('stock')
+          .select('id, quantity_in_stock')
+          .eq('product_id', item.product_id)
+        stockQuery = primaryVariantId
+          ? stockQuery.eq('primary_variant_id', primaryVariantId)
+          : stockQuery.is('primary_variant_id', null)
+        const { data: stockRow } = await stockQuery.maybeSingle()
+
+        if (stockRow?.id) {
+          const nextQty = Math.max(0, Number(stockRow.quantity_in_stock || 0) + delta)
+          await supabase
+            .from('stock')
+            .update({ quantity_in_stock: nextQty })
+            .eq('id', stockRow.id)
+        } else if (mode === 'restock') {
+          // Row might not exist yet — create it on restock
+          await supabase.from('stock').insert({
+            product_id: item.product_id,
+            primary_variant_id: primaryVariantId || null,
+            quantity_in_stock: qty,
           })
-          .eq('id', stockItem.id)
-        
-        if (updateError) {
-          console.error('Error updating stock:', updateError)
         }
       }
     } catch (error) {
       console.error('Error updating stock on delivery:', error)
-      // Don't throw error to avoid blocking status update
+      // Don't throw to avoid blocking the status update
     }
   }
 
@@ -1929,7 +1945,7 @@ export default function OrdersPage() {
         items: items.map((item) => ({
           id: item.id,
           product_id: item.product_id,
-          primary_variant_id: (item as any).variant_id || null,
+          primary_variant_id: (item as any).variant_id || '',
           name_ar: getOrderItemDisplayName(item),
           description: getOrderItemDisplayName(item),
           unit_price: Number(item.unit_price || 0),
