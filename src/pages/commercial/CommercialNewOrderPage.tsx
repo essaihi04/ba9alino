@@ -136,7 +136,7 @@ export default function CommercialNewOrderPage() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [photoError, setPhotoError] = useState<string | null>(null)
   const cacheDisabledRef = useRef(false)
-  const SHOP_PHOTO_BUCKET = import.meta.env.VITE_SHOP_PHOTO_BUCKET
+  const SHOP_PHOTO_BUCKET = import.meta.env.VITE_SHOP_PHOTO_BUCKET || 'magasin'
 
   const handlePhotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -148,7 +148,8 @@ export default function CommercialNewOrderPage() {
       if (!SHOP_PHOTO_BUCKET) throw new Error('SHOP_PHOTO_BUCKET not configured')
       const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg'
       const uniqueId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`
-      const filePath = `shops/${uniqueId}-${file.name}`
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+      const filePath = `shops/${uniqueId}-${safeName}`
 
       const { error: uploadError } = await supabase.storage
         .from(SHOP_PHOTO_BUCKET)
