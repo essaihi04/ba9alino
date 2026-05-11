@@ -2526,6 +2526,8 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
 
       if (shouldReturnToOrders) {
         setReturnToOrdersAfterSale(false)
+        // Invalidate Orders page cache so it fetches fresh data on mount
+        try { sessionStorage.removeItem('orders_page_cache') } catch {}
         navigate('/orders')
       }
     } catch (error) {
