@@ -2495,9 +2495,13 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       // Afficher la facture et la popup d'impression
       setConfirmedInvoice(finalInvoice)
       setShowConfirmationModal(false)
-      setShowInvoiceModal(true)
-      setShowPrintTypeModal(true)
-      
+
+      const shouldReturnToOrders = returnToOrdersAfterSale
+      if (!shouldReturnToOrders) {
+        setShowInvoiceModal(true)
+        setShowPrintTypeModal(true)
+      }
+
       // Réinitialiser pour la prochaine vente
       setCurrentInvoice(null)
       setInvoiceNumber('')
@@ -2517,6 +2521,11 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       }))
       await loadProducts(true)
       await refreshCashSessionSummary(cashSession.id)
+
+      if (shouldReturnToOrders) {
+        setReturnToOrdersAfterSale(false)
+        navigate('/orders')
+      }
     } catch (error) {
       console.error('Error:', error)
       alert('❌ حدث خطأ')

@@ -1929,7 +1929,7 @@ export default function OrdersPage() {
         items: items.map((item) => ({
           id: item.id,
           product_id: item.product_id,
-          primary_variant_id: item.variant_id || '',
+          primary_variant_id: (item as any).variant_id || '',
           name_ar: getOrderItemDisplayName(item),
           description: getOrderItemDisplayName(item),
           unit_price: Number(item.unit_price || 0),
