@@ -1058,9 +1058,41 @@ export default function PurchasesPage() {
         purchasePayload.credit_due_date = purchaseForm.credit_due_date || null
       }
 
-      const { error } = await supabase
+      let { error } = await supabase
         .from('purchases')
         .insert([purchasePayload])
+
+      // Retry by progressively stripping unknown columns (PGRST204 / 42703)
+      if (error) {
+        const isMissing = (err: any, col: string) => {
+          const msg = String(err?.message || '')
+          const code = String(err?.code || '')
+          return (code === 'PGRST204' || code === '42703') && msg.includes(`'${col}'`)
+        }
+        const optionalCols = [
+          'warehouse_id',
+          'payment_type',
+          'paid_amount',
+          'remaining_amount',
+          'payment_status',
+          'check_number',
+          'check_date',
+          'check_deposit_date',
+          'bank_name',
+          'credit_due_date',
+          'tax_rate',
+          'tax_amount',
+        ]
+        for (const col of optionalCols) {
+          if (!error) break
+          if (isMissing(error, col) && col in purchasePayload) {
+            console.warn(`purchases insert: stripping missing column '${col}' and retrying`)
+            delete purchasePayload[col]
+            const retry = await supabase.from('purchases').insert([purchasePayload])
+            error = retry.error
+          }
+        }
+      }
 
       if (error) throw error
 
