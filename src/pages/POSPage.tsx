@@ -2308,8 +2308,6 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         const orderUpdatePayload: any = {
           total_amount: nextOrderTotal,
           final_amount: nextOrderTotal,
-          discount_amount: Number(currentInvoice.discount_amount || 0),
-          payment_method: currentInvoice.payment_method || normalizedPaymentMethod,
           payment_status: nextPaymentStatus,
         }
 
