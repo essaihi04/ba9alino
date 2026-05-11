@@ -2455,23 +2455,16 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
           }
         }
 
-        const warehouseId = cashSession?.warehouse_id
-        if (warehouseId) {
-          let stockRow: any = null
-          let stockErr: any = null
-
-          {
-            let stockQuery = supabase
-              .from('stock')
-              .select('id, quantity_in_stock')
-              .eq('product_id', line.product_id)
-            stockQuery = primaryVariantId
-              ? stockQuery.eq('primary_variant_id', primaryVariantId)
-              : stockQuery.is('primary_variant_id', null)
-            const res = await stockQuery.maybeSingle()
-            stockRow = res.data
-            stockErr = res.error
-          }
+        // Always update stock.quantity_in_stock — regardless of cash session / warehouse
+        {
+          let stockQuery = supabase
+            .from('stock')
+            .select('id, quantity_in_stock')
+            .eq('product_id', line.product_id)
+          stockQuery = primaryVariantId
+            ? stockQuery.eq('primary_variant_id', primaryVariantId)
+            : stockQuery.is('primary_variant_id', null)
+          const { data: stockRow, error: stockErr } = await stockQuery.maybeSingle()
 
           if (!stockErr && stockRow?.id) {
             const currentInStock = Number(stockRow.quantity_in_stock || 0) || 0
