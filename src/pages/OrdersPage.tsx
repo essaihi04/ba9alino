@@ -1917,6 +1917,7 @@ export default function OrdersPage() {
         invoice_number: linkedInvoice?.invoice_number || `FAC-${order.order_number}`,
         order_id: order.id,
         order_number: order.order_number,
+        returnToOrders: true,
         client_id: order.client_id || null,
         client_name: order.client?.company_name_ar || '',
         total_amount: total,

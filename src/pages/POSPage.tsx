@@ -244,6 +244,8 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
   const [currentInvoice, setCurrentInvoice] = useState<Invoice | null>(null)
   const [invoiceNumber, setInvoiceNumber] = useState('')
   const [onHoldInvoices, setOnHoldInvoices] = useState<Invoice[]>([])
+  // When editing an order from OrdersPage, return there after the sale
+  const [returnToOrdersAfterSale, setReturnToOrdersAfterSale] = useState(false)
   
   // Informations de l'entreprise pour les factures
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo>({
@@ -373,6 +375,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         
         setCurrentInvoice(newInvoice)
         setPaidAmount(data.paid_amount || 0)
+        setReturnToOrdersAfterSale(Boolean(data.returnToOrders))
         sessionStorage.removeItem('posInvoiceData') // Clean up
         
         // Show notification
@@ -4516,6 +4519,10 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70]" onClick={() => {
           setShowPrintTypeModal(false)
           setShowInvoiceModal(false)
+          if (returnToOrdersAfterSale) {
+            setReturnToOrdersAfterSale(false)
+            navigate('/orders')
+          }
         }}>
           <div className="bg-white rounded-2xl shadow-2xl w-[420px] max-w-[92vw] p-6" onClick={(e) => e.stopPropagation()}>
             <div className="text-center mb-6">
@@ -4559,6 +4566,10 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                 onClick={() => {
                   setShowPrintTypeModal(false)
                   setShowInvoiceModal(false)
+                  if (returnToOrdersAfterSale) {
+                    setReturnToOrdersAfterSale(false)
+                    navigate('/orders')
+                  }
                 }}
                 className="w-full bg-red-600 hover:bg-red-700 text-white py-4 rounded-lg font-bold text-lg transition-colors flex items-center justify-center gap-3"
               >

@@ -1029,6 +1029,7 @@ export default function PurchasesPage() {
       const purchasePayload: any = {
         purchase_number: purchaseNumber,
         supplier_id: purchaseForm.supplier_id,
+        warehouse_id: purchaseForm.warehouse_id || null,
         purchase_date: purchaseForm.purchase_date,
         status: purchaseForm.status,
         items: purchaseItems,

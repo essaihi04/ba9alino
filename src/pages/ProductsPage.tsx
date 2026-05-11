@@ -57,6 +57,7 @@ interface Product {
   created_at?: string
   weight?: number
   weight_unit?: string
+  is_active?: boolean
   variants?: ProductVariant[]
 }
 
@@ -83,6 +84,7 @@ export default function ProductsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [stockFilter, setStockFilter] = useState<'all' | 'out' | 'low' | 'available'>('all')
+  const [showInactive, setShowInactive] = useState(false)
   const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set())
   const [bulkTargetCategoryId, setBulkTargetCategoryId] = useState<string>('')
   const [bulkLoading, setBulkLoading] = useState(false)
@@ -145,6 +147,10 @@ export default function ProductsPage() {
     loadProducts()
     loadCategories()
   }, [])
+
+  useEffect(() => {
+    loadProducts(true)
+  }, [showInactive])
 
   // Debounce search input (300ms)
   useEffect(() => {
@@ -309,12 +315,13 @@ export default function ProductsPage() {
       let from = 0
       const pageSize = 1000
       while (true) {
-        const { data: page, error: pageError } = await supabase
+        let productsQuery = supabase
           .from('products')
-          .select('id, name_ar, sku, cost_price, price_a, price_b, price_c, price_d, price_e, stock, category_id, image_url, created_at, weight, weight_unit')
-          .eq('is_active', true)
+          .select('id, name_ar, sku, cost_price, price_a, price_b, price_c, price_d, price_e, stock, category_id, image_url, created_at, weight, weight_unit, is_active')
           .order('name_ar', { ascending: true })
           .range(from, from + pageSize - 1)
+        if (!showInactive) productsQuery = productsQuery.eq('is_active', true)
+        const { data: page, error: pageError } = await productsQuery
         if (pageError) throw pageError
         if (!page || page.length === 0) break
         allData = allData.concat(page)
@@ -803,7 +810,7 @@ export default function ProductsPage() {
       if (selectedCategory === 'no-family') return !product.category_id
       return product.category_id === selectedCategory
     })
-  }, [products, debouncedSearch, selectedCategory, stockFilter])
+  }, [products, debouncedSearch, selectedCategory, stockFilter, showInactive])
 
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / PRODUCTS_PER_PAGE))
   const safePage = Math.min(currentPage, totalPages)
@@ -2061,6 +2068,17 @@ export default function ProductsPage() {
             </button>
           </div>
 
+          <button
+            onClick={() => { setShowInactive(v => !v); productsMemoryCache = null; sessionStorage.removeItem('ba9alino_products_v3') }}
+            className={`px-2 py-1 rounded font-bold text-xs transition-all duration-200 flex items-center gap-1 border ${
+              showInactive
+                ? 'bg-gray-700 text-white border-gray-700'
+                : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-100'
+            }`}
+          >
+            {showInactive ? '● إخفاء غير النشطة' : '○ عرض غير النشطة'}
+          </button>
+
           {/* Séparateur */}
           <div className="w-px h-4 bg-gray-300"></div>
 
@@ -2242,15 +2260,16 @@ export default function ProductsPage() {
                         />
                       </td>
                       <td className="p-2">
-                        <div className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center">
+                        <div className="w-12 h-12 bg-gray-100 rounded flex items-center justify-center overflow-hidden">
                           {product.image_url ? (
                             <img 
                               src={product.image_url} 
                               alt={product.name_ar}
                               className="w-full h-full object-cover rounded"
+                              onError={(e) => { (e.target as HTMLImageElement).style.display='none' }}
                             />
                           ) : (
-                            <Package size={16} className="text-gray-400" />
+                            <Package size={18} className="text-gray-400" />
                           )}
                         </div>
                       </td>
