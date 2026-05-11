@@ -12,9 +12,6 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const navigate = useNavigate()
 
-  const ADMIN_NAME = 'admin'
-  const ADMIN_PASSWORD = 'admin123'
-
   const handleVirtualLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -27,155 +24,65 @@ export default function LoginPage() {
       return
     }
 
-    // 0) SuperAdmin: try first via superadmin_login RPC
+    // 0) SuperAdmin: try via superadmin_login RPC first
     try {
       const ok = await useSuperAdminStore.getState().login(normalizedName, normalizedPassword)
       if (ok) {
-        clearCurrentOrg() // SuperAdmin has no org context
+        clearCurrentOrg()
         navigate('/superadmin')
         return
       }
-    } catch (_) {
-      // RPC may not exist yet (migration not applied) — fall through to legacy admin
-    }
-
-    if (normalizedName === ADMIN_NAME) {
-      if (normalizedPassword !== ADMIN_PASSWORD) {
-        setError('كلمة المرور غير صحيحة')
-        return
-      }
-
-      useAuthStore.setState({ user: { id: 'virtual-admin', email: 'admin@local', user_metadata: { role: 'admin', name: 'admin' } }, loading: false })
-      // Resolve Ba9alino organization for the legacy hardcoded admin
-      try {
-        const { data: orgRow } = await supabase
-          .rpc('resolve_organization_for_user', { p_username: ADMIN_NAME })
-        const row0 = Array.isArray(orgRow) ? orgRow[0] : orgRow
-        if (row0?.organization_id) {
-          setCurrentOrg({
-            id: String(row0.organization_id),
-            name: String(row0.organization_name || 'Ba9alino'),
-            role: 'admin',
-          })
-        } else {
-          // Fallback: pick the default org directly
-          const { data: def } = await supabase
-            .from('organizations')
-            .select('id, name')
-            .eq('is_default', true)
-            .maybeSingle()
-          if (def?.id) {
-            setCurrentOrg({ id: String(def.id), name: String(def.name || 'Ba9alino'), role: 'admin' })
-          }
-        }
-      } catch (_) {
-        // RPC unavailable (migration not applied yet) — keep going without org
-      }
-      navigate('/')
-      return
-    }
+    } catch (_) {}
 
     try {
-      let row: any = null
+      // 1) Authenticate via auth service — single signInWithPassword call.
+      //    The auth service internally tries virtual_login, then user_accounts.
+      //    It returns a JWT with organization_id embedded so PostgREST RLS works.
+      const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
+        email: `${normalizedName}@local`,
+        password: normalizedPassword,
+      })
 
-      // 1) Essai compte virtuel (virtual_accounts)
-      try {
-        const { data, error: rpcError } = await supabase.rpc('virtual_login', {
-          p_name: normalizedName,
-          p_password: normalizedPassword,
-        })
-        if (!rpcError) {
-          row = Array.isArray(data) ? data[0] : null
-        }
-      } catch (_) {
-        // virtual_login indisponible: ignorer et passer au fallback
-      }
-
-      // 2) Fallback: user_accounts + Supabase Auth (comptes créés via le grand formulaire)
-      if (!row) {
-        const { data: ua } = await supabase
-          .from('user_accounts')
-          .select('id, email, role, employee_id, full_name, username, is_active')
-          .ilike('username', normalizedName)
-          .limit(1)
-          .maybeSingle()
-
-        if (ua && ua.email && ua.is_active !== false) {
-          const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
-            email: ua.email,
-            password: normalizedPassword,
-          })
-          if (!signInErr && signInData?.user) {
-            // Pour les comptes commerciaux, lier au vrai employee_id si disponible
-            const linkedId = ua.role === 'commercial' && ua.employee_id ? String(ua.employee_id) : String(ua.id || signInData.user.id)
-            row = {
-              id: linkedId,
-              role: ua.role,
-              name: ua.full_name || ua.username || normalizedName,
-            }
-          } else if (signInErr) {
-            console.warn('signInWithPassword failed, trying user_accounts_login RPC fallback:', signInErr.message)
-          }
-        }
-      }
-
-      // 3) Fallback ultime: RPC user_accounts_login (vérifie le hash bcrypt directement,
-      // contourne GoTrue qui refuse parfois les comptes insérés via SQL).
-      if (!row) {
-        try {
-          const { data: rpcRows, error: rpcErr } = await supabase.rpc('user_accounts_login', {
-            p_name: normalizedName,
-            p_password: normalizedPassword,
-          })
-          if (!rpcErr) {
-            const ua = Array.isArray(rpcRows) ? rpcRows[0] : null
-            if (ua) {
-              const linkedId = ua.role === 'commercial' && ua.employee_id ? String(ua.employee_id) : String(ua.id)
-              row = {
-                id: linkedId,
-                role: ua.role,
-                name: ua.name || normalizedName,
-              }
-            }
-          } else {
-            console.warn('user_accounts_login RPC error:', rpcErr.message)
-          }
-        } catch (e) {
-          console.warn('user_accounts_login RPC unavailable:', e)
-        }
-      }
-
-      if (!row) {
+      if (signInErr || !signInData?.user) {
         setError('الاسم أو كلمة المرور غير صحيحة')
         return
       }
 
-      const role = String((row as any)?.role || '').toLowerCase()
-      const displayName = String((row as any)?.name || normalizedName)
-      const id = String((row as any)?.id || '')
+      const user = signInData.user
+      const meta = user.user_metadata || {}
+      const role = String(meta.role || '').toLowerCase()
+      const displayName = String(meta.name || normalizedName)
+      const id = String(user.id || '')
+      const employeeId = String(meta.employee_id || id)
+      const orgId = String(meta.organization_id || '')
 
-      console.log('Login result:', { role, displayName, id, row })
+      console.log('Login result:', { role, displayName, id, employeeId, orgId })
 
-      useAuthStore.setState({ user: { id, email: `${displayName}@local`, user_metadata: { role, name: displayName } }, loading: false })
+      useAuthStore.setState({
+        user: { id, email: user.email || `${displayName}@local`, user_metadata: meta },
+        loading: false,
+      })
 
-      // Resolve organization for this user (multi-tenant context)
-      try {
-        const { data: orgRow } = await supabase
-          .rpc('resolve_organization_for_user', { p_username: normalizedName })
-        const r0 = Array.isArray(orgRow) ? orgRow[0] : orgRow
-        if (r0?.organization_id) {
+      // Store org context in localStorage for non-JWT usage (e.g. inserts)
+      if (orgId) {
+        try {
+          const { data: orgRow } = await supabase
+            .from('organizations')
+            .select('id, name')
+            .eq('id', orgId)
+            .maybeSingle()
           setCurrentOrg({
-            id: String(r0.organization_id),
-            name: String(r0.organization_name || ''),
-            role: String(r0.role || role),
+            id: orgId,
+            name: String(orgRow?.name || ''),
+            role,
           })
+        } catch (_) {
+          setCurrentOrg({ id: orgId, name: '', role })
         }
-      } catch (_) {
-        // multi-tenant migrations not applied yet — continue without org context
       }
 
       if (role === 'commercial') {
-        localStorage.setItem('commercial_id', id)
+        localStorage.setItem('commercial_id', employeeId)
         localStorage.setItem('commercial_name', displayName)
         localStorage.setItem('commercial_role', 'commercial')
         navigate('/commercial/dashboard')
@@ -183,63 +90,43 @@ export default function LoginPage() {
       }
 
       if (role === 'employee') {
-        // Récupérer le vrai employee_id depuis la table employees
+        // Prefer employee_id from JWT metadata; fallback to name/phone lookup
         try {
-          let employeeData = null
-          let employeeError = null
-          
-          // Essayer d'abord par téléphone si displayName ressemble à un numéro
-          if (displayName.match(/^\d+$/)) {
-            const result = await supabase
+          let empData: any = null
+
+          if (meta.employee_id) {
+            const r = await supabase
               .from('employees')
               .select('id, name, phone')
-              .eq('phone', displayName)
-              .eq('status', 'active')
-              .single()
-            employeeData = result.data
-            employeeError = result.error
+              .eq('id', meta.employee_id)
+              .maybeSingle()
+            empData = r.data
           }
-          
-          // Si ça ne marche pas, essayer par nom
-          if (employeeError || !employeeData) {
-            const result = await supabase
-              .from('employees')
-              .select('id, name, phone')
-              .eq('name', displayName)
-              .eq('status', 'active')
-              .single()
-            employeeData = result.data
-            employeeError = result.error
+
+          if (!empData) {
+            if (displayName.match(/^\d+$/)) {
+              const r = await supabase.from('employees').select('id, name, phone').eq('phone', displayName).eq('status', 'active').single()
+              empData = r.data
+            }
+            if (!empData) {
+              const r = await supabase.from('employees').select('id, name, phone').eq('name', displayName).eq('status', 'active').single()
+              empData = r.data
+            }
           }
-          
-          console.log('Employee lookup result:', { employeeData, employeeError, displayName })
-          
-          if (!employeeError && employeeData) {
-            localStorage.setItem('employee_id', employeeData.id)
-            localStorage.setItem('employee_name', employeeData.name)
-            localStorage.setItem('employee_role', 'employee')
-            localStorage.setItem('employee_phone', employeeData.phone || displayName)
-            navigate('/employee/dashboard')
-            return
-          } else {
-            // Si l'employé n'existe pas dans employees, utiliser virtual_account_id
-            console.log('Employee not found in employees table, using virtual_account_id as fallback')
-            localStorage.setItem('employee_id', id) // id est virtual_account_id
-            localStorage.setItem('employee_name', displayName)
-            localStorage.setItem('employee_role', 'employee')
-            localStorage.setItem('employee_phone', displayName)
-            navigate('/employee/dashboard')
-            return
-          }
-        } catch (err) {
-          console.error('Error fetching employee data:', err)
-          // Fallback si la recherche échoue
-          localStorage.setItem('employee_id', id)
+
+          const finalId = empData?.id || employeeId
+          localStorage.setItem('employee_id', finalId)
+          localStorage.setItem('employee_name', empData?.name || displayName)
+          localStorage.setItem('employee_role', 'employee')
+          localStorage.setItem('employee_phone', empData?.phone || displayName)
+        } catch (_) {
+          localStorage.setItem('employee_id', employeeId)
           localStorage.setItem('employee_name', displayName)
           localStorage.setItem('employee_role', 'employee')
-          navigate('/employee/dashboard')
-          return
+          localStorage.setItem('employee_phone', displayName)
         }
+        navigate('/employee/dashboard')
+        return
       }
 
       navigate('/pos')
