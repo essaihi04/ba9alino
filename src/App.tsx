@@ -52,6 +52,9 @@ import EmployeeClientsPage from './pages/employee/EmployeeClientsPage'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 import EmployeeProtectedRoute from './components/EmployeeProtectedRoute'
+import SuperAdminProtectedRoute from './components/SuperAdminProtectedRoute'
+import SuperAdminDashboardPage from './pages/superadmin/SuperAdminDashboardPage'
+import SuperAdminCreateOrgPage from './pages/superadmin/SuperAdminCreateOrgPage'
 
 function App() {
   const { checkAuth } = useAuthStore()
@@ -65,7 +68,19 @@ function App() {
       <AutoInputPad />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        
+
+        {/* SuperAdmin Routes - No Layout */}
+        <Route path="/superadmin" element={
+          <SuperAdminProtectedRoute>
+            <SuperAdminDashboardPage />
+          </SuperAdminProtectedRoute>
+        } />
+        <Route path="/superadmin/organizations/new" element={
+          <SuperAdminProtectedRoute>
+            <SuperAdminCreateOrgPage />
+          </SuperAdminProtectedRoute>
+        } />
+
         {/* Commercial Routes - No Layout */}
         <Route path="/commercial/login" element={<CommercialLoginPage />} />
         <Route path="/commercial/dashboard" element={<CommercialDashboardPage />} />

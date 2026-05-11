@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { LogIn } from 'lucide-react'
 import { useAuthStore } from '../store/auth'
+import { useSuperAdminStore } from '../store/superAdmin'
+import { setCurrentOrg, clearCurrentOrg } from '../lib/withOrg'
 import { supabase } from '../lib/supabase'
 
 export default function LoginPage() {
@@ -25,6 +27,18 @@ export default function LoginPage() {
       return
     }
 
+    // 0) SuperAdmin: try first via superadmin_login RPC
+    try {
+      const ok = await useSuperAdminStore.getState().login(normalizedName, normalizedPassword)
+      if (ok) {
+        clearCurrentOrg() // SuperAdmin has no org context
+        navigate('/superadmin')
+        return
+      }
+    } catch (_) {
+      // RPC may not exist yet (migration not applied) — fall through to legacy admin
+    }
+
     if (normalizedName === ADMIN_NAME) {
       if (normalizedPassword !== ADMIN_PASSWORD) {
         setError('كلمة المرور غير صحيحة')
@@ -32,6 +46,31 @@ export default function LoginPage() {
       }
 
       useAuthStore.setState({ user: { id: 'virtual-admin', email: 'admin@local', user_metadata: { role: 'admin', name: 'admin' } }, loading: false })
+      // Resolve Ba9alino organization for the legacy hardcoded admin
+      try {
+        const { data: orgRow } = await supabase
+          .rpc('resolve_organization_for_user', { p_username: ADMIN_NAME })
+        const row0 = Array.isArray(orgRow) ? orgRow[0] : orgRow
+        if (row0?.organization_id) {
+          setCurrentOrg({
+            id: String(row0.organization_id),
+            name: String(row0.organization_name || 'Ba9alino'),
+            role: 'admin',
+          })
+        } else {
+          // Fallback: pick the default org directly
+          const { data: def } = await supabase
+            .from('organizations')
+            .select('id, name')
+            .eq('is_default', true)
+            .maybeSingle()
+          if (def?.id) {
+            setCurrentOrg({ id: String(def.id), name: String(def.name || 'Ba9alino'), role: 'admin' })
+          }
+        }
+      } catch (_) {
+        // RPC unavailable (migration not applied yet) — keep going without org
+      }
       navigate('/')
       return
     }
@@ -118,6 +157,22 @@ export default function LoginPage() {
       console.log('Login result:', { role, displayName, id, row })
 
       useAuthStore.setState({ user: { id, email: `${displayName}@local`, user_metadata: { role, name: displayName } }, loading: false })
+
+      // Resolve organization for this user (multi-tenant context)
+      try {
+        const { data: orgRow } = await supabase
+          .rpc('resolve_organization_for_user', { p_username: normalizedName })
+        const r0 = Array.isArray(orgRow) ? orgRow[0] : orgRow
+        if (r0?.organization_id) {
+          setCurrentOrg({
+            id: String(r0.organization_id),
+            name: String(r0.organization_name || ''),
+            role: String(r0.role || role),
+          })
+        }
+      } catch (_) {
+        // multi-tenant migrations not applied yet — continue without org context
+      }
 
       if (role === 'commercial') {
         localStorage.setItem('commercial_id', id)
