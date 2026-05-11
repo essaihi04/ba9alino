@@ -121,8 +121,10 @@ GRANT EXECUTE ON FUNCTION public.superadmin_create_organization(TEXT,TEXT,TEXT,T
 
 -- ---------------------------------------------------------------------------
 -- 2. virtual_login — add organization_id to return columns
+-- (DROP + CREATE because return type changes; REPLACE alone would fail)
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.virtual_login(p_name TEXT, p_password TEXT)
+DROP FUNCTION IF EXISTS public.virtual_login(TEXT, TEXT);
+CREATE FUNCTION public.virtual_login(p_name TEXT, p_password TEXT)
 RETURNS TABLE(id UUID, role TEXT, name TEXT, employee_id UUID, organization_id UUID)
 LANGUAGE plpgsql SECURITY DEFINER AS $$
 BEGIN
@@ -140,7 +142,7 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.virtual_login(TEXT, TEXT) TO anon, ba9alino_anon, PUBLIC;
+GRANT EXECUTE ON FUNCTION public.virtual_login(TEXT, TEXT) TO ba9alino_anon, PUBLIC;
 
 -- ---------------------------------------------------------------------------
 -- 3. current_org_id() — read organization_id directly from JWT claims first
