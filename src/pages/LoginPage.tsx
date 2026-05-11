@@ -63,17 +63,15 @@ export default function LoginPage() {
         loading: false,
       })
 
-      // Store org context in localStorage for non-JWT usage (e.g. inserts)
+      // Store org context in localStorage (used by inserts to inject organization_id)
       if (orgId) {
         try {
           const { data: orgRow } = await supabase
-            .from('organizations')
-            .select('id, name')
-            .eq('id', orgId)
-            .maybeSingle()
+            .rpc('resolve_organization_for_user', { p_username: normalizedName })
+          const r0 = Array.isArray(orgRow) ? orgRow[0] : orgRow
           setCurrentOrg({
             id: orgId,
-            name: String(orgRow?.name || ''),
+            name: String(r0?.organization_name || ''),
             role,
           })
         } catch (_) {
