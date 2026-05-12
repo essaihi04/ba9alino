@@ -1742,30 +1742,32 @@ export default function OrdersPage() {
           }
         }
 
-        // Update stock.quantity_in_stock (canonical stock table)
-        let stockQuery = supabase
+        // Update stock.quantity_in_stock — fetch all stock rows for product, pick best match in JS
+        const { data: stockRows } = await supabase
           .from('stock')
-          .select('id, quantity_in_stock')
+          .select('id, quantity_in_stock, primary_variant_id')
           .eq('product_id', item.product_id)
-        stockQuery = primaryVariantId
-          ? stockQuery.eq('primary_variant_id', primaryVariantId)
-          : stockQuery.is('primary_variant_id', null)
-        const { data: stockRow } = await stockQuery.maybeSingle()
+
+        let stockRow: any = null
+        if (Array.isArray(stockRows) && stockRows.length > 0) {
+          stockRow = (primaryVariantId
+            ? stockRows.find((r: any) => r.primary_variant_id === primaryVariantId)
+            : null)
+            || stockRows.find((r: any) => r.primary_variant_id === null)
+            || stockRows[0]
+        }
 
         if (stockRow?.id) {
           await supabase
             .from('stock')
             .update({ quantity_in_stock: Math.max(0, Number(stockRow.quantity_in_stock || 0) + delta) })
             .eq('id', stockRow.id)
-          console.log(`Stock ${mode}: product=${item.product_id} qty=${qty} new=${Math.max(0, Number(stockRow.quantity_in_stock || 0) + delta)}`)
         } else if (mode === 'restock') {
           await supabase.from('stock').insert({
             product_id: item.product_id,
             primary_variant_id: primaryVariantId || null,
             quantity_in_stock: qty,
           })
-        } else {
-          console.warn(`Stock row not found for product=${item.product_id}, primaryVariant=${primaryVariantId}`)
         }
       }
     } catch (error) {

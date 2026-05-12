@@ -2455,20 +2455,21 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
           }
         }
 
-        // Always update stock.quantity_in_stock — regardless of cash session / warehouse
+        // Always update stock.quantity_in_stock — regardless of cash session / warehouse.
+        // IMPORTANT: many products have a single stock row with primary_variant_id=NULL even when
+        // primary variants exist on the product. So we fetch ALL stock rows for the product and
+        // pick the best match in JS instead of filtering server-side.
         {
-          let stockQuery = supabase
+          const { data: stockRows, error: stockErr } = await supabase
             .from('stock')
             .select('id, quantity_in_stock, primary_variant_id')
             .eq('product_id', line.product_id)
-          if (primaryVariantId) stockQuery = stockQuery.eq('primary_variant_id', primaryVariantId)
-          const { data: stockRows, error: stockErr } = await stockQuery
-          console.log('[STOCK] product=', line.product_id, 'primary_variant=', primaryVariantId || '(none)', 'rows=', stockRows, 'err=', stockErr)
 
-          // Pick best matching row: exact primary_variant_id, else null one, else any
           let stockRow: any = null
           if (Array.isArray(stockRows) && stockRows.length > 0) {
-            stockRow = stockRows.find((r: any) => r.primary_variant_id === primaryVariantId)
+            stockRow = (primaryVariantId
+              ? stockRows.find((r: any) => r.primary_variant_id === primaryVariantId)
+              : null)
               || stockRows.find((r: any) => r.primary_variant_id === null)
               || stockRows[0]
           }
@@ -2479,14 +2480,13 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
               ? (unitsPerCarton > 0 ? saleQty * unitsPerCarton : saleQty)
               : saleQty
             const nextInStock = Math.max(0, currentInStock - baseDelta)
-            const { error: updErr, data: updData } = await supabase
+            const { error: updErr } = await supabase
               .from('stock')
               .update({ quantity_in_stock: nextInStock })
               .eq('id', stockRow.id)
-              .select()
-            console.log('[STOCK] update id=', stockRow.id, 'from=', currentInStock, 'to=', nextInStock, 'updErr=', updErr, 'updData=', updData)
+            if (updErr) console.error('[STOCK] update failed', updErr)
           } else {
-            console.warn('[STOCK] no row found for product=', line.product_id, 'primary_variant=', primaryVariantId || '(none)')
+            console.warn('[STOCK] no stock row for product', line.product_id, 'err=', stockErr)
           }
         }
       }
