@@ -2491,6 +2491,15 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         }
       }
 
+      // Invalidate product cache so UI reflects new stock values
+      try {
+        Object.keys(sessionStorage).forEach(k => {
+          if (k.startsWith(PRODUCTS_CACHE_KEY_PREFIX)) sessionStorage.removeItem(k)
+        })
+      } catch {}
+      // Reload products in background to refresh stock display
+      loadProducts(true).catch(() => {})
+
       // Créer la facture finale avec TVA
       const finalInvoice = {
         ...currentInvoice,
