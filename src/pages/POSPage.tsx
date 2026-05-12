@@ -2490,7 +2490,10 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
           }
         }
 
-        // Also decrement products.stock (legacy column read by StockPage)
+        // Also decrement products.stock (legacy column read by StockPage when no warehouse selected)
+        const baseDelta = unitType === 'carton'
+          ? (unitsPerCarton > 0 ? saleQty * unitsPerCarton : saleQty)
+          : saleQty
         {
           const { data: prodRow } = await supabase
             .from('products')
@@ -2498,13 +2501,34 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
             .eq('id', line.product_id)
             .maybeSingle()
           if (prodRow?.id) {
-            const baseDelta = unitType === 'carton'
-              ? (unitsPerCarton > 0 ? saleQty * unitsPerCarton : saleQty)
-              : saleQty
             await supabase
               .from('products')
               .update({ stock: Math.max(0, Number(prodRow.stock || 0) - baseDelta) })
               .eq('id', prodRow.id)
+          }
+        }
+
+        // Also decrement warehouse_stock.quantity (read by StockPage when warehouse selected)
+        {
+          const { data: wsRows } = await supabase
+            .from('warehouse_stock')
+            .select('id, quantity, warehouse_id')
+            .eq('product_id', line.product_id)
+
+          if (Array.isArray(wsRows) && wsRows.length > 0) {
+            // Prefer current cash session warehouse if it matches one of the rows
+            const cashWh = cashSession?.warehouse_id
+            const wsRow = (cashWh ? wsRows.find((r: any) => r.warehouse_id === cashWh) : null)
+              || wsRows[0]
+            if (wsRow?.id) {
+              await supabase
+                .from('warehouse_stock')
+                .update({
+                  quantity: Math.max(0, Number(wsRow.quantity || 0) - baseDelta),
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('id', wsRow.id)
+            }
           }
         }
       }
