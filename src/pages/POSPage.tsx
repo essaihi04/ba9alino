@@ -2489,6 +2489,24 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
             console.warn('[STOCK] no stock row for product', line.product_id, 'err=', stockErr)
           }
         }
+
+        // Also decrement products.stock (legacy column read by StockPage)
+        {
+          const { data: prodRow } = await supabase
+            .from('products')
+            .select('id, stock')
+            .eq('id', line.product_id)
+            .maybeSingle()
+          if (prodRow?.id) {
+            const baseDelta = unitType === 'carton'
+              ? (unitsPerCarton > 0 ? saleQty * unitsPerCarton : saleQty)
+              : saleQty
+            await supabase
+              .from('products')
+              .update({ stock: Math.max(0, Number(prodRow.stock || 0) - baseDelta) })
+              .eq('id', prodRow.id)
+          }
+        }
       }
 
       // Invalidate product cache so UI reflects new stock values
