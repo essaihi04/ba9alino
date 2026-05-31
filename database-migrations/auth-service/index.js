@@ -73,16 +73,45 @@ app.post('/auth/v1/token', async (req, res) => {
       const decoded = jwt.verify(refresh_token, JWT_SECRET)
       const client = await pool.connect()
       try {
-        // Chercher l'utilisateur par id
-        const result = await client.query(
+        let user = null
+
+        // 1) Chercher dans user_accounts
+        const uaResult = await client.query(
           `SELECT ua.*, e.name as emp_name FROM user_accounts ua
            LEFT JOIN employees e ON e.id = ua.employee_id
            WHERE ua.id::text = $1 LIMIT 1`,
           [decoded.sub]
         )
-        if (result.rows.length === 0) return res.status(401).json({ error: 'user_not_found', message: 'Utilisateur introuvable' })
-        const user = result.rows[0]
-        user.name = user.emp_name || user.full_name || user.username
+        if (uaResult.rows.length > 0) {
+          user = uaResult.rows[0]
+          user.name = user.emp_name || user.full_name || user.username
+        }
+
+        // 2) Fallback: chercher dans virtual_accounts (sub = employee_id ou va.id)
+        if (!user) {
+          const vaResult = await client.query(
+            `SELECT va.*, e.name as emp_name, e.id as emp_id FROM virtual_accounts va
+             LEFT JOIN employees e ON e.id = va.employee_id
+             WHERE va.employee_id::text = $1 OR va.id::text = $1
+             LIMIT 1`,
+            [decoded.sub]
+          )
+          if (vaResult.rows.length > 0) {
+            const va = vaResult.rows[0]
+            user = {
+              id: va.employee_id || va.id,
+              role: va.role,
+              name: va.emp_name || va.name,
+              employee_id: va.employee_id,
+              organization_id: va.organization_id || null,
+              created_at: va.created_at,
+              email: null,
+            }
+          }
+        }
+
+        if (!user) return res.status(401).json({ error: 'user_not_found', message: 'Utilisateur introuvable' })
+
         const { accessToken, refreshToken, payload } = makeTokens(user)
         return res.json({ access_token: accessToken, refresh_token: refreshToken, token_type: 'bearer', expires_in: 604800, user: makeUserObject(user, payload) })
       } finally { client.release() }

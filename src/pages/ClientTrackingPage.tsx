@@ -157,7 +157,7 @@ export default function ClientTrackingPage() {
         const merged = jsonItems.map((it: any) => ({
           id: it.id || `${invoice.id}-${it.product_id || it.product_sku || Math.random()}`,
           product_id: it.product_id,
-          product_name_ar: it.product_name_ar || it.product?.name_ar || it.name_ar || it.product_name || 'منتج بدون اسم',
+          product_name_ar: it.product_name_ar || it.product?.name_ar || it.name_ar || it.product_name || it.description || 'منتج بدون اسم',
           product_sku: it.product_sku || it.product?.sku || it.sku || '',
           quantity: Number(it.quantity || 0),
           unit_price: Number(it.unit_price || 0),
@@ -172,7 +172,9 @@ export default function ClientTrackingPage() {
           final_amount: invoice.total_amount,
           items: merged,
           paid_amount: Number(invoice.paid_amount || 0),
-          remaining_amount: Number(invoice.remaining_amount || Math.max(0, Number(invoice.total_amount || 0) - Number(invoice.paid_amount || 0)))
+          remaining_amount: invoice.remaining_amount != null
+            ? Number(invoice.remaining_amount)
+            : Math.max(0, Number(invoice.total_amount || 0) - Number(invoice.paid_amount || 0))
         }
       })
 
@@ -197,7 +199,7 @@ export default function ClientTrackingPage() {
       const orderPayments = order.payments || []
       return sum + orderPayments.reduce((paymentSum, payment) => paymentSum + (payment.amount || 0), 0)
     }, 0)
-    const remainingAmount = totalAmount - paidAmount
+    const remainingAmount = ordersData.reduce((sum, order) => sum + (Number((order as any).remaining_amount) || 0), 0)
     const totalProducts = ordersData.reduce((sum, order) => {
       const orderItems = order.items || []
       return sum + orderItems.reduce((itemSum, item) => itemSum + (item.quantity || 0), 0)

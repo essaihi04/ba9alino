@@ -853,6 +853,8 @@ export default function InvoicePage() {
       if (savedInvoice?.id) {
         try {
           const isPaidNow = paymentMethod === 'cash' || paymentMethod === 'check'
+          // In edit mode, preserve previously paid amount instead of resetting
+          const prevPaid = isEditMode ? Number(loadedInvoice?.paid_amount ?? 0) : 0
           const invoicePaymentUpdate: any = isPaidNow
             ? {
                 paid_amount: invoiceData.totalAmount,
@@ -860,9 +862,9 @@ export default function InvoicePage() {
                 payment_status: 'paid'
               }
             : {
-                paid_amount: 0,
-                remaining_amount: invoiceData.totalAmount,
-                payment_status: 'credit'
+                paid_amount: prevPaid,
+                remaining_amount: Math.max(0, invoiceData.totalAmount - prevPaid),
+                payment_status: prevPaid > 0 ? 'partial' : 'credit'
               }
 
           const tryUpdateInvoice = async (payload: any) => {
@@ -990,15 +992,19 @@ export default function InvoicePage() {
         console.warn('❌ No order ID or order_number found - cannot update order payment status')
       }
 
-      // Insert payment record if not credit
-      if (paymentMethod !== 'credit') {
+      // Insert payment record if not credit, only for the net new amount
+      const prevPaidForPayment = isEditMode ? Number(loadedInvoice?.paid_amount ?? 0) : 0
+      const newPaymentAmount = paymentMethod !== 'credit'
+        ? invoiceData.totalAmount - prevPaidForPayment
+        : 0
+      if (newPaymentAmount > 0) {
         try {
           const paymentDataToInsert: any = {
             order_id: orderId || null,
             invoice_id: savedInvoice.id,
             payment_number: `PAY-${Date.now()}`,
             client_id: clientId,
-            amount: invoiceData.totalAmount,
+            amount: newPaymentAmount,
             payment_method: paymentMethodDB,
             payment_date: new Date().toISOString().split('T')[0],
             status: 'completed'

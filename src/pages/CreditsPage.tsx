@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { AlertCircle, Clock, DollarSign, User, Calendar, TrendingUp, FileText, CreditCard, Eye, ArrowRight, CheckCircle, Search, Filter } from 'lucide-react'
+import { AlertCircle, Clock, DollarSign, User, Calendar, TrendingUp, FileText, CreditCard, Eye, ArrowRight, CheckCircle, Search, Filter, ShoppingCart } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
@@ -37,10 +37,12 @@ interface InvoiceWithPayments {
   payment_status?: string | null
   client_id?: string | null
   invoice_date?: string | null
+  client_name?: string | null
   client?: {
     id?: string | null
     company_name_ar?: string | null
   } | null
+  items?: any[]
   payments: Payment[]
 }
 
@@ -273,6 +275,45 @@ export default function CreditsPage() {
   const handleInvoiceClick = (invoice: InvoiceWithPayments) => {
     setSelectedInvoice(invoice)
     setShowPaymentHistory(true)
+  }
+
+  const openInvoiceInPOS = (invoice: InvoiceWithPayments) => {
+    const rawItems: any[] = Array.isArray(invoice.items) ? invoice.items : []
+    const posItems = rawItems.map((item: any) => ({
+      id: item.product_id || `item-${Math.random()}`,
+      product_id: item.product_id || null,
+      primary_variant_id: item.primary_variant_id || '',
+      name_ar: item.product_name || item.product_name_ar || item.name_ar || item.description || 'منتج',
+      unit_price: Number(item.unit_price || item.unitPrice || 0),
+      price_a: Number(item.unit_price || item.unitPrice || 0),
+      price_b: Number(item.unit_price || item.unitPrice || 0),
+      price_c: Number(item.unit_price || item.unitPrice || 0),
+      price_d: Number(item.unit_price || item.unitPrice || 0),
+      price_e: Number(item.unit_price || item.unitPrice || 0),
+      quantity: Number(item.quantity || 1),
+      stock: 999,
+      customPrice: Number(item.unit_price || item.unitPrice || 0),
+      image_url: item.image_url || undefined,
+      total: Number(item.total || item.line_total || 0)
+    }))
+
+    const posData = {
+      invoiceId: invoice.id,
+      invoice_number: invoice.invoice_number,
+      client_id: invoice.client_id || null,
+      client_name: invoice.client?.company_name_ar || invoice.client_name || '',
+      total_amount: invoice.total_amount,
+      paid_amount: invoice.paid_amount || 0,
+      discount_percent: 0,
+      discount_amount: 0,
+      payment_method: invoice.payment_method || 'cash',
+      created_at: invoice.invoice_date || invoice.created_at || new Date().toISOString(),
+      is_credit: true,
+      items: posItems
+    }
+
+    sessionStorage.setItem('posInvoiceData', JSON.stringify(posData))
+    navigate('/pos')
   }
 
   const updateChequeStatus = async (invoiceId: string, status: 'paid' | 'partial' | 'unpaid', paidAmount?: number) => {
@@ -905,11 +946,10 @@ export default function CreditsPage() {
                 return (
                   <div 
                     key={invoice.id} 
-                    className="border-2 border-gray-200 rounded-lg p-4 hover:border-red-300 transition-colors cursor-pointer"
-                    onClick={() => handleInvoiceClick(invoice)}
+                    className="border-2 border-gray-200 rounded-lg p-4 hover:border-red-300 transition-colors"
                   >
                     <div className="flex justify-between items-start gap-4">
-                      <div className="flex-1 min-w-0">
+                      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => handleInvoiceClick(invoice)}>
                         <div className="flex items-center gap-3 mb-2 flex-wrap">
                           <p className="font-bold text-gray-800">فاتورة #{invoice.invoice_number || invoice.id.slice(0, 8)}</p>
                           {getPaymentTypeDisplay(invoice.payment_method)}
@@ -928,6 +968,14 @@ export default function CreditsPage() {
                         <p className="text-sm text-gray-600">المجموع: {invoice.total_amount?.toFixed(2)} MAD</p>
                         <p className="text-sm text-green-600">المدفوع: {invoice.paid_amount?.toFixed(2)} MAD</p>
                         <p className="text-lg font-bold text-red-600">الباقي: {invoice.remaining.toFixed(2)} MAD</p>
+                        <button
+                          onClick={() => openInvoiceInPOS(invoice)}
+                          className="mt-2 flex items-center gap-1 bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors w-full justify-center"
+                          title="تعديل في الكايس"
+                        >
+                          <ShoppingCart size={13} />
+                          تعديل في الكايس
+                        </button>
                       </div>
                     </div>
                   </div>

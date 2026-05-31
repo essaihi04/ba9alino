@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useInputPad } from '../components/useInputPad'
 import { getCategoryLabelArabic } from '../utils/categoryLabels'
+import { getCurrentOrgId } from '../lib/withOrg'
 import { normalizeSearch } from '../utils/searchNormalize'
 import { 
   Search, 
@@ -23,6 +24,13 @@ import {
   Play,
   Trash
 } from 'lucide-react'
+
+const OLD_SUPABASE_HOST = 'pvztozmqrbjxsyqwxmex.supabase.co'
+const NEW_HOST = 'ba9alino.ma'
+const fixImageUrl = (url?: string | null): string | undefined => {
+  if (!url) return undefined
+  return url.replace(OLD_SUPABASE_HOST, NEW_HOST)
+}
 
 interface CompanyInfo {
   company_name_ar: string
@@ -246,6 +254,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
   const [onHoldInvoices, setOnHoldInvoices] = useState<Invoice[]>([])
   // When editing an order from OrdersPage, return there after the sale
   const [returnToOrdersAfterSale, setReturnToOrdersAfterSale] = useState(false)
+  const [isEditingCreditInvoice, setIsEditingCreditInvoice] = useState(false)
   
   // Informations de l'entreprise pour les factures
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo>({
@@ -375,6 +384,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         
         setCurrentInvoice(newInvoice)
         setPaidAmount(data.paid_amount || 0)
+        setIsEditingCreditInvoice(Boolean(data.is_credit))
         setReturnToOrdersAfterSale(Boolean(data.returnToOrders))
         sessionStorage.removeItem('posInvoiceData') // Clean up
         
@@ -838,7 +848,8 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       console.time('⏱️ POS loadProducts total')
 
       const warehouseForStock = cashSession?.warehouse_id || localStorage.getItem(WAREHOUSE_KEY)
-      const cacheKey = `${PRODUCTS_CACHE_KEY_PREFIX}:${warehouseForStock || 'all'}`
+      const orgId = getCurrentOrgId() || 'unknown'
+      const cacheKey = `${PRODUCTS_CACHE_KEY_PREFIX}:${orgId}:${warehouseForStock || 'all'}`
 
       if (!forceRefresh) {
         try {
@@ -981,11 +992,13 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
 
       const dedupedPrimaryVariants = Array.from(
         new Map(
-          (primaryVariants || []).map((pv: any) => {
-            const normalizedVariant = String(pv.variant_name || '').trim().toLowerCase()
-            const normalizedBarcode = String(pv.barcode || '').trim()
-            return [`${String(pv.product_id)}:${normalizedVariant}:${normalizedBarcode}`, pv]
-          })
+          (primaryVariants || [])
+            .filter((pv: any) => productsById.has(pv.product_id))
+            .map((pv: any) => {
+              const normalizedVariant = String(pv.variant_name || '').trim().toLowerCase()
+              const normalizedBarcode = String(pv.barcode || '').trim()
+              return [`${String(pv.product_id)}:${normalizedVariant}:${normalizedBarcode}`, pv]
+            })
         ).values()
       )
 
@@ -1397,33 +1410,16 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
 
     // Si aucun client n'est sélectionné, utiliser price_e (ou fallback)
     if (!selectedClient) {
-      console.log('🔴 Aucun client sélectionné, prix E:', item.price_e, 'fallback prix A:', item.price_a)
       const fallback = getFirstNonZeroPrice([item.price_e, item.price_a, item.price_b, item.price_c, item.price_d])
-      if (fallback) {
-        console.log('✅ Fallback trouvé:', fallback)
-        return fallback
-      }
-      return 0
+      return fallback ?? 0
     }
     
     // Déterminer le prix selon la catégorie du client
     const clientCategory = selectedClient.subscription_tier || selectedClient.subscription_tier_old
-    console.log('🔍 Catégorie client:', {
-      selectedClient: selectedClient.id,
-      subscription_tier: selectedClient.subscription_tier,
-      subscription_tier_old: selectedClient.subscription_tier_old,
-      clientCategory: clientCategory,
-      type: typeof clientCategory
-    })
     
     if (!clientCategory) {
-      console.log('🔴 Pas de catégorie, prix E:', item.price_e, 'fallback prix A:', item.price_a)
       const fallback = getFirstNonZeroPrice([item.price_e, item.price_a, item.price_b, item.price_c, item.price_d])
-      if (fallback) {
-        console.log('✅ Fallback trouvé:', fallback)
-        return fallback
-      }
-      return 0
+      return fallback ?? 0
     }
     
     // Les catégories sont : A, B, C, D, E, basic
@@ -1628,9 +1624,11 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     // Recalculer les totaux
     recalcInvoiceTotals(invoice)
     
-    // Auto-sync paid amount with total for resumed invoices
-    invoice.paid_amount = invoice.total_amount
-    invoice.remaining_amount = invoice.total_amount - invoice.paid_amount
+    // Auto-sync paid amount with total (not for credit invoices being edited)
+    if (!isEditingCreditInvoice) {
+      invoice.paid_amount = invoice.total_amount
+      invoice.remaining_amount = invoice.total_amount - invoice.paid_amount
+    }
 
     setCurrentInvoice({ ...invoice })
     // Sync paidAmount state with the new total
@@ -1649,9 +1647,11 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       // Recalculer les totaux
       recalcInvoiceTotals(currentInvoice)
       
-      // Auto-sync paid amount with total for resumed invoices
-      currentInvoice.paid_amount = currentInvoice.total_amount
-      currentInvoice.remaining_amount = currentInvoice.total_amount - currentInvoice.paid_amount
+      // Auto-sync paid amount with total (not for credit invoices being edited)
+      if (!isEditingCreditInvoice) {
+        currentInvoice.paid_amount = currentInvoice.total_amount
+        currentInvoice.remaining_amount = currentInvoice.total_amount - currentInvoice.paid_amount
+      }
 
       setCurrentInvoice({ ...currentInvoice })
       // Sync paidAmount state with the new total
@@ -1674,9 +1674,11 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     // Recalculer les totaux
     recalcInvoiceTotals(currentInvoice)
     
-    // Auto-sync paid amount with total for resumed invoices
-    currentInvoice.paid_amount = currentInvoice.total_amount
-    currentInvoice.remaining_amount = currentInvoice.total_amount - currentInvoice.paid_amount
+    // Auto-sync paid amount with total (not for credit invoices being edited)
+    if (!isEditingCreditInvoice) {
+      currentInvoice.paid_amount = currentInvoice.total_amount
+      currentInvoice.remaining_amount = currentInvoice.total_amount - currentInvoice.paid_amount
+    }
 
     setCurrentInvoice({ ...currentInvoice })
     // Sync paidAmount state with the new total
@@ -1694,9 +1696,11 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     line.total = calculateLineTotal(line)
     recalcInvoiceTotals(currentInvoice)
     
-    // Auto-sync paid amount with total for resumed invoices
-    currentInvoice.paid_amount = currentInvoice.total_amount
-    currentInvoice.remaining_amount = currentInvoice.total_amount - currentInvoice.paid_amount
+    // Auto-sync paid amount with total (not for credit invoices being edited)
+    if (!isEditingCreditInvoice) {
+      currentInvoice.paid_amount = currentInvoice.total_amount
+      currentInvoice.remaining_amount = currentInvoice.total_amount - currentInvoice.paid_amount
+    }
 
     setCurrentInvoice({ ...currentInvoice })
     // Sync paidAmount state with the new total
@@ -2117,6 +2121,16 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       // Créer la facture directement (sans créer de commande pour les ventes en caisse)
       let invoiceNumber = currentInvoice.invoice_number
       const resolvedClientName = selectedClient?.company_name_ar || selectedClient?.company_name_en || currentInvoice.client_name || 'عميل عام'
+
+      // Fixer explicitement paid_amount selon le mode de paiement avant de sauvegarder
+      const isDebtSale = paymentMethod === 'debt' || paymentMethod === 'credit'
+      if (isDebtSale) {
+        currentInvoice.paid_amount = 0
+        currentInvoice.remaining_amount = currentInvoice.total_amount
+      } else {
+        currentInvoice.paid_amount = currentInvoice.total_amount
+        currentInvoice.remaining_amount = 0
+      }
 
       const buildInvoiceInsert = (num: string, includeDiscounts = true) => ({
         invoice_number: num,
@@ -3194,7 +3208,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                   <div className="w-full h-24 mb-1 flex items-center justify-center bg-gray-50 rounded overflow-hidden">
                     {product.image_url ? (
                       <img
-                        src={product.image_url}
+                        src={fixImageUrl(product.image_url)}
                         alt={product.name_ar}
                         className="w-full h-full object-contain rounded"
                         width={96}
@@ -3326,7 +3340,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                           {/* Vignette image */}
                           {line.image_url ? (
                             <img
-                              src={line.image_url}
+                              src={fixImageUrl(line.image_url)}
                               alt={line.product_name_ar}
                               className="w-6 h-6 object-contain rounded border border-gray-300"
                               onError={(e) => {
