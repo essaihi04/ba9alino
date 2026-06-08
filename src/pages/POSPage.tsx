@@ -385,6 +385,10 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         setCurrentInvoice(newInvoice)
         setPaidAmount(data.paid_amount || 0)
         setIsEditingCreditInvoice(Boolean(data.is_credit))
+        // Une facture crédit reste une dette par défaut : ne pas la basculer en "payé cash"
+        if (data.is_credit) {
+          setPaymentMethod('debt')
+        }
         setReturnToOrdersAfterSale(Boolean(data.returnToOrders))
         sessionStorage.removeItem('posInvoiceData') // Clean up
         
@@ -2124,7 +2128,14 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
 
       // Fixer explicitement paid_amount selon le mode de paiement avant de sauvegarder
       const isDebtSale = paymentMethod === 'debt' || paymentMethod === 'credit'
-      if (isDebtSale) {
+      if (isEditingCreditInvoice) {
+        // Modification d'une facture crédit existante : conserver le montant déjà payé
+        // pour ne PAS la marquer comme payée et la garder dans la page des crédits.
+        const totalAmount = Number(currentInvoice.total_amount || 0)
+        const preservedPaid = Math.min(Math.max(Number(currentInvoice.paid_amount || 0), 0), totalAmount)
+        currentInvoice.paid_amount = preservedPaid
+        currentInvoice.remaining_amount = totalAmount - preservedPaid
+      } else if (isDebtSale) {
         currentInvoice.paid_amount = 0
         currentInvoice.remaining_amount = currentInvoice.total_amount
       } else {
@@ -2294,7 +2305,9 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
           ? 'check'
           : 'credit'
 
-      if (currentInvoice.paid_amount > 0 && invoice?.id) {
+      // Ne pas réinsérer de paiement lors de la modification d'une facture crédit :
+      // le paiement initial existe déjà, on éviterait sinon un doublon dans la page des paiements.
+      if (currentInvoice.paid_amount > 0 && invoice?.id && !isEditingCreditInvoice) {
 
         const { error: paymentError } = await supabase
           .from('payments')
