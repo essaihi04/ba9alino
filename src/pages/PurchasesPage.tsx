@@ -69,6 +69,7 @@ interface Purchase {
   purchase_number: string
   supplier_id: string
   supplier?: Supplier
+  warehouse_id?: string
   purchase_date: string
   status: 'pending' | 'received' | 'cancelled'
   items: PurchaseLineItem[]
@@ -1162,6 +1163,51 @@ export default function PurchasesPage() {
               .eq('id', item.product_id)
           }
 
+          // 2bis) Incrémenter stock.quantity_in_stock — SOURCE LUE PAR LA CAISSE.
+          // Le POS lit l'affichage du stock depuis cette table (POSPage loadProducts)
+          // et la décrémente à chaque vente. On la met à jour ici avec la MÊME
+          // résolution de ligne que le POS: variante primaire -> NULL -> première.
+          try {
+            const { data: stockRows } = await supabase
+              .from('stock')
+              .select('id, quantity_in_stock, primary_variant_id')
+              .eq('product_id', item.product_id)
+
+            let stockRow: any = null
+            if (Array.isArray(stockRows) && stockRows.length > 0) {
+              stockRow = (primaryVariantId
+                ? stockRows.find((r: any) => r.primary_variant_id === primaryVariantId)
+                : null)
+                || stockRows.find((r: any) => r.primary_variant_id === null)
+                || stockRows[0]
+            }
+
+            if (stockRow?.id) {
+              const nextInStock = Math.max(0, (Number(stockRow.quantity_in_stock) || 0) + baseQuantity)
+              await supabase
+                .from('stock')
+                .update({ quantity_in_stock: nextInStock })
+                .eq('id', stockRow.id)
+            } else {
+              // Aucune ligne: créer en cascade (rich -> minimal) pour tolérer les schémas variés
+              const tryInsertStock = async (payload: Record<string, any>) =>
+                await supabase.from('stock').insert(payload)
+              let ins = await tryInsertStock({
+                product_id: item.product_id,
+                primary_variant_id: primaryVariantId || null,
+                quantity_in_stock: Math.max(0, baseQuantity),
+                quantity_reserved: 0,
+              })
+              if (ins.error) ins = await tryInsertStock({
+                product_id: item.product_id,
+                quantity_in_stock: Math.max(0, baseQuantity),
+              })
+              if (ins.error) console.warn('stock.quantity_in_stock insert skipped:', ins.error.message)
+            }
+          } catch (stockErr) {
+            console.warn('stock.quantity_in_stock sync skipped:', stockErr)
+          }
+
           // 3) Mettre à jour/Créer la variante correspondant au unit_type
           const baseQtyContained = (unitType === 'kilo' || unitType === 'litre')
             ? 1
@@ -1636,7 +1682,7 @@ export default function PurchasesPage() {
           ? Number(newItem.units_per_carton)
           : (newItem.weight_per_unit && newItem.weight_per_unit > 0 ? Number(newItem.weight_per_unit) : 1)
 
-        // Stock par entrepôt
+        // Stock global (table `stock`, lue par la caisse)
         if (editingPurchase.warehouse_id) {
           await upsertWarehouseStock({
             productId: newItem.product_id,
@@ -1645,6 +1691,38 @@ export default function PurchasesPage() {
             delta,
             costPrice: unitPrice,
           })
+        }
+
+        // Stock par dépôt (table `warehouse_stock`, lue par StockPage et décrémentée
+        // par le POS) — ajustée par delta pour rester cohérente avec la vente.
+        if (editingPurchase.warehouse_id && delta !== 0) {
+          try {
+            const { data: existingWS } = await supabase
+              .from('warehouse_stock')
+              .select('id, quantity')
+              .eq('warehouse_id', editingPurchase.warehouse_id)
+              .eq('product_id', newItem.product_id)
+              .maybeSingle()
+
+            if (existingWS?.id) {
+              const nextQty = Math.max(0, (Number((existingWS as any).quantity) || 0) + delta)
+              await supabase
+                .from('warehouse_stock')
+                .update({ quantity: nextQty, updated_at: new Date().toISOString() })
+                .eq('id', (existingWS as any).id)
+            } else if (delta > 0) {
+              await supabase
+                .from('warehouse_stock')
+                .insert({
+                  warehouse_id: editingPurchase.warehouse_id,
+                  product_id: newItem.product_id,
+                  quantity: Math.max(0, delta),
+                  min_alert_level: 0,
+                })
+            }
+          } catch (wsErr) {
+            console.warn('warehouse_stock edit sync skipped:', wsErr)
+          }
         }
 
         // Produit principal (stock + coût moyen)
@@ -2083,6 +2161,26 @@ export default function PurchasesPage() {
                 .eq('id', stockRecord.id)
             }
           }
+
+          // Retirer du stock par dépôt (warehouse_stock) pour rester cohérent
+          // avec la vente POS qui décrémente cette table.
+          try {
+            let wsQuery = supabase
+              .from('warehouse_stock')
+              .select('id, quantity')
+              .eq('product_id', productId)
+            if (warehouseId) wsQuery = wsQuery.eq('warehouse_id', warehouseId)
+            const { data: wsRows } = await wsQuery
+            for (const wsRow of (wsRows || [])) {
+              const nextQty = Math.max(0, (Number((wsRow as any).quantity) || 0) - baseQty)
+              await supabase
+                .from('warehouse_stock')
+                .update({ quantity: nextQty, updated_at: new Date().toISOString() })
+                .eq('id', (wsRow as any).id)
+            }
+          } catch (wsErr) {
+            console.warn('warehouse_stock delete sync skipped:', wsErr)
+          }
         }
       }
 
@@ -2285,8 +2383,8 @@ export default function PurchasesPage() {
 
       {/* Modal إنشاء فاتورة شراء */}
       {showCreatePurchaseModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-6xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white w-screen h-screen overflow-hidden flex flex-col">
             <div className="sticky top-0 bg-gradient-to-r from-green-600 to-green-700 text-white p-6 flex items-center justify-between">
               <h2 className="text-2xl font-bold">فاتورة شراء جديدة</h2>
               <div className="flex items-center gap-3">
@@ -2322,13 +2420,13 @@ export default function PurchasesPage() {
               </div>
             </div>
 
-            <div className="p-6 grid grid-cols-12 gap-6 h-[80vh]">
-              {/* Colonne gauche: Facture */}
-              <div className="col-span-7 bg-white rounded-xl shadow-lg p-6 flex flex-col">
+            <div className="p-4 flex gap-4 flex-1 overflow-hidden" dir="rtl">
+              {/* Panneau panier (facture) — à gauche comme la caisse */}
+              <div className="order-2 w-[520px] flex-shrink-0 bg-white rounded-xl shadow-lg p-4 flex flex-col overflow-hidden">
                 <h3 className="text-xl font-bold text-gray-800 mb-4">فاتورة الشراء</h3>
-                
+
                 {/* Informations de la facture */}
-                <div className="grid grid-cols-3 gap-4 mb-6">
+                <div className="grid grid-cols-2 gap-3 mb-4">
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-1">المورد *</label>
                     <select
@@ -2403,7 +2501,7 @@ export default function PurchasesPage() {
 
                 {/* Tableau des produits de la facture */}
                 <div className="flex-1 bg-gray-50 rounded-lg overflow-hidden mb-4">
-                  <div className="max-h-96 overflow-y-auto">
+                  <div className="h-full overflow-auto">
                     <table className="w-full">
                       <thead className="bg-gray-200 sticky top-0">
                         <tr>
@@ -2499,8 +2597,8 @@ export default function PurchasesPage() {
                 </div>
               </div>
 
-              {/* Colonne droite: Familles et produits */}
-              <div className="col-span-5 bg-white rounded-xl shadow-lg p-6 flex flex-col">
+              {/* Panneau produits — à droite, large, comme la caisse */}
+              <div className="order-1 flex-1 bg-white rounded-xl shadow-lg p-4 flex flex-col overflow-hidden">
                 <div className="mb-4">
                   <div className="relative">
                     <Search className="absolute right-3 top-3 text-gray-400" size={18} />
@@ -2573,32 +2671,43 @@ export default function PurchasesPage() {
                             يتم عرض أول {purchaseInitialVisibleLimit} عنصر فقط لتسريع النافذة. استخدم البحث أو اختر عائلة لعرض نتائج أدق.
                           </div>
                         )}
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">
                         {visiblePurchaseSelectableItems.map((item) => (
                           <button
                             key={item.key}
+                            type="button"
                             onClick={() => addProductToInvoice(item.product, item.primaryVariant)}
-                            className="border-2 border-gray-200 rounded-lg p-3 hover:border-green-500 hover:bg-green-50 transition-all"
+                            className="p-1.5 rounded border bg-white border-gray-200 hover:border-green-500 hover:shadow transition-all text-right"
                           >
-                            {item.product.image_url ? (
-                              <img
-                                src={item.product.image_url}
-                                alt={item.product.name_ar}
-                                className="w-full h-16 object-cover rounded-lg mb-2"
-                              />
-                            ) : (
-                              <div className="w-full h-16 bg-gray-100 rounded-lg mb-2 flex items-center justify-center">
-                                <Package size={20} className="text-gray-400" />
-                              </div>
-                            )}
-                            <p className="font-bold text-xs text-gray-800 mb-1 truncate">{item.product.name_ar}</p>
+                            <div className="w-full h-24 mb-1 flex items-center justify-center bg-gray-50 rounded overflow-hidden">
+                              {item.product.image_url ? (
+                                <img
+                                  src={item.product.image_url}
+                                  alt={item.product.name_ar}
+                                  className="w-full h-full object-contain rounded"
+                                  loading="lazy"
+                                  decoding="async"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none'
+                                    e.currentTarget.parentElement?.classList.add('bg-gray-100')
+                                  }}
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center bg-gray-100 rounded">
+                                  <Package size={14} className="text-gray-400" />
+                                </div>
+                              )}
+                            </div>
+                            <div className="text-[11px] font-bold text-gray-800 leading-tight line-clamp-2 min-h-[30px]">
+                              {item.product.name_ar}
+                            </div>
                             {item.primaryVariant ? (
-                              <p className="text-[11px] text-gray-600 mb-1 truncate">{item.primaryVariant.variant_name}</p>
-                            ) : (
-                              <p className="text-xs text-gray-600 mb-1">SKU: {item.product.sku}</p>
-                            )}
-                            <p className="text-xs font-bold text-green-600">{(item.product.cost_price || item.product.price_a).toFixed(2)} MAD</p>
-                            <p className="text-xs text-gray-500 mt-1">المخزون: {item.product.stock}</p>
+                              <div className="text-[10px] text-gray-500 truncate">{item.primaryVariant.variant_name}</div>
+                            ) : null}
+                            <div className="text-[12px] font-bold text-green-600">
+                              {(item.product.cost_price || item.product.price_a).toFixed(2)}
+                            </div>
+                            <div className="text-[10px] text-gray-500">المخزون: {item.product.stock}</div>
                           </button>
                         ))}
                         </div>
