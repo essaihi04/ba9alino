@@ -1600,6 +1600,134 @@ export default function PurchasesPage() {
     }
   }
 
+  // Reprend (décrémente) le stock ajouté par UNE ligne d'achat.
+  // Utilisé à la suppression d'une facture ET pour les lignes retirées lors
+  // d'une édition. Reflète exactement la logique d'ajout de handleSubmitPurchase
+  // (variantes sélectives par unit_type/primary_variant, bonnes unités) et NE
+  // touche PAS au cost_price/purchase_price (les supprimer corromprait le coût
+  // moyen alors qu'il peut rester du stock d'autres achats).
+  const reversePurchaseLineStock = async (item: PurchaseLineItem, warehouseId?: string) => {
+    const productId = String(item.product_id || '')
+    if (!productId) return
+    const baseQty = Number(item.base_quantity ?? calculateBaseQuantityFromLine(item)) || 0
+    if (baseQty <= 0) return
+
+    const unitType = item.unit_type || 'kilo'
+    const packagingMode = item.packaging_mode || 'none'
+    const primaryVariantId = item.primary_variant_id
+    const quantity = Number(item.quantity) || 0
+    const unitsPerCarton = item.units_per_carton && item.units_per_carton > 0 ? Number(item.units_per_carton) : 1
+    const weightPerUnit = item.weight_per_unit && item.weight_per_unit > 0 ? Number(item.weight_per_unit) : 1
+
+    // 1) products.stock (coût laissé inchangé)
+    try {
+      const { data: product } = await supabase
+        .from('products')
+        .select('stock')
+        .eq('id', productId)
+        .single()
+      if (product) {
+        await supabase
+          .from('products')
+          .update({ stock: Math.max(0, (Number(product.stock) || 0) - baseQty) })
+          .eq('id', productId)
+      }
+    } catch (e) {
+      console.warn('reverse products.stock skipped:', e)
+    }
+
+    // 2) stock.quantity_in_stock (source lue par la caisse) — même résolution
+    // de ligne que le POS et que la création (variante primaire -> NULL -> première)
+    try {
+      const { data: stockRows } = await supabase
+        .from('stock')
+        .select('id, quantity_in_stock, primary_variant_id')
+        .eq('product_id', productId)
+      if (Array.isArray(stockRows) && stockRows.length > 0) {
+        const stockRow = (primaryVariantId
+          ? stockRows.find((r: any) => r.primary_variant_id === primaryVariantId)
+          : null)
+          || stockRows.find((r: any) => r.primary_variant_id === null)
+          || stockRows[0]
+        if (stockRow?.id) {
+          await supabase
+            .from('stock')
+            .update({ quantity_in_stock: Math.max(0, (Number(stockRow.quantity_in_stock) || 0) - baseQty) })
+            .eq('id', stockRow.id)
+        }
+      }
+    } catch (e) {
+      console.warn('reverse stock.quantity_in_stock skipped:', e)
+    }
+
+    // 3) warehouse_stock (par dépôt, lue par StockPage)
+    try {
+      let wq = supabase
+        .from('warehouse_stock')
+        .select('id, quantity')
+        .eq('product_id', productId)
+      if (warehouseId) wq = wq.eq('warehouse_id', warehouseId)
+      const { data: wsRows } = await wq
+      for (const ws of (wsRows || [])) {
+        await supabase
+          .from('warehouse_stock')
+          .update({
+            quantity: Math.max(0, (Number((ws as any).quantity) || 0) - baseQty),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', (ws as any).id)
+      }
+    } catch (e) {
+      console.warn('reverse warehouse_stock skipped:', e)
+    }
+
+    // 4) product_variants — décrément SÉLECTIF (par unit_type + primary_variant),
+    // dans les bonnes unités, en miroir de la création.
+    const decVar = async (uType: string, amount: number) => {
+      if (!(amount > 0)) return
+      let q = supabase
+        .from('product_variants')
+        .select('*')
+        .eq('product_id', productId)
+        .eq('unit_type', uType)
+      if (primaryVariantId) q = q.eq('primary_variant_id', primaryVariantId)
+      let res = await q
+      if (res.error && primaryVariantId && isMissingColumnError(res.error, 'primary_variant_id')) {
+        res = await supabase
+          .from('product_variants')
+          .select('*')
+          .eq('product_id', productId)
+          .eq('unit_type', uType)
+      }
+      if (res.error) return
+      const variants = res.data || []
+      const variant = (uType === 'kilo' || uType === 'litre')
+        ? variants.find((v: any) => !v.quantity_contained || Number(v.quantity_contained) <= 1 || v.variant_name === uType)
+        : variants[0]
+      if (variant?.id) {
+        await supabase
+          .from('product_variants')
+          .update({ stock: Math.max(0, (Number(variant.stock) || 0) - amount) })
+          .eq('id', variant.id)
+      }
+    }
+
+    // variante principale (kilo/litre en unités de base, sinon en quantité)
+    await decVar(unitType, (unitType === 'kilo' || unitType === 'litre') ? baseQty : quantity)
+
+    // dérivée "unité" quand achat par carton
+    if (unitType === 'carton' && unitsPerCarton > 1) {
+      await decVar('unit', quantity * unitsPerCarton)
+    }
+
+    // dérivées "carton" + "unité" quand achat kilo/litre avec emballage carton
+    if ((unitType === 'kilo' || unitType === 'litre') && packagingMode === 'carton' && item.units_per_carton && item.weight_per_unit) {
+      const cartonWeight = unitsPerCarton * weightPerUnit
+      await decVar('carton', cartonWeight > 0 ? baseQty / cartonWeight : 0)
+      await decVar('unit', weightPerUnit > 0 ? baseQty / weightPerUnit : 0)
+    }
+  }
+
   const updateEditItem = (index: number, field: keyof PurchaseLineItem, value: any) => {
     setEditPurchaseItems(prev => {
       const copy = [...prev]
@@ -2046,6 +2174,19 @@ export default function PurchasesPage() {
           await deleteDerivedKiloVariants(newItem.product_id, primaryVariantId)
         }
       }
+
+      // Lignes retirées pendant l'édition: reprendre leur stock, sinon la
+      // marchandise de la ligne supprimée resterait "fantôme" dans le stock.
+      for (const oldItem of normalizedOldItems) {
+        const stillPresent = updatedItems.some(n =>
+          n.product_id === oldItem.product_id &&
+          (n.primary_variant_id || '') === (oldItem.primary_variant_id || '')
+        )
+        if (!stillPresent) {
+          await reversePurchaseLineStock(oldItem, editingPurchase.warehouse_id)
+        }
+      }
+
  // Mettre à jour la facture
       const { error: updateError } = await supabase
         .from('purchases')
@@ -2080,107 +2221,14 @@ export default function PurchasesPage() {
     }
 
     try {
-      // Retirer les quantités du stock pour chaque produit dans la facture
-      if (purchase.items && purchase.items.length > 0) {
+      // Retirer les quantités du stock pour chaque produit de la facture —
+      // UNIQUEMENT si la facture avait réellement ajouté du stock (status
+      // 'received'). Une facture 'pending'/'cancelled' n'a jamais incrémenté le
+      // stock, donc la décrémenter ferait baisser les quantités à tort.
+      if (purchase.status === 'received' && purchase.items && purchase.items.length > 0) {
+        const warehouseId = String((purchase as any).warehouse_id || '') || undefined
         for (const item of purchase.items) {
-          const productId = String(item.product_id || '')
-          if (!productId) continue
-          const baseQty = Number(item.base_quantity ?? item.quantity ?? 1) || 0
-          if (baseQty <= 0) continue
-          // Retirer du stock principal du produit
-          const { data: product } = await supabase
-            .from('products')
-            .select('stock')
-            .eq('id', productId)
-            .single()
-
-          if (product) {
-            const newStock = Math.max(0, product.stock - baseQty)
-            await supabase
-              .from('products')
-              .update({ stock: newStock, cost_price: 0 })
-              .eq('id', productId)
-          }
-
-          // Retirer du stock dans les variants du produit
-          const { data: variants } = await supabase
-            .from('product_variants')
-            .select('id, stock')
-            .eq('product_id', productId)
-
-          if (variants && variants.length > 0) {
-            for (const variant of variants) {
-              const newVariantStock = Math.max(0, variant.stock - baseQty)
-              await supabase
-                .from('product_variants')
-                .update({ stock: newVariantStock, purchase_price: 0 })
-                .eq('id', variant.id)
-            }
-          }
-
-          // Retirer du stock par entrepôt si applicable
-          const warehouseId = String((purchase as any).warehouse_id || '')
-          let stockRecords: any[] | null = null
-          let stockError: any = null
-
-          if (warehouseId) {
-            const res = await supabase
-              .from('stock')
-              .select('id, quantity_in_stock')
-              .eq('product_id', productId)
-              .eq('warehouse_id', warehouseId)
-            stockRecords = res.data
-            stockError = res.error
-
-            if (stockError && isMissingColumnError(stockError, 'warehouse_id')) {
-              const res2 = await supabase
-                .from('stock')
-                .select('id, quantity_in_stock')
-                .eq('product_id', productId)
-              stockRecords = res2.data
-              stockError = res2.error
-            }
-          } else {
-            const res = await supabase
-              .from('stock')
-              .select('id, quantity_in_stock')
-              .eq('product_id', productId)
-            stockRecords = res.data
-            stockError = res.error
-          }
-
-          if (stockError) throw stockError
-
-          if (stockRecords && stockRecords.length > 0) {
-            for (const stockRecord of stockRecords) {
-              const currentInStock = Number(stockRecord.quantity_in_stock ?? 0) || 0
-              const newWarehouseStock = Math.max(0, currentInStock - baseQty)
-              await supabase
-                .from('stock')
-                .update({ quantity_in_stock: newWarehouseStock })
-                .eq('id', stockRecord.id)
-            }
-          }
-
-          // Retirer du stock par dépôt (warehouse_stock) pour rester cohérent
-          // avec la vente POS qui décrémente cette table.
-          try {
-            let wsQuery = supabase
-              .from('warehouse_stock')
-              .select('id, quantity')
-              .eq('product_id', productId)
-            if (warehouseId) wsQuery = wsQuery.eq('warehouse_id', warehouseId)
-            const { data: wsRows } = await wsQuery
-            for (const wsRow of (wsRows || [])) {
-              const nextQty = Math.max(0, (Number((wsRow as any).quantity) || 0) - baseQty)
-              await supabase
-                .from('warehouse_stock')
-                .update({ quantity: nextQty, updated_at: new Date().toISOString() })
-                .eq('id', (wsRow as any).id)
-            }
-          } catch (wsErr) {
-            console.warn('warehouse_stock delete sync skipped:', wsErr)
-          }
+          await reversePurchaseLineStock(item, warehouseId)
         }
       }
 
