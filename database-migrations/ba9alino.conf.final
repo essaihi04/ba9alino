@@ -1,0 +1,71 @@
+# =====================================================================
+#  Ba9alino — config nginx UNIFIEE
+#  Chaque domaine sert le FRONTEND *et* l'API Supabase (PostgREST/GoTrue/
+#  Storage) sous SON PROPRE certificat. Le frontend etant servi depuis la
+#  meme origine que l'API, il n'y a AUCUN CORS et AUCUN mismatch de cert.
+#
+#  -> VITE_SUPABASE_URL doit pointer vers la MEME origine que le site
+#     (https://ba9alino.ma). Comme c'est same-origin, les en-tetes CORS
+#     ci-dessous sont une simple ceinture de securite (clients externes).
+# =====================================================================
+
+# Bloc de locations API reutilise par les deux server-blocks via include.
+# (genere par le script de deploiement: /etc/nginx/snippets/ba9alino-api.conf)
+
+# ---------------------------------------------------------------------
+#  ba9alino.ma / www.ba9alino.ma   (certificat ba9alino.ma — VALIDE)
+# ---------------------------------------------------------------------
+server {
+    server_name ba9alino.ma www.ba9alino.ma;
+
+    root /var/www/ba9alino;
+    index index.html;
+    client_max_body_size 20M;
+
+    include /etc/nginx/snippets/ba9alino-api.conf;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    ssl_certificate /etc/letsencrypt/live/ba9alino.ma/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/ba9alino.ma/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+}
+
+# ---------------------------------------------------------------------
+#  ba9alino.duckdns.org   (certificat duckdns — pour compat anciens clients)
+# ---------------------------------------------------------------------
+server {
+    server_name ba9alino.duckdns.org;
+
+    root /var/www/ba9alino;
+    index index.html;
+    client_max_body_size 20M;
+
+    include /etc/nginx/snippets/ba9alino-api.conf;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    ssl_certificate /etc/letsencrypt/live/ba9alino.duckdns.org/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/ba9alino.duckdns.org/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+}
+
+# ---------------------------------------------------------------------
+#  Redirection HTTP -> HTTPS
+# ---------------------------------------------------------------------
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ba9alino.ma www.ba9alino.ma ba9alino.duckdns.org;
+    return 301 https://$host$request_uri;
+}
