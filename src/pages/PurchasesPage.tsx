@@ -2563,7 +2563,7 @@ export default function PurchasesPage() {
                   <p className="text-sm font-bold text-gray-800 mb-2 flex-shrink-0">
                     المنتجات ({purchaseItems.length})
                   </p>
-                  <div className="flex-1 min-h-[200px] overflow-y-auto bg-gray-50 rounded-lg border border-gray-200 p-2">
+                  <div className="flex-1 min-h-[400px] overflow-y-auto bg-gray-50 rounded-lg border border-gray-200 p-2">
                     {purchaseItems.length === 0 ? (
                       <div className="text-center text-gray-500 py-8 text-sm">
                         لم يتم إضافة منتجات بعد
@@ -2627,37 +2627,18 @@ export default function PurchasesPage() {
                 </div>
 
                 {/* Résumé */}
-                <div className="flex-shrink-0 bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4 space-y-2 border-2 border-green-200">
-                  <div className="flex justify-between text-sm">
+                <div className="flex-shrink-0 bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-2 space-y-1 border-2 border-green-200">
+                  <div className="flex justify-between text-xs">
                     <span className="text-gray-700">الإجمالي الفرعي:</span>
                     <span className="font-bold text-gray-800">{subtotal.toFixed(2)} MAD</span>
                   </div>
-                  <div className="flex justify-between text-sm">
+                  <div className="flex justify-between text-xs">
                     <span className="text-gray-700">الضريبة ({taxRate}%):</span>
                     <span className="font-bold text-gray-800">{taxAmount.toFixed(2)} MAD</span>
                   </div>
-                  <div className="border-t-2 border-green-300 pt-2 flex justify-between text-lg">
+                  <div className="border-t-2 border-green-300 pt-1 flex justify-between text-sm">
                     <span className="font-bold text-gray-800">الإجمالي:</span>
                     <span className="font-bold text-green-700">{totalAmount.toFixed(2)} MAD</span>
-                  </div>
-                  <div className="mt-3">
-                    <label className="block text-sm font-bold text-gray-700 mb-1">المبلغ المدفوع</label>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        inputPad.open({
-                          title: 'المبلغ المدفوع',
-                          mode: 'decimal',
-                          dir: 'ltr',
-                          initialValue: purchaseForm.paid_amount || '0',
-                          min: 0,
-                          onConfirm: (v) => setPurchaseForm({ ...purchaseForm, paid_amount: v }),
-                        })
-                      }
-                      className="w-full p-2 border rounded-lg text-sm text-left"
-                    >
-                      {purchaseForm.paid_amount || '0'}
-                    </button>
                   </div>
                 </div>
               </div>
