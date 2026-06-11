@@ -2647,8 +2647,8 @@ export default function PurchasesPage() {
 
               {/* Panneau produits — à droite, large, comme la caisse */}
               <div className="order-1 flex-1 bg-white rounded-xl shadow-lg p-4 flex flex-col overflow-hidden">
-                <div className="mb-4">
-                  <div className="relative">
+                <div className="mb-4 flex flex-col sm:flex-row gap-2">
+                  <div className="relative flex-1 min-w-0">
                     <Search className="absolute right-3 top-3 text-gray-400" size={18} />
                     <input
                       ref={purchaseSearchInputRef}
@@ -2666,38 +2666,23 @@ export default function PurchasesPage() {
                       disabled={purchaseProductLookupLoading}
                     />
                   </div>
-                </div>
-
-                {/* Sélection des familles */}
-                <div className="mb-4">
-                  <h3 className="text-lg font-bold text-gray-800 mb-3">اختر العائلة</h3>
-                  <div className="max-h-24 overflow-y-auto">
-                    <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => setSelectedCategory(null)}
-                      className={`px-2.5 py-1 rounded-lg transition-colors text-xs whitespace-nowrap ${
-                        !selectedCategory
-                          ? 'bg-green-600 text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
+                  <div className="flex items-center gap-2 sm:min-w-[220px]">
+                    <span className="text-xs font-bold text-gray-700 whitespace-nowrap">العائلة:</span>
+                    <select
+                      value={selectedCategory ?? '__all__'}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        setSelectedCategory(value === '__all__' ? null : value)
+                      }}
+                      className="flex-1 min-w-0 p-2 border-2 border-gray-200 rounded-lg text-sm bg-white focus:border-green-500 focus:outline-none"
                     >
-                      جميع المنتجات
-                    </button>
-                    {categories.map((category) => (
-                      <button
-                        key={category.id}
-                        onClick={() => setSelectedCategory(category.id)}
-                        title={category.name_ar}
-                        className={`px-2.5 py-1 rounded-lg transition-colors text-xs whitespace-nowrap max-w-[120px] truncate ${
-                          selectedCategory === category.id
-                            ? 'bg-green-600 text-white'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                      >
-                        {category.name_ar}
-                      </button>
-                    ))}
-                    </div>
+                      <option value="__all__">جميع المنتجات</option>
+                      {categories.map((category) => (
+                        <option key={category.id} value={category.id}>
+                          {category.name_ar}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
