@@ -48,6 +48,14 @@ interface ProductPrimaryVariant {
 
 type UnitType = 'kilo' | 'litre' | 'carton' | 'paquet' | 'sac'
 
+const UNIT_TYPE_LABELS: Record<UnitType, string> = {
+  kilo: 'كيلو',
+  litre: 'لتر',
+  carton: 'كرتون',
+  paquet: 'باكيت',
+  sac: 'كيس',
+}
+
 interface PurchaseLineItem {
   product_id: string
   primary_variant_id?: string
@@ -1562,6 +1570,42 @@ export default function PurchasesPage() {
     }
   }
 
+  const parsePurchaseItems = (raw: unknown): PurchaseLineItem[] => {
+    let parsed = raw
+    if (!parsed) return []
+    if (typeof parsed === 'string') {
+      try {
+        parsed = JSON.parse(parsed)
+      } catch {
+        return []
+      }
+    }
+    if (!Array.isArray(parsed)) return []
+
+    return parsed.map((item: any) => {
+      const quantity = Number(item?.quantity) || 0
+      const unitPrice = Number(item?.unit_price) || 0
+      return {
+        product_id: String(item?.product_id || ''),
+        primary_variant_id: item?.primary_variant_id || undefined,
+        primary_variant_name: item?.primary_variant_name || undefined,
+        product_name_ar: String(item?.product_name_ar || item?.name_ar || item?.product_name || 'منتج'),
+        product_sku: String(item?.product_sku || item?.sku || ''),
+        quantity,
+        unit_price: unitPrice,
+        line_total: Number(item?.line_total ?? quantity * unitPrice) || 0,
+        unit_type: item?.unit_type || 'kilo',
+        units_per_carton: item?.units_per_carton ?? null,
+        weight_per_unit: item?.weight_per_unit ?? null,
+        base_quantity: item?.base_quantity != null ? Number(item.base_quantity) : undefined,
+        packaging_mode: item?.packaging_mode || 'none',
+      } as PurchaseLineItem
+    })
+  }
+
+  const getPurchaseUnitLabel = (unitType?: UnitType) =>
+    UNIT_TYPE_LABELS[unitType || 'kilo'] || unitType || 'كيلو'
+
   // Fonctions pour éditer et supprimer une facture
   const openEditPurchaseModal = async (purchase: Purchase) => {
     try {
@@ -1573,7 +1617,7 @@ export default function PurchasesPage() {
 
       const fullPurchase = (data as Purchase) || purchase
       setEditingPurchase(fullPurchase)
-      setEditPurchaseItems((fullPurchase.items || []).map(resolvePrimaryVariantForItem))
+      setEditPurchaseItems(parsePurchaseItems(fullPurchase.items).map(resolvePrimaryVariantForItem))
       setShowEditPurchaseModal(true)
     } catch (error) {
       console.error('Error loading purchase for edit:', error)
@@ -1758,7 +1802,7 @@ export default function PurchasesPage() {
     if (!editingPurchase) return
 
     try {
-      const normalizedOldItems = (editingPurchase.items || []).map(resolvePrimaryVariantForItem)
+      const normalizedOldItems = parsePurchaseItems(editingPurchase.items).map(resolvePrimaryVariantForItem)
 
       const updatedItems = editPurchaseItems.map(item => {
         const resolvedItem = resolvePrimaryVariantForItem(item)
@@ -2468,13 +2512,13 @@ export default function PurchasesPage() {
               </div>
             </div>
 
-            <div className="p-4 flex gap-4 flex-1 overflow-hidden" dir="rtl">
+            <div className="p-4 flex gap-4 flex-1 min-h-0 overflow-hidden" dir="rtl">
               {/* Panneau panier (facture) — à gauche comme la caisse */}
-              <div className="order-2 w-[520px] flex-shrink-0 bg-white rounded-xl shadow-lg p-4 flex flex-col overflow-hidden">
-                <h3 className="text-xl font-bold text-gray-800 mb-4">فاتورة الشراء</h3>
+              <div className="order-2 w-[520px] flex-shrink-0 bg-white rounded-xl shadow-lg p-4 flex flex-col overflow-hidden min-h-0">
+                <h3 className="text-xl font-bold text-gray-800 mb-3 flex-shrink-0">فاتورة الشراء</h3>
 
                 {/* Informations de la facture */}
-                <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="grid grid-cols-2 gap-2 mb-3 flex-shrink-0">
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-1">المورد *</label>
                     <select
@@ -2547,70 +2591,76 @@ export default function PurchasesPage() {
                   </div>
                 </div>
 
-                {/* Tableau des produits de la facture */}
-                <div className="flex-1 bg-gray-50 rounded-lg overflow-hidden mb-4">
-                  <div className="h-full overflow-auto">
-                    <table className="w-full">
-                      <thead className="bg-gray-200 sticky top-0">
-                        <tr>
-                          <th className="px-4 py-3 text-right text-sm font-bold text-gray-700">المنتج</th>
-                          <th className="px-4 py-3 text-center text-sm font-bold text-gray-700">الكمية</th>
-                          <th className="px-4 py-3 text-center text-sm font-bold text-gray-700">كمية الوحدة</th>
-                          <th className="px-4 py-3 text-right text-sm font-bold text-gray-700">سعر الوحدة</th>
-                          <th className="px-4 py-3 text-right text-sm font-bold text-gray-700">المجموع</th>
-                          <th className="px-4 py-3 text-center text-sm font-bold text-gray-700">إجراء</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {purchaseItems.length === 0 ? (
-                          <tr>
-                            <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
-                              لم يتم إضافة منتجات بعد
-                            </td>
-                          </tr>
-                        ) : (
-                          purchaseItems.map((item) => (
-                            <tr key={`${item.product_id}:${item.primary_variant_id || ''}`} className="border-t hover:bg-gray-100">
-                              <td className="px-4 py-3">
+                {/* Lignes produits de la facture */}
+                <div className="flex-1 min-h-0 flex flex-col mb-3">
+                  <p className="text-sm font-bold text-gray-800 mb-2 flex-shrink-0">
+                    المنتجات ({purchaseItems.length})
+                  </p>
+                  <div className="flex-1 min-h-[200px] overflow-y-auto bg-gray-50 rounded-lg border border-gray-200 p-2">
+                    {purchaseItems.length === 0 ? (
+                      <div className="text-center text-gray-500 py-8 text-sm">
+                        لم يتم إضافة منتجات بعد
+                      </div>
+                    ) : (
+                      <div className="text-xs">
+                        <div className="grid grid-cols-12 gap-1 mb-1 pb-1 border-b border-gray-300 font-bold text-gray-700 sticky top-0 bg-gray-50 z-10">
+                          <div className="col-span-4">المنتج</div>
+                          <div className="col-span-2 text-center">الكمية</div>
+                          <div className="col-span-2 text-center">الوحدة</div>
+                          <div className="col-span-2 text-center">الثمن</div>
+                          <div className="col-span-1 text-center">المجموع</div>
+                          <div className="col-span-1 text-center">حذف</div>
+                        </div>
+                        <div className="space-y-1">
+                          {purchaseItems.map((item) => (
+                            <div
+                              key={`${item.product_id}:${item.primary_variant_id || ''}`}
+                              className="grid grid-cols-12 gap-1 p-1.5 bg-white rounded border border-gray-200 items-center hover:border-green-500"
+                            >
+                              <div className="col-span-4 min-w-0">
                                 <button
+                                  type="button"
                                   onClick={() => openEditModal(item)}
-                                  className="text-left hover:text-blue-600 transition-colors"
+                                  className="text-right w-full hover:text-blue-600 transition-colors"
                                 >
-                                  <p className="font-bold text-gray-800">{item.product_name_ar}</p>
-                                  <p className="text-xs text-gray-600">SKU: {item.product_sku}</p>
-                                  {item.primary_variant_name ? (
-                                    <p className="text-[11px] text-gray-500">{item.primary_variant_name}</p>
-                                  ) : null}
+                                  <p className="font-bold text-gray-800 truncate">{item.product_name_ar}</p>
+                                  <p className="text-[10px] text-gray-500 truncate">
+                                    {getPurchaseUnitLabel(item.unit_type)}
+                                    {item.primary_variant_name ? ` · ${item.primary_variant_name}` : ''}
+                                  </p>
                                 </button>
-                              </td>
-                              <td className="px-4 py-3 text-center">
-                                <span className="font-bold text-gray-800">{item.quantity}</span>
-                              </td>
-                              <td className="px-4 py-3 text-center">
-                                <span className="font-bold text-gray-800">
-                                  {(Number(item.base_quantity ?? calculateBaseQuantityFromLine(item)) || 0).toFixed(2)}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-right font-medium">{item.unit_price.toFixed(2)} MAD</td>
-                              <td className="px-4 py-3 text-right font-bold text-green-600">{item.line_total.toFixed(2)} MAD</td>
-                              <td className="px-4 py-3 text-center">
+                              </div>
+                              <div className="col-span-2 text-center font-bold text-gray-800">
+                                {item.quantity}
+                              </div>
+                              <div className="col-span-2 text-center text-[10px] text-gray-600">
+                                {(Number(item.base_quantity ?? calculateBaseQuantityFromLine(item)) || 0).toFixed(2)}
+                              </div>
+                              <div className="col-span-2 text-center font-medium">
+                                {item.unit_price.toFixed(2)}
+                              </div>
+                              <div className="col-span-1 text-center font-bold text-green-600">
+                                {item.line_total.toFixed(2)}
+                              </div>
+                              <div className="col-span-1 flex justify-center">
                                 <button
+                                  type="button"
                                   onClick={() => removeProductFromInvoice(item.product_id, item.primary_variant_id)}
                                   className="text-red-600 hover:text-red-800"
                                 >
-                                  <Trash2 size={16} />
+                                  <Trash2 size={14} />
                                 </button>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {/* Résumé */}
-                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4 space-y-2 border-2 border-green-200">
+                <div className="flex-shrink-0 bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4 space-y-2 border-2 border-green-200">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-700">الإجمالي الفرعي:</span>
                     <span className="font-bold text-gray-800">{subtotal.toFixed(2)} MAD</span>
@@ -2646,7 +2696,7 @@ export default function PurchasesPage() {
               </div>
 
               {/* Panneau produits — à droite, large, comme la caisse */}
-              <div className="order-1 flex-1 bg-white rounded-xl shadow-lg p-4 flex flex-col overflow-hidden">
+              <div className="order-1 flex-1 min-h-0 bg-white rounded-xl shadow-lg p-4 flex flex-col overflow-hidden">
                 <div className="mb-4 flex flex-col sm:flex-row gap-2">
                   <div className="relative flex-1 min-w-0">
                     <Search className="absolute right-3 top-3 text-gray-400" size={18} />
@@ -3176,43 +3226,52 @@ export default function PurchasesPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {editPurchaseItems.map((item, index) => (
-                            <tr key={index} className="border-t">
-                              <td className="px-4 py-2">
-                                <p className="font-bold">{item.product_name_ar}</p>
-                                <p className="text-xs text-gray-500">SKU: {item.product_sku}</p>
-                                {item.primary_variant_name ? (
-                                  <p className="text-[11px] text-gray-500">{item.primary_variant_name}</p>
-                                ) : null}
+                          {editPurchaseItems.length === 0 ? (
+                            <tr>
+                              <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                                لا توجد منتجات في هذه الفاتورة
                               </td>
-                              <td className="px-4 py-2 text-center">
-                                <input
-                                  type="number"
-                                  className="w-24 p-1 border rounded text-center"
-                                  min={0}
-                                  step={0.01}
-                                  value={item.quantity}
-                                  onChange={(e) => updateEditItem(index, 'quantity', parseFloat(e.target.value) || 0)}
-                                />
-                              </td>
-                              <td className="px-4 py-2 text-center">
-                                <span className="font-bold text-gray-800">
-                                  {(Number(item.base_quantity ?? calculateBaseQuantityFromLine(item)) || 0).toFixed(2)}
-                                </span>
-                              </td>
-                              <td className="px-4 py-2 text-right">
-                                <input
-                                  type="number"
-                                  className="w-24 p-1 border rounded text-right"
-                                  min={0}
-                                  step={0.01}
-                                  value={item.unit_price}
-                                  onChange={(e) => updateEditItem(index, 'unit_price', parseFloat(e.target.value) || 0)}
-                                />
-                              </td>
-                              <td className="px-4 py-2 text-right font-bold">{item.line_total.toFixed(2)} MAD</td>
                             </tr>
-                          ))}
+                          ) : (
+                            editPurchaseItems.map((item, index) => (
+                              <tr key={index} className="border-t">
+                                <td className="px-4 py-2">
+                                  <p className="font-bold">{item.product_name_ar}</p>
+                                  <p className="text-xs text-gray-500">SKU: {item.product_sku}</p>
+                                  <p className="text-[11px] text-gray-500">
+                                    {getPurchaseUnitLabel(item.unit_type)}
+                                    {item.primary_variant_name ? ` · ${item.primary_variant_name}` : ''}
+                                  </p>
+                                </td>
+                                <td className="px-4 py-2 text-center">
+                                  <input
+                                    type="number"
+                                    className="w-24 p-1 border rounded text-center"
+                                    min={0}
+                                    step={0.01}
+                                    value={item.quantity}
+                                    onChange={(e) => updateEditItem(index, 'quantity', parseFloat(e.target.value) || 0)}
+                                  />
+                                </td>
+                                <td className="px-4 py-2 text-center">
+                                  <span className="font-bold text-gray-800">
+                                    {(Number(item.base_quantity ?? calculateBaseQuantityFromLine(item)) || 0).toFixed(2)}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-2 text-right">
+                                  <input
+                                    type="number"
+                                    className="w-24 p-1 border rounded text-right"
+                                    min={0}
+                                    step={0.01}
+                                    value={item.unit_price}
+                                    onChange={(e) => updateEditItem(index, 'unit_price', parseFloat(e.target.value) || 0)}
+                                  />
+                                </td>
+                                <td className="px-4 py-2 text-right font-bold">{item.line_total.toFixed(2)} MAD</td>
+                              </tr>
+                            ))
+                          )}
                         </tbody>
                       </table>
                     </div>
@@ -3373,7 +3432,14 @@ export default function PurchasesPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {editPurchaseItems.map((item, index) => (
+                    {editPurchaseItems.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                          لا توجد منتجات في هذه الفاتورة
+                        </td>
+                      </tr>
+                    ) : (
+                      editPurchaseItems.map((item, index) => (
                       <tr key={index} className="border-t hover:bg-gray-50">
                         <td className="px-4 py-2">
                           <button
@@ -3384,9 +3450,10 @@ export default function PurchasesPage() {
                           >
                             <p className="font-bold">{item.product_name_ar}</p>
                             <p className="text-xs text-gray-500">SKU: {item.product_sku}</p>
-                            {item.primary_variant_name ? (
-                              <p className="text-[11px] text-gray-500">{item.primary_variant_name}</p>
-                            ) : null}
+                            <p className="text-[11px] text-gray-500">
+                              {getPurchaseUnitLabel(item.unit_type)}
+                              {item.primary_variant_name ? ` · ${item.primary_variant_name}` : ''}
+                            </p>
                           </button>
                         </td>
                         <td className="px-4 py-2 text-center">
@@ -3428,7 +3495,8 @@ export default function PurchasesPage() {
                           </button>
                         </td>
                       </tr>
-                    ))}
+                    ))
+                    )}
                   </tbody>
                 </table>
               </div>

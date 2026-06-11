@@ -15,6 +15,7 @@
     "desktop:dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "desktop:pack": "electron-builder --dir",
     "desktop:dist": "electron-builder",
+    "desktop:dist:win7": "vite build && electron-builder --config electron-builder.win7.json --win",
     "publish:release": "electron-builder --publish always"
   },
   "dependencies": {
@@ -67,7 +68,8 @@
     "asar": true,
     "win": {
       "target": [
-        "nsis"
+        { "target": "nsis", "arch": ["x64", "ia32"] },
+        { "target": "portable", "arch": ["x64", "ia32"] }
       ]
     },
     "nsis": {

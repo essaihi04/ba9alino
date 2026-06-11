@@ -6,7 +6,7 @@ const config: CapacitorConfig = {
   webDir: 'dist',
   bundledWebRuntime: false,
   server: {
-    url: 'https://ba9alino.duckdns.org',
+    url: 'https://ba9alino.ma',
     cleartext: false,
   },
 }
