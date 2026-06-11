@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Search, Plus, Package, DollarSign, CheckCircle, Truck, AlertCircle, Trash2, X, ShoppingCart, CreditCard, Edit, PlusCircle, Eye } from 'lucide-react'
+import { Search, Plus, Package, CheckCircle, Truck, AlertCircle, Trash2, X, ShoppingCart, CreditCard, Edit, Eye } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useInputPad } from '../components/useInputPad'
 import { normalizeSearch } from '../utils/searchNormalize'
@@ -46,7 +46,7 @@ interface ProductPrimaryVariant {
   is_active?: boolean
 }
 
-type UnitType = 'kilo' | 'litre' | 'carton' | 'paquet' | 'sac'
+type UnitType = 'kilo' | 'litre' | 'carton' | 'paquet' | 'sac' | 'unit'
 
 const UNIT_TYPE_LABELS: Record<UnitType, string> = {
   kilo: 'كيلو',
@@ -54,6 +54,7 @@ const UNIT_TYPE_LABELS: Record<UnitType, string> = {
   carton: 'كرتون',
   paquet: 'باكيت',
   sac: 'كيس',
+  unit: 'وحدة',
 }
 
 interface PurchaseLineItem {
@@ -740,17 +741,6 @@ export default function PurchasesPage() {
   const taxRate = parseFloat(purchaseForm.tax_rate) || 0
   const taxAmount = subtotal * (taxRate / 100)
   const totalAmount = subtotal + taxAmount
-
-  const isGeneratedColumnError = (err: any, column: string) => {
-    const msg = String(err?.message || '')
-    const details = String(err?.details || '')
-    return (
-      err?.code === '428C9' ||
-      msg.includes('generated column') ||
-      details.includes('generated column') ||
-      msg.includes(column)
-    )
-  }
 
   const upsertWarehouseStock = async (params: {
     productId: string
