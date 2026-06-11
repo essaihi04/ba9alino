@@ -137,6 +137,7 @@ export default function PurchasesPage() {
   const [showEditPurchaseModal, setShowEditPurchaseModal] = useState(false)
   const [editingPurchase, setEditingPurchase] = useState<Purchase | null>(null)
   const [editPurchaseItems, setEditPurchaseItems] = useState<PurchaseLineItem[]>([])
+  const [showConfirmPurchaseModal, setShowConfirmPurchaseModal] = useState(false)
   const purchaseSearchInputRef = useRef<HTMLInputElement>(null)
   
   // Formulaire d'achat
@@ -1018,6 +1019,12 @@ export default function PurchasesPage() {
       return
     }
 
+    // Afficher le modal de confirmation pour demander date, taxe et type de paiement
+    setShowConfirmPurchaseModal(true)
+  }
+
+  // Finaliser l'achat après confirmation
+  const finalizePurchase = async () => {
     try {
       const purchaseNumber = `ACH-${Date.now()}`
       
@@ -1506,6 +1513,7 @@ export default function PurchasesPage() {
       await loadProducts() // Recharger les produits pour mettre à jour les stocks
 
       setShowCreatePurchaseModal(false)
+      setShowConfirmPurchaseModal(false)
       setPurchaseItems([])
       setSelectedCategory(null)
     } catch (error) {
@@ -2546,47 +2554,6 @@ export default function PurchasesPage() {
                           {warehouse.name}
                         </option>
                       ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">التاريخ</label>
-                    <input
-                      type="date"
-                      value={purchaseForm.purchase_date}
-                      onChange={(e) => setPurchaseForm({ ...purchaseForm, purchase_date: e.target.value })}
-                      className="w-full p-2 border rounded-lg text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">نسبة الضريبة (%)</label>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        inputPad.open({
-                          title: 'نسبة الضريبة (%)',
-                          mode: 'decimal',
-                          dir: 'ltr',
-                          initialValue: purchaseForm.tax_rate || '0',
-                          min: 0,
-                          onConfirm: (v) => setPurchaseForm({ ...purchaseForm, tax_rate: v }),
-                        })
-                      }
-                      className="w-full p-2 border rounded-lg text-sm text-left"
-                    >
-                      {purchaseForm.tax_rate || '0'}
-                    </button>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">نوع الدفع</label>
-                    <select
-                      value={purchaseForm.payment_type}
-                      onChange={(e) => setPurchaseForm({ ...purchaseForm, payment_type: e.target.value as any })}
-                      className="w-full p-2 border rounded-lg text-sm"
-                    >
-                      <option value="cash">نقدي</option>
-                      <option value="transfer">تحويل</option>
-                      <option value="check">شيك</option>
-                      <option value="credit">دين</option>
                     </select>
                   </div>
                 </div>
@@ -3856,6 +3823,72 @@ export default function PurchasesPage() {
                 className="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 font-bold"
               >
                 حفظ التعديل
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de confirmation d'achat */}
+      {showConfirmPurchaseModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+            <h3 className="text-lg font-bold text-gray-800 mb-4">تأكيد الشراء</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">التاريخ</label>
+                <input
+                  type="date"
+                  value={purchaseForm.purchase_date}
+                  onChange={(e) => setPurchaseForm({ ...purchaseForm, purchase_date: e.target.value })}
+                  className="w-full p-2 border rounded-lg text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">نسبة الضريبة (%)</label>
+                <button
+                  type="button"
+                  onClick={() =>
+                    inputPad.open({
+                      title: 'نسبة الضريبة (%)',
+                      mode: 'decimal',
+                      dir: 'ltr',
+                      initialValue: purchaseForm.tax_rate || '0',
+                      min: 0,
+                      onConfirm: (v) => setPurchaseForm({ ...purchaseForm, tax_rate: v }),
+                    })
+                  }
+                  className="w-full p-2 border rounded-lg text-sm text-left"
+                >
+                  {purchaseForm.tax_rate || '0'}
+                </button>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">نوع الدفع</label>
+                <select
+                  value={purchaseForm.payment_type}
+                  onChange={(e) => setPurchaseForm({ ...purchaseForm, payment_type: e.target.value as any })}
+                  className="w-full p-2 border rounded-lg text-sm"
+                >
+                  <option value="cash">نقدي</option>
+                  <option value="transfer">تحويل</option>
+                  <option value="check">شيك</option>
+                  <option value="credit">دين</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-6">
+              <button
+                onClick={() => setShowConfirmPurchaseModal(false)}
+                className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300 font-bold"
+              >
+                إلغاء
+              </button>
+              <button
+                onClick={finalizePurchase}
+                className="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 font-bold"
+              >
+                تأكيد
               </button>
             </div>
           </div>
