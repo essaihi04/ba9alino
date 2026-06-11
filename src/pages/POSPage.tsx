@@ -51,6 +51,7 @@ interface Product {
   price_c: number
   price_d: number
   price_e: number
+  cost_price?: number
   stock: number
   barcode?: string
   category_id?: string
@@ -910,7 +911,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       while (true) {
         const { data: page, error: pageError } = await supabase
           .from('products')
-          .select('id, name_ar, sku, category_id, image_url, stock, price_a, price_b, price_c, price_d, price_e')
+          .select('id, name_ar, sku, category_id, image_url, stock, price_a, price_b, price_c, price_d, price_e, cost_price')
           .eq('is_active', true)
           .order('name_ar')
           .range(from, from + pageSize - 1)
@@ -1019,6 +1020,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
           price_c: Number(pv.price_c || 0) || Number(base?.price_c || 0),
           price_d: Number(pv.price_d || 0) || Number(base?.price_d || 0),
           price_e: Number(pv.price_e || 0) || Number(base?.price_e || 0),
+          cost_price: Number(base?.cost_price || 0),
           stock: Math.max(0, Number(stockMap.get(stockKey) || base?.stock || 0)),
           barcode: pv.barcode || undefined,
           category_id: base?.category_id,
@@ -1038,6 +1040,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
           price_c: Number(p.price_c || 0),
           price_d: Number(p.price_d || 0),
           price_e: Number(p.price_e || 0),
+          cost_price: Number(p.cost_price || 0),
           stock: Math.max(0, Number(p.stock || 0)),
           barcode: p.sku || undefined,
           category_id: p.category_id,
@@ -3233,6 +3236,11 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                   <div className="text-[12px] font-bold text-green-600">
                     {getProductPrice(product).toFixed(2)}
                   </div>
+                  {!!product.cost_price && (
+                    <div className="text-[10px] text-gray-400">
+                      شراء: {product.cost_price.toFixed(2)}
+                    </div>
+                  )}
                 </button>
               )
             })}
