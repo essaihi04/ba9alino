@@ -1,0 +1,27 @@
+{
+  "appId": "com.ba9alino.desktop",
+  "productName": "Ba9alino Desktop",
+  "electronVersion": "22.3.27",
+  "directories": {
+    "buildResources": "electron/build",
+    "output": "release/win7"
+  },
+  "files": [
+    "dist/**",
+    "electron/**",
+    "package.json"
+  ],
+  "asar": true,
+  "artifactName": "${productName}-${version}-win7-${arch}.${ext}",
+  "win": {
+    "target": [
+      { "target": "nsis", "arch": ["x64"] }
+    ]
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "include": "build/installer.nsh"
+  },
+  "publish": null
+}
