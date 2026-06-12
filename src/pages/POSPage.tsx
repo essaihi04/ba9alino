@@ -114,6 +114,7 @@ interface PackagingVariant {
   price_c: number
   price_d: number
   price_e: number
+  purchase_price?: number
 }
 
 interface Invoice {
@@ -856,7 +857,12 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         try {
           const rawCache = sessionStorage.getItem(cacheKey)
           if (rawCache) {
-            const parsed = JSON.parse(rawCache) as { ts?: number; products?: Product[] }
+            const parsed = JSON.parse(rawCache) as {
+              ts?: number
+              products?: Product[]
+              packagingByPrimaryId?: Record<string, PackagingVariant[]>
+              packagingFlat?: PackagingVariant[]
+            }
             const isValid =
               typeof parsed?.ts === 'number' &&
               Date.now() - parsed.ts < PRODUCTS_CACHE_TTL_MS &&
@@ -864,8 +870,8 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
 
             if (isValid) {
               setProducts(parsed.products || [])
-              setPackagingVariantsByPrimaryId({})
-              setPackagingVariantsFlat([])
+              setPackagingVariantsByPrimaryId(parsed.packagingByPrimaryId || {})
+              setPackagingVariantsFlat(parsed.packagingFlat || [])
               return
             }
           }
@@ -978,8 +984,54 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         stockRows = []
       }
 
-      setPackagingVariantsByPrimaryId({})
-      setPackagingVariantsFlat([])
+      // Fetch packaging variants (carton/paquet/sac/...) with their purchase_price so the POS
+      // can show the real cost/margin per unit type instead of the base product's cost_price.
+      let productVariantRows: any[] = []
+      try {
+        console.time('⏱️ fetch product variants')
+        let vFrom = 0
+        const vPageSize = 1000
+        while (true) {
+          const { data: vPage, error: vErr } = await supabase
+            .from('product_variants')
+            .select('id, product_id, primary_variant_id, unit_type, quantity_contained, barcode, purchase_price, price_a, price_b, price_c, price_d, price_e, is_active')
+            .eq('is_active', true)
+            .range(vFrom, vFrom + vPageSize - 1)
+          if (vErr) throw vErr
+          if (!vPage || vPage.length === 0) break
+          productVariantRows = productVariantRows.concat(vPage)
+          if (vPage.length < vPageSize) break
+          vFrom += vPageSize
+        }
+        console.timeEnd('⏱️ fetch product variants')
+      } catch (variantsError) {
+        console.warn('product_variants query failed, packaging variants unavailable:', variantsError)
+        productVariantRows = []
+      }
+
+      const packagingFlat: PackagingVariant[] = productVariantRows.map((v: any) => ({
+        id: v.id,
+        product_id: v.product_id,
+        primary_variant_id: v.primary_variant_id,
+        unit_type: v.unit_type,
+        quantity_contained: Number(v.quantity_contained || 0),
+        barcode: v.barcode || undefined,
+        price_a: Number(v.price_a || 0),
+        price_b: Number(v.price_b || 0),
+        price_c: Number(v.price_c || 0),
+        price_d: Number(v.price_d || 0),
+        price_e: Number(v.price_e || 0),
+        purchase_price: Number(v.purchase_price || 0),
+      }))
+      const packagingByPrimaryId: Record<string, PackagingVariant[]> = {}
+      packagingFlat.forEach(pv => {
+        if (!pv.primary_variant_id) return
+        if (!packagingByPrimaryId[pv.primary_variant_id]) packagingByPrimaryId[pv.primary_variant_id] = []
+        packagingByPrimaryId[pv.primary_variant_id].push(pv)
+      })
+
+      setPackagingVariantsByPrimaryId(packagingByPrimaryId)
+      setPackagingVariantsFlat(packagingFlat)
 
       const stockMap = new Map<string, number>()
       ;(stockRows || []).forEach((row: any) => {
@@ -1052,7 +1104,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       try {
         sessionStorage.setItem(
           cacheKey,
-          JSON.stringify({ ts: Date.now(), products: nextProducts })
+          JSON.stringify({ ts: Date.now(), products: nextProducts, packagingByPrimaryId, packagingFlat })
         )
       } catch (cacheWriteError) {
         console.warn('POS products cache write error:', cacheWriteError)
@@ -1482,6 +1534,18 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     return (types.length ? types : ['unit']).includes('unit')
       ? (types.length ? types : ['unit'])
       : ['unit', ...types]
+  }
+
+  // Coût d'achat pour un type d'unité donné (carton/paquet/sac/...). Si aucune variante de
+  // conditionnement n'a de prix d'achat enregistré, on retombe sur le cost_price du produit.
+  const getCostForPrimaryAndUnitType = (primaryVariantId: string, unitType: string) => {
+    const vs = packagingVariantsByPrimaryId[primaryVariantId] || []
+    const match = vs.find(v => v.unit_type === unitType)
+    if (match && Number(match.purchase_price || 0) > 0) {
+      return Number(match.purchase_price)
+    }
+    const base = products.find(p => p.primary_variant_id === primaryVariantId)
+    return Number(base?.cost_price || 0)
   }
 
   const getProductPriceForTier = (item: Product | CartItem, tier: 'A' | 'B' | 'C' | 'D' | 'E') => {
@@ -3832,11 +3896,15 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                   </button>
                 </div>
 
-                {/* Prix d'achat (lecture seule) + marge */}
+                {/* Prix d'achat (lecture seule) + marge — dépend du نوع البيع sélectionné */}
                 {(() => {
-                  const prod = products.find(p => p.id === editingInvoiceLine.product_id && (!editingInvoiceLine.primary_variant_id || p.primary_variant_id === editingInvoiceLine.primary_variant_id))
-                    || products.find(p => p.id === editingInvoiceLine.product_id)
-                  const cost = Number(prod?.cost_price || 0)
+                  const pid = (editingInvoiceLine as any).primary_variant_id
+                  const cost = pid
+                    ? getCostForPrimaryAndUnitType(pid, editLineUnitType)
+                    : (() => {
+                        const prod = products.find(p => p.id === editingInvoiceLine.product_id)
+                        return Number(prod?.cost_price || 0)
+                      })()
                   if (cost <= 0) return null
                   const sale = parseFloat(editLinePrice || '0') || 0
                   const margin = sale - cost
