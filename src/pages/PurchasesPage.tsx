@@ -2991,6 +2991,7 @@ export default function PurchasesPage() {
                         <option value="carton">كرتون</option>
                         <option value="paquet">باكيت</option>
                         <option value="sac">كيس</option>
+                        <option value="unit">وحدة</option>
                       </select>
                     </div>
 
@@ -3723,6 +3724,7 @@ export default function PurchasesPage() {
                   <option value="carton">كرتون</option>
                   <option value="paquet">باكيت</option>
                   <option value="sac">كيس</option>
+                  <option value="unit">وحدة</option>
                 </select>
               </div>
 

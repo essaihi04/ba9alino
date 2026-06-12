@@ -3832,6 +3832,26 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                   </button>
                 </div>
 
+                {/* Prix d'achat (lecture seule) + marge */}
+                {(() => {
+                  const prod = products.find(p => p.id === editingInvoiceLine.product_id && (!editingInvoiceLine.primary_variant_id || p.primary_variant_id === editingInvoiceLine.primary_variant_id))
+                    || products.find(p => p.id === editingInvoiceLine.product_id)
+                  const cost = Number(prod?.cost_price || 0)
+                  if (cost <= 0) return null
+                  const sale = parseFloat(editLinePrice || '0') || 0
+                  const margin = sale - cost
+                  return (
+                    <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2 text-xs">
+                      <span className="font-bold text-amber-800">ثمن الشراء: {cost.toFixed(2)} MAD</span>
+                      {sale > 0 && (
+                        <span className={margin >= 0 ? 'text-green-700 font-bold' : 'text-red-600 font-bold'}>
+                          الهامش: {margin.toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                  )
+                })()}
+
                 <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1">نوع البيع</label>
                   <div className="grid grid-cols-3 gap-1.5">
