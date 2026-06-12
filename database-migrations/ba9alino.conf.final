@@ -24,7 +24,15 @@ server {
 
     include /etc/nginx/snippets/ba9alino-api.conf;
 
+    # Landing page commerciale: seule la racine "/" exacte la sert.
+    # Tout le reste (/login, /dashboard, /pos, /assets/...) va vers la SPA.
+    location = / {
+        root /var/www/ba9alino-landing;
+        try_files /index.html =404;
+    }
+
     location / {
+        root /var/www/ba9alino;
         try_files $uri $uri/ /index.html;
     }
 
@@ -48,7 +56,15 @@ server {
 
     include /etc/nginx/snippets/ba9alino-api.conf;
 
+    # Landing page commerciale: seule la racine "/" exacte la sert.
+    # Tout le reste (/login, /dashboard, /pos, /assets/...) va vers la SPA.
+    location = / {
+        root /var/www/ba9alino-landing;
+        try_files /index.html =404;
+    }
+
     location / {
+        root /var/www/ba9alino;
         try_files $uri $uri/ /index.html;
     }
 

@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#16a34a" />
+<title>Ba9alino — برنامج تدبير المحلات | Logiciel de gestion de magasin</title>
+<meta name="description" content="Ba9alino : le logiciel tout-en-un pour gérer votre épicerie et commerce — caisse, stock, achats, clients et factures. En arabe et en français." />
+
+<!-- Open Graph -->
+<meta property="og:title" content="Ba9alino — Gérez votre magasin simplement" />
+<meta property="og:description" content="Caisse, stock, achats, clients et factures réunis dans une seule application rapide, en arabe et en français." />
+<meta property="og:type" content="website" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --green:#16a34a;
+  --green-600:#15803d;
+  --green-400:#22c55e;
+  --green-300:#4ade80;
+  --green-light:#dcfce7;
+  --ink:#0f172a;
+  --ink-2:#1e293b;
+  --slate:#475569;
+  --muted:#64748b;
+  --bg:#f8fafc;
+  --card:#ffffff;
+  --amber:#f59e0b;
+  --shadow:0 20px 45px -20px rgba(15,23,42,.35);
+  --radius:22px;
+  --font-ar:'Cairo',system-ui,sans-serif;
+  --font-fr:'Poppins',system-ui,sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  font-family:var(--font-ar);
+  color:var(--ink);
+  background:var(--bg);
+  overflow-x:hidden;
+  line-height:1.6;
+}
+html[lang="fr"] body{font-family:var(--font-fr)}
+a{text-decoration:none;color:inherit}
+img{max-width:100%;display:block}
+.wrap{width:min(1180px,92%);margin-inline:auto}
+section{position:relative}
+
+/* ===== language helper ===== */
+.lang-ar{display:inline}
+.lang-fr{display:none}
+html[lang="fr"] .lang-ar{display:none}
+html[lang="fr"] .lang-fr{display:inline}
+.block.lang-ar,.block.lang-fr{display:none}
+.lang-ar.block{display:block}
+html[lang="fr"] .lang-ar.block{display:none}
+html[lang="fr"] .lang-fr.block{display:block}
+
+/* ===== ambient background blobs ===== */
+.bg-orbs{position:fixed;inset:0;z-index:-2;overflow:hidden;pointer-events:none}
+.orb{position:absolute;border-radius:50%;filter:blur(70px);opacity:.45}
+.orb.a{width:520px;height:520px;background:var(--green-300);top:-160px;inset-inline-end:-120px;animation:float1 18s ease-in-out infinite}
+.orb.b{width:440px;height:440px;background:#bbf7d0;bottom:-180px;inset-inline-start:-120px;animation:float2 22s ease-in-out infinite}
+.orb.c{width:300px;height:300px;background:#fde68a;top:40%;inset-inline-start:55%;opacity:.3;animation:float1 26s ease-in-out infinite}
+@keyframes float1{0%,100%{transform:translate(0,0)}50%{transform:translate(-40px,40px)}}
+@keyframes float2{0%,100%{transform:translate(0,0)}50%{transform:translate(40px,-30px)}}
+
+/* ===== navbar ===== */
+header{position:sticky;top:0;z-index:50;backdrop-filter:blur(12px);background:rgba(248,250,252,.78);border-bottom:1px solid rgba(15,23,42,.06)}
+nav{display:flex;align-items:center;justify-content:space-between;padding:14px 0;gap:16px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:1.35rem;letter-spacing:-.5px}
+.brand .logo-mark{width:40px;height:40px;flex:none}
+.brand b{color:var(--green-600)}
+.nav-links{display:flex;gap:28px;align-items:center;font-weight:600;color:var(--slate)}
+.nav-links a{transition:color .2s}
+.nav-links a:hover{color:var(--green-600)}
+.nav-actions{display:flex;align-items:center;gap:12px}
+.lang-toggle{display:flex;border:1.5px solid #cbd5e1;border-radius:999px;overflow:hidden;font-weight:700;font-size:.85rem}
+.lang-toggle button{padding:7px 14px;background:transparent;border:0;cursor:pointer;color:var(--slate);font-family:inherit;transition:.2s}
+.lang-toggle button.active{background:var(--green);color:#fff}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:12px 22px;border-radius:999px;font-weight:700;cursor:pointer;border:0;font-family:inherit;font-size:.95rem;transition:transform .15s,box-shadow .25s,background .2s}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:linear-gradient(135deg,var(--green-400),var(--green-600));color:#fff;box-shadow:0 12px 24px -10px rgba(22,163,74,.6)}
+.btn-primary:hover{box-shadow:0 18px 32px -10px rgba(22,163,74,.75);transform:translateY(-2px)}
+.btn-ghost{background:#fff;color:var(--ink-2);border:1.5px solid #e2e8f0}
+.btn-ghost:hover{border-color:var(--green-400);color:var(--green-600)}
+.nav-toggle{display:none;background:none;border:0;cursor:pointer}
+
+/* ===== hero ===== */
+.hero{padding:70px 0 90px}
+.hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:50px;align-items:center}
+.badge{display:inline-flex;align-items:center;gap:8px;background:var(--green-light);color:var(--green-600);font-weight:700;font-size:.85rem;padding:7px 15px;border-radius:999px;margin-bottom:22px}
+.badge .dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse 1.6s infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.5)}}
+.hero h1{font-size:clamp(2.2rem,5vw,3.6rem);line-height:1.12;font-weight:900;letter-spacing:-1px;margin-bottom:20px}
+.hero h1 .hl{background:linear-gradient(120deg,var(--green-600),var(--green-400));-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p.lead{font-size:1.18rem;color:var(--slate);max-width:520px;margin-bottom:30px}
+.hero-cta{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:30px}
+.hero-trust{display:flex;gap:24px;flex-wrap:wrap;color:var(--muted);font-weight:600;font-size:.92rem}
+.hero-trust span{display:flex;align-items:center;gap:7px}
+.check{width:20px;height:20px;border-radius:50%;background:var(--green-light);color:var(--green-600);display:grid;place-items:center;font-size:.7rem;flex:none}
+
+/* ===== 3D hero scene ===== */
+.scene{perspective:1400px;position:relative;height:480px;display:grid;place-items:center}
+.device{
+  position:relative;width:min(420px,90%);transform-style:preserve-3d;
+  transform:rotateY(-18deg) rotateX(8deg);transition:transform .25s ease-out;
+  animation:deviceIn 1s cubic-bezier(.2,.8,.2,1) both;
+}
+@keyframes deviceIn{from{opacity:0;transform:rotateY(-30deg) rotateX(14deg) translateY(30px)}}
+.screen{
+  background:#fff;border-radius:20px;box-shadow:var(--shadow);overflow:hidden;border:1px solid rgba(15,23,42,.06);
+  transform:translateZ(40px);
+}
+.screen-top{background:linear-gradient(135deg,var(--green-600),var(--green-400));padding:14px 18px;display:flex;align-items:center;justify-content:space-between;color:#fff}
+.screen-top .t-title{font-weight:800;font-size:.95rem}
+.screen-top .dots{display:flex;gap:6px}
+.screen-top .dots i{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.55);display:block}
+.screen-body{padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:10px;background:#f1f5f9}
+.prod{background:#fff;border-radius:12px;padding:10px;box-shadow:0 4px 10px -6px rgba(15,23,42,.2);display:flex;flex-direction:column;gap:6px}
+.prod .ph{height:42px;border-radius:8px;background:linear-gradient(135deg,#dcfce7,#bbf7d0)}
+.prod .ph.o{background:linear-gradient(135deg,#fef3c7,#fde68a)}
+.prod .ph.b{background:linear-gradient(135deg,#dbeafe,#bfdbfe)}
+.prod .ln{height:7px;border-radius:4px;background:#e2e8f0;width:80%}
+.prod .ln.s{width:50%;background:#cbd5e1}
+.prod .pr{font-weight:800;color:var(--green-600);font-size:.78rem}
+.screen-cart{grid-column:1/-1;background:#fff;border-radius:12px;padding:12px;box-shadow:0 4px 10px -6px rgba(15,23,42,.2)}
+.cart-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px dashed #e2e8f0;font-size:.8rem;font-weight:600;color:var(--slate)}
+.cart-row:last-child{border:0}
+.cart-total{display:flex;justify-content:space-between;font-weight:900;color:var(--ink);font-size:.95rem;margin-top:6px}
+.cart-total b{color:var(--green-600)}
+
+/* floating 3D cubes */
+.cube{position:absolute;transform-style:preserve-3d;animation:spin 14s linear infinite}
+.cube.c1{width:64px;height:64px;top:6%;inset-inline-start:-4%;animation-duration:16s}
+.cube.c2{width:46px;height:46px;bottom:8%;inset-inline-end:-2%;animation-duration:12s;animation-direction:reverse}
+.cube.c3{width:38px;height:38px;top:48%;inset-inline-end:8%;animation-duration:18s}
+.face{position:absolute;width:100%;height:100%;border-radius:10px;opacity:.95;box-shadow:inset 0 0 20px rgba(255,255,255,.25)}
+.cube .f-front{transform:translateZ(var(--s))}
+.cube .f-back{transform:rotateY(180deg) translateZ(var(--s))}
+.cube .f-right{transform:rotateY(90deg) translateZ(var(--s))}
+.cube .f-left{transform:rotateY(-90deg) translateZ(var(--s))}
+.cube .f-top{transform:rotateX(90deg) translateZ(var(--s))}
+.cube .f-bottom{transform:rotateX(-90deg) translateZ(var(--s))}
+.cube.c1{--s:32px}.cube.c2{--s:23px}.cube.c3{--s:19px}
+.cube.green .face{background:linear-gradient(135deg,var(--green-400),var(--green-600))}
+.cube.amber .face{background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.cube.dark .face{background:linear-gradient(135deg,#334155,#0f172a)}
+@keyframes spin{from{transform:rotateX(0) rotateY(0)}to{transform:rotateX(360deg) rotateY(360deg)}}
+.tag-float{position:absolute;background:#fff;border-radius:14px;box-shadow:var(--shadow);padding:10px 14px;display:flex;align-items:center;gap:10px;font-weight:700;font-size:.85rem;transform:translateZ(80px);animation:bob 4s ease-in-out infinite}
+.tag-float .ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;color:#fff;flex:none}
+.tag-float.t1{top:14%;inset-inline-end:-6%}
+.tag-float.t2{bottom:18%;inset-inline-start:-8%;animation-delay:1.2s}
+@keyframes bob{0%,100%{transform:translateZ(80px) translateY(0)}50%{transform:translateZ(80px) translateY(-12px)}}
+
+/* ===== marquee stats ===== */
+.stats{padding:26px 0;border-block:1px solid rgba(15,23,42,.06);background:#fff}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;text-align:center}
+.stat .n{font-size:2rem;font-weight:900;color:var(--green-600);letter-spacing:-1px}
+.stat .l{color:var(--muted);font-weight:600;font-size:.9rem}
+
+/* ===== section heading ===== */
+.sec{padding:90px 0}
+.sec-head{text-align:center;max-width:680px;margin:0 auto 56px}
+.eyebrow{color:var(--green-600);font-weight:800;letter-spacing:1px;text-transform:uppercase;font-size:.82rem;margin-bottom:12px}
+.sec-head h2{font-size:clamp(1.8rem,3.6vw,2.6rem);font-weight:900;letter-spacing:-1px;margin-bottom:14px}
+.sec-head p{color:var(--slate);font-size:1.08rem}
+
+/* ===== features ===== */
+.feat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:22px}
+.feat{background:var(--card);border:1px solid rgba(15,23,42,.06);border-radius:var(--radius);padding:26px;transition:transform .3s,box-shadow .3s;transform-style:preserve-3d;will-change:transform}
+.feat:hover{transform:translateY(-8px) rotateX(4deg);box-shadow:var(--shadow)}
+.feat .ficon{width:54px;height:54px;border-radius:16px;display:grid;place-items:center;margin-bottom:18px;color:#fff;box-shadow:0 10px 20px -8px rgba(22,163,74,.5)}
+.feat h3{font-size:1.12rem;font-weight:800;margin-bottom:8px}
+.feat p{color:var(--muted);font-size:.94rem}
+.ic-svg{width:26px;height:26px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* ===== steps ===== */
+.steps{background:linear-gradient(180deg,#fff,#f0fdf4)}
+.steps-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:30px}
+.step{text-align:center;padding:30px 22px;background:#fff;border-radius:var(--radius);border:1px solid rgba(15,23,42,.06);position:relative}
+.step .num{width:60px;height:60px;margin:0 auto 18px;border-radius:18px;background:linear-gradient(135deg,var(--green-400),var(--green-600));color:#fff;font-weight:900;font-size:1.5rem;display:grid;place-items:center;transform:rotate(-8deg);box-shadow:0 14px 26px -10px rgba(22,163,74,.6)}
+.step h3{font-weight:800;font-size:1.15rem;margin-bottom:8px}
+.step p{color:var(--muted);font-size:.95rem}
+
+/* ===== why / benefits ===== */
+.why-grid{display:grid;grid-template-columns:1fr 1fr;gap:50px;align-items:center}
+.bene{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.bene .item{display:flex;gap:12px;align-items:flex-start}
+.bene .bic{width:42px;height:42px;border-radius:12px;background:var(--green-light);color:var(--green-600);display:grid;place-items:center;flex:none}
+.bene .item h4{font-weight:800;font-size:1rem;margin-bottom:2px}
+.bene .item p{color:var(--muted);font-size:.88rem;line-height:1.5}
+.why-visual{perspective:1200px}
+.why-card{background:linear-gradient(135deg,var(--green-600),#0f766e);border-radius:28px;padding:36px;color:#fff;transform:rotateY(12deg) rotateX(6deg);transform-style:preserve-3d;box-shadow:var(--shadow);transition:transform .3s}
+.why-card:hover{transform:rotateY(4deg) rotateX(2deg)}
+.why-card h3{font-size:1.5rem;font-weight:900;margin-bottom:10px}
+.why-card p{opacity:.9;margin-bottom:22px}
+.mini-stats{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.mini{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);border-radius:16px;padding:16px;transform:translateZ(40px)}
+.mini .mn{font-size:1.7rem;font-weight:900}
+.mini .ml{opacity:.85;font-size:.82rem}
+
+/* ===== CTA ===== */
+.cta-final{padding:90px 0}
+.cta-box{background:linear-gradient(135deg,var(--ink),var(--ink-2));border-radius:32px;padding:60px;text-align:center;color:#fff;position:relative;overflow:hidden}
+.cta-box::before{content:"";position:absolute;width:300px;height:300px;background:var(--green);filter:blur(90px);opacity:.4;top:-100px;inset-inline-end:-60px}
+.cta-box h2{font-size:clamp(1.8rem,4vw,2.6rem);font-weight:900;margin-bottom:14px;position:relative}
+.cta-box p{opacity:.85;font-size:1.1rem;margin-bottom:30px;position:relative}
+.cta-box .hero-cta{justify-content:center;position:relative}
+
+/* ===== footer ===== */
+footer{background:#0f172a;color:#cbd5e1;padding:50px 0 30px}
+.foot-grid{display:grid;grid-template-columns:2fr 1fr 1fr;gap:40px;margin-bottom:30px}
+.foot-brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:1.3rem;color:#fff;margin-bottom:14px}
+footer h5{color:#fff;font-weight:700;margin-bottom:14px;font-size:1rem}
+footer ul{list-style:none;display:flex;flex-direction:column;gap:9px}
+footer a:hover{color:var(--green-300)}
+.foot-bottom{border-top:1px solid rgba(255,255,255,.1);padding-top:20px;text-align:center;color:#64748b;font-size:.88rem}
+
+/* ===== responsive ===== */
+@media(max-width:920px){
+  .hero-grid,.why-grid{grid-template-columns:1fr}
+  .scene{height:400px;margin-top:20px}
+  .feat-grid{grid-template-columns:repeat(2,1fr)}
+  .stats-grid{grid-template-columns:repeat(2,1fr);gap:24px}
+  .steps-grid{grid-template-columns:1fr}
+  .bene{grid-template-columns:1fr}
+  .nav-links{display:none}
+  .foot-grid{grid-template-columns:1fr;gap:26px}
+}
+@media(max-width:540px){
+  .feat-grid{grid-template-columns:1fr}
+  .cta-box{padding:40px 24px}
+  .hero{padding:40px 0 60px}
+}
+</style>
+</head>
+<body>
+
+<div class="bg-orbs"><span class="orb a"></span><span class="orb b"></span><span class="orb c"></span></div>
+
+<!-- ===================== NAV ===================== -->
+<header>
+  <div class="wrap">
+    <nav>
+      <a class="brand" href="#">
+        <svg class="logo-mark" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="3" y="3" width="42" height="42" rx="12" fill="#16a34a"/>
+          <path d="M14 17h20l-2 13a3 3 0 0 1-3 2.6H19A3 3 0 0 1 16 30L14 17Z" fill="#fff"/>
+          <path d="M18 17a6 6 0 0 1 12 0" stroke="#16a34a" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+          <circle cx="20" cy="36.5" r="1.8" fill="#fff"/><circle cx="28" cy="36.5" r="1.8" fill="#fff"/>
+        </svg>
+        <span>Ba9alino</span>
+      </a>
+      <div class="nav-links">
+        <a href="#features"><span class="lang-ar">المميزات</span><span class="lang-fr">Fonctionnalités</span></a>
+        <a href="#how"><span class="lang-ar">كيف يعمل</span><span class="lang-fr">Comment ça marche</span></a>
+        <a href="#why"><span class="lang-ar">لماذا بقالينو</span><span class="lang-fr">Pourquoi nous</span></a>
+      </div>
+      <div class="nav-actions">
+        <div class="lang-toggle" role="group" aria-label="language">
+          <button data-lang="ar" class="active">ع</button>
+          <button data-lang="fr">FR</button>
+        </div>
+        <a href="/login" class="btn btn-primary">
+          <span class="lang-ar">تسجيل الدخول</span><span class="lang-fr">Connexion</span>
+        </a>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<!-- ===================== HERO ===================== -->
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <span class="badge"><span class="dot"></span>
+        <span class="lang-ar">برنامج تدبير المحلات رقم 1</span>
+        <span class="lang-fr">Le logiciel de gestion N°1 pour votre commerce</span>
+      </span>
+      <h1>
+        <span class="lang-ar">سيّر محلك <span class="hl">بكل سهولة</span> وذكاء</span>
+        <span class="lang-fr">Gérez votre magasin <span class="hl">simplement</span></span>
+      </h1>
+      <p class="lead">
+        <span class="lang-ar">برنامج واحد لتدبير البقالة وتجارة التقسيط: الصندوق، المخزون، المشتريات، الزبناء والفواتير — في تطبيق سريع بالعربية والفرنسية.</span>
+        <span class="lang-fr">Une seule application pour piloter votre épicerie : caisse, stock, achats, clients et factures. Rapide, en arabe et en français.</span>
+      </p>
+      <div class="hero-cta">
+        <a href="/login" class="btn btn-primary">
+          <span class="lang-ar">تسجيل الدخول</span><span class="lang-fr">Connexion</span>
+          <svg class="ic-svg" style="width:18px;height:18px"><use href="#arrow"/></svg>
+        </a>
+        <a href="https://wa.me/212641998700" class="btn btn-ghost">
+          <span class="lang-ar">جرّب مجاناً</span><span class="lang-fr">Essayer gratuitement</span>
+        </a>
+      </div>
+      <div class="hero-trust">
+        <span><span class="check">✓</span><span class="lang-ar">بدون عقود</span><span class="lang-fr">Sans engagement</span></span>
+        <span><span class="check">✓</span><span class="lang-ar">يشتغل بدون أنترنيت</span><span class="lang-fr">Fonctionne hors-ligne</span></span>
+        <span><span class="check">✓</span><span class="lang-ar">دعم محلي</span><span class="lang-fr">Support local</span></span>
+      </div>
+    </div>
+
+    <!-- 3D scene -->
+    <div class="scene" id="scene">
+      <div class="device" id="device">
+        <div class="screen">
+          <div class="screen-top">
+            <span class="t-title"><span class="lang-ar">الصندوق — نقطة البيع</span><span class="lang-fr">Caisse — Point de vente</span></span>
+            <span class="dots"><i></i><i></i><i></i></span>
+          </div>
+          <div class="screen-body">
+            <div class="prod"><div class="ph"></div><div class="ln"></div><div class="ln s"></div><div class="pr">12.00 DH</div></div>
+            <div class="prod"><div class="ph o"></div><div class="ln"></div><div class="ln s"></div><div class="pr">8.50 DH</div></div>
+            <div class="prod"><div class="ph b"></div><div class="ln"></div><div class="ln s"></div><div class="pr">25.00 DH</div></div>
+            <div class="prod"><div class="ph"></div><div class="ln"></div><div class="ln s"></div><div class="pr">4.00 DH</div></div>
+            <div class="screen-cart">
+              <div class="cart-row"><span><span class="lang-ar">حليب</span><span class="lang-fr">Lait</span></span><span>12.00</span></div>
+              <div class="cart-row"><span><span class="lang-ar">خبز</span><span class="lang-fr">Pain</span></span><span>8.50</span></div>
+              <div class="cart-total"><span><span class="lang-ar">المجموع</span><span class="lang-fr">Total</span></span><b>20.50 DH</b></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tag-float t1">
+          <span class="ic" style="background:#16a34a"><svg class="ic-svg" style="width:16px;height:16px"><use href="#bolt"/></svg></span>
+          <span><span class="lang-ar">بيع في ثواني</span><span class="lang-fr">Vente en secondes</span></span>
+        </div>
+        <div class="tag-float t2">
+          <span class="ic" style="background:#f59e0b"><svg class="ic-svg" style="width:16px;height:16px"><use href="#box"/></svg></span>
+          <span><span class="lang-ar">مخزون محيّن</span><span class="lang-fr">Stock à jour</span></span>
+        </div>
+      </div>
+
+      <div class="cube c1 green"><span class="face f-front"></span><span class="face f-back"></span><span class="face f-right"></span><span class="face f-left"></span><span class="face f-top"></span><span class="face f-bottom"></span></div>
+      <div class="cube c2 amber"><span class="face f-front"></span><span class="face f-back"></span><span class="face f-right"></span><span class="face f-left"></span><span class="face f-top"></span><span class="face f-bottom"></span></div>
+      <div class="cube c3 dark"><span class="face f-front"></span><span class="face f-back"></span><span class="face f-right"></span><span class="face f-left"></span><span class="face f-top"></span><span class="face f-bottom"></span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== STATS ===================== -->
+<section class="stats">
+  <div class="wrap stats-grid">
+    <div class="stat"><div class="n">100%</div><div class="l"><span class="lang-ar">بالعربية والفرنسية</span><span class="lang-fr">Arabe & Français</span></div></div>
+    <div class="stat"><div class="n">2×</div><div class="l"><span class="lang-ar">أسرع في الأداء</span><span class="lang-fr">Encaissement plus rapide</span></div></div>
+    <div class="stat"><div class="n">24/7</div><div class="l"><span class="lang-ar">متاح دائماً</span><span class="lang-fr">Disponible</span></div></div>
+    <div class="stat"><div class="n">0</div><div class="l"><span class="lang-ar">أخطاء في المخزون</span><span class="lang-fr">Erreur de stock</span></div></div>
+  </div>
+</section>
+
+<!-- ===================== FEATURES ===================== -->
+<section class="sec" id="features">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow"><span class="lang-ar">المميزات</span><span class="lang-fr">Fonctionnalités</span></div>
+      <h2><span class="lang-ar">كل ما يحتاجه محلك في مكان واحد</span><span class="lang-fr">Tout votre magasin, au même endroit</span></h2>
+      <p><span class="lang-ar">من الصندوق إلى المخزون والفواتير، بقالينو يدبّر كل شيء بسلاسة.</span><span class="lang-fr">De la caisse au stock et aux factures, Ba9alino gère tout sans effort.</span></p>
+    </div>
+    <div class="feat-grid">
+      <div class="feat"><div class="ficon" style="background:linear-gradient(135deg,#22c55e,#15803d)"><svg class="ic-svg"><use href="#cart"/></svg></div><h3><span class="lang-ar">صندوق سريع</span><span class="lang-fr">Caisse rapide</span></h3><p><span class="lang-ar">نقطة بيع بالباركود، تشتغل بسرعة حتى بدون أنترنيت.</span><span class="lang-fr">Point de vente avec code-barres, ultra rapide, même hors-ligne.</span></p></div>
+      <div class="feat"><div class="ficon" style="background:linear-gradient(135deg,#f59e0b,#d97706)"><svg class="ic-svg"><use href="#box"/></svg></div><h3><span class="lang-ar">تدبير المخزون</span><span class="lang-fr">Gestion de stock</span></h3><p><span class="lang-ar">مخزون متعدد المستودعات وتنبيهات عند النفاد.</span><span class="lang-fr">Stock multi-dépôts avec alertes de rupture.</span></p></div>
+      <div class="feat"><div class="ficon" style="background:linear-gradient(135deg,#3b82f6,#1d4ed8)"><svg class="ic-svg"><use href="#truck"/></svg></div><h3><span class="lang-ar">المشتريات والموردون</span><span class="lang-fr">Achats & fournisseurs</span></h3><p><span class="lang-ar">فواتير الشراء، تكلفة متوسطة وتحيين تلقائي للمخزون.</span><span class="lang-fr">Bons d'achat, coût moyen et mise à jour auto du stock.</span></p></div>
+      <div class="feat"><div class="ficon" style="background:linear-gradient(135deg,#8b5cf6,#6d28d9)"><svg class="ic-svg"><use href="#users"/></svg></div><h3><span class="lang-ar">الزبناء والكريدي</span><span class="lang-fr">Clients & crédits</span></h3><p><span class="lang-ar">تتبّع الديون والدفعات لكل زبون بكل وضوح.</span><span class="lang-fr">Suivi des dettes et paiements de chaque client.</span></p></div>
+      <div class="feat"><div class="ficon" style="background:linear-gradient(135deg,#ef4444,#b91c1c)"><svg class="ic-svg"><use href="#doc"/></svg></div><h3><span class="lang-ar">الفواتير وسندات التسليم</span><span class="lang-fr">Factures & BL</span></h3><p><span class="lang-ar">إصدار الفواتير وسندات التسليم والأفّوار بنقرة.</span><span class="lang-fr">Factures, bons de livraison et avoirs en un clic.</span></p></div>
+      <div class="feat"><div class="ficon" style="background:linear-gradient(135deg,#06b6d4,#0e7490)"><svg class="ic-svg"><use href="#chart"/></svg></div><h3><span class="lang-ar">لوحة تحكم فورية</span><span class="lang-fr">Tableau de bord</span></h3><p><span class="lang-ar">رقم المعاملات، الأرباح والمنتجات الأكثر مبيعاً.</span><span class="lang-fr">Chiffre d'affaires, marges et meilleures ventes.</span></p></div>
+      <div class="feat"><div class="ficon" style="background:linear-gradient(135deg,#ec4899,#be185d)"><svg class="ic-svg"><use href="#wallet"/></svg></div><h3><span class="lang-ar">الموظفون والمصاريف</span><span class="lang-fr">Employés & dépenses</span></h3><p><span class="lang-ar">تدبير الأجور والمصاريف اليومية للمحل.</span><span class="lang-fr">Gérez salaires et dépenses quotidiennes.</span></p></div>
+      <div class="feat"><div class="ficon" style="background:linear-gradient(135deg,#14b8a6,#0f766e)"><svg class="ic-svg"><use href="#route"/></svg></div><h3><span class="lang-ar">المندوبون والجولات</span><span class="lang-fr">Tournées commerciales</span></h3><p><span class="lang-ar">طلبيات وزيارات المندوبين مع التتبّع الجغرافي.</span><span class="lang-fr">Commandes et visites des commerciaux suivies.</span></p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== HOW IT WORKS ===================== -->
+<section class="sec steps" id="how">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="eyebrow"><span class="lang-ar">البداية</span><span class="lang-fr">Démarrage</span></div>
+      <h2><span class="lang-ar">ابدأ في 3 خطوات</span><span class="lang-fr">Démarrez en 3 étapes</span></h2>
+    </div>
+    <div class="steps-grid">
+      <div class="step"><div class="num">1</div><h3><span class="lang-ar">أنشئ حسابك</span><span class="lang-fr">Créez votre compte</span></h3><p><span class="lang-ar">سجّل محلك في دقائق بدون أي تعقيد.</span><span class="lang-fr">Inscrivez votre magasin en quelques minutes.</span></p></div>
+      <div class="step"><div class="num">2</div><h3><span class="lang-ar">أضف منتجاتك</span><span class="lang-fr">Ajoutez vos produits</span></h3><p><span class="lang-ar">استورد المنتجات والأثمنة أو أضفها بالباركود.</span><span class="lang-fr">Importez vos produits et prix, ou scannez-les.</span></p></div>
+      <div class="step"><div class="num">3</div><h3><span class="lang-ar">بِع وتتبّع كل شيء</span><span class="lang-fr">Vendez & suivez tout</span></h3><p><span class="lang-ar">ابدأ البيع وراقب المخزون والأرباح مباشرة.</span><span class="lang-fr">Vendez et suivez stock et bénéfices en direct.</span></p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== WHY ===================== -->
+<section class="sec" id="why">
+  <div class="wrap why-grid">
+    <div>
+      <div class="eyebrow"><span class="lang-ar">لماذا بقالينو</span><span class="lang-fr">Pourquoi Ba9alino</span></div>
+      <h2 style="font-size:clamp(1.8rem,3.6vw,2.4rem);font-weight:900;letter-spacing:-1px;margin-bottom:28px">
+        <span class="lang-ar">مصمم لتجار المغرب</span><span class="lang-fr">Conçu pour les commerçants</span>
+      </h2>
+      <div class="bene">
+        <div class="item"><span class="bic"><svg class="ic-svg" style="width:20px;height:20px"><use href="#globe"/></svg></span><div><h4><span class="lang-ar">عربية وفرنسية</span><span class="lang-fr">Arabe & Français</span></h4><p><span class="lang-ar">واجهة كاملة بالاتجاهين تناسب الجميع.</span><span class="lang-fr">Interface bilingue RTL, pour tous.</span></p></div></div>
+        <div class="item"><span class="bic"><svg class="ic-svg" style="width:20px;height:20px"><use href="#bolt"/></svg></span><div><h4><span class="lang-ar">سريع وخفيف</span><span class="lang-fr">Rapide & léger</span></h4><p><span class="lang-ar">يشتغل حتى بدون أنترنيت على الحاسوب.</span><span class="lang-fr">Fonctionne hors-ligne sur PC.</span></p></div></div>
+        <div class="item"><span class="bic"><svg class="ic-svg" style="width:20px;height:20px"><use href="#scan"/></svg></span><div><h4><span class="lang-ar">باركود وميزان</span><span class="lang-fr">Code-barres & balance</span></h4><p><span class="lang-ar">دعم القارئ والميزان الإلكتروني.</span><span class="lang-fr">Compatible scanner et balance.</span></p></div></div>
+        <div class="item"><span class="bic"><svg class="ic-svg" style="width:20px;height:20px"><use href="#shield"/></svg></span><div><h4><span class="lang-ar">آمن ومحمي</span><span class="lang-fr">Sûr & sécurisé</span></h4><p><span class="lang-ar">بياناتك محفوظة ومحمية باستمرار.</span><span class="lang-fr">Vos données sauvegardées et protégées.</span></p></div></div>
+      </div>
+    </div>
+    <div class="why-visual">
+      <div class="why-card">
+        <h3><span class="lang-ar">نتائج ملموسة</span><span class="lang-fr">Des résultats concrets</span></h3>
+        <p><span class="lang-ar">وفّر وقتك وتحكّم في محلك بدقة.</span><span class="lang-fr">Gagnez du temps et contrôlez tout.</span></p>
+        <div class="mini-stats">
+          <div class="mini"><div class="mn">-70%</div><div class="ml"><span class="lang-ar">وقت الجرد</span><span class="lang-fr">Temps d'inventaire</span></div></div>
+          <div class="mini"><div class="mn">+30%</div><div class="ml"><span class="lang-ar">تحكّم في الأرباح</span><span class="lang-fr">Visibilité sur marges</span></div></div>
+          <div class="mini"><div class="mn">×1</div><div class="ml"><span class="lang-ar">تطبيق واحد</span><span class="lang-fr">Une seule app</span></div></div>
+          <div class="mini"><div class="mn">∞</div><div class="ml"><span class="lang-ar">منتجات</span><span class="lang-fr">Produits</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== FINAL CTA ===================== -->
+<section class="cta-final">
+  <div class="wrap">
+    <div class="cta-box">
+      <h2><span class="lang-ar">واجد تعصرن محلك؟</span><span class="lang-fr">Prêt à moderniser votre magasin ?</span></h2>
+      <p><span class="lang-ar">انضم لتجار يثقون في بقالينو لتدبير أعمالهم اليومية.</span><span class="lang-fr">Rejoignez les commerçants qui font confiance à Ba9alino.</span></p>
+      <div class="hero-cta">
+        <a href="/login" class="btn btn-primary"><span class="lang-ar">تسجيل الدخول</span><span class="lang-fr">Connexion</span></a>
+        <a href="https://wa.me/212641998700" class="btn btn-ghost"><span class="lang-ar">تواصل معنا — 0641 99 87 00</span><span class="lang-fr">Nous contacter — 0641 99 87 00</span></a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== FOOTER ===================== -->
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <div class="foot-brand">
+          <svg class="logo-mark" style="width:34px;height:34px" viewBox="0 0 48 48"><rect x="3" y="3" width="42" height="42" rx="12" fill="#16a34a"/><path d="M14 17h20l-2 13a3 3 0 0 1-3 2.6H19A3 3 0 0 1 16 30L14 17Z" fill="#fff"/><path d="M18 17a6 6 0 0 1 12 0" stroke="#16a34a" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg>
+          Ba9alino
+        </div>
+        <p style="max-width:320px;color:#94a3b8"><span class="lang-ar block">برنامج تدبير المحلات وتجارة التقسيط — بسيط، سريع وبلغتك.</span><span class="lang-fr block">Le logiciel de gestion pour épiceries et commerces — simple, rapide et dans votre langue.</span></p>
+      </div>
+      <div>
+        <h5><span class="lang-ar">روابط</span><span class="lang-fr">Liens</span></h5>
+        <ul>
+          <li><a href="#features"><span class="lang-ar">المميزات</span><span class="lang-fr">Fonctionnalités</span></a></li>
+          <li><a href="#how"><span class="lang-ar">كيف يعمل</span><span class="lang-fr">Comment ça marche</span></a></li>
+          <li><a href="#why"><span class="lang-ar">لماذا بقالينو</span><span class="lang-fr">Pourquoi nous</span></a></li>
+          <li><a href="https://ba9alino.ma"><span class="lang-ar">تسجيل الدخول</span><span class="lang-fr">Connexion</span></a></li>
+        </ul>
+      </div>
+      <div>
+        <h5><span class="lang-ar">تواصل</span><span class="lang-fr">Contact</span></h5>
+        <ul>
+          <li><a href="https://wa.me/212641998700">WhatsApp — 0641 99 87 00</a></li>
+          <li><a href="tel:+212641998700">+212 641 99 87 00</a></li>
+          <li><a href="mailto:contact@ba9alino.ma">contact@ba9alino.ma</a></li>
+          <li><a href="https://ba9alino.ma">ba9alino.ma</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot-bottom">© <span id="year"></span> Ba9alino. <span class="lang-ar">كل الحقوق محفوظة.</span><span class="lang-fr">Tous droits réservés.</span></div>
+  </div>
+</footer>
+
+<!-- ===== SVG icon sprite ===== -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <g id="arrow"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></g>
+    <g id="cart"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></g>
+    <g id="box"><path d="M21 8 12 3 3 8v8l9 5 9-5V8Z"/><path d="m3 8 9 5 9-5"/><path d="M12 13v8"/></g>
+    <g id="truck"><path d="M1 3h15v13H1zM16 8h4l3 3v5h-7"/><circle cx="6" cy="18.5" r="1.8"/><circle cx="18.5" cy="18.5" r="1.8"/></g>
+    <g id="users"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></g>
+    <g id="doc"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/></g>
+    <g id="chart"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></g>
+    <g id="wallet"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><circle cx="17" cy="14" r="1.2"/></g>
+    <g id="route"><circle cx="6" cy="19" r="2.5"/><circle cx="18" cy="5" r="2.5"/><path d="M8.5 19H15a3.5 3.5 0 0 0 0-7H9a3.5 3.5 0 0 1 0-7h6.5"/></g>
+    <g id="globe"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20Z"/></g>
+    <g id="bolt"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></g>
+    <g id="scan"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="12" x2="17" y2="12"/></g>
+    <g id="shield"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></g>
+  </defs>
+</svg>
+
+<script>
+(function(){
+  // ----- Auto-redirect si deja connecte: la SPA stocke la session
+  // Supabase dans localStorage sous une cle "sb-...-auth-token". Si elle
+  // existe ET n'est pas expiree, on file directement vers /dashboard pour
+  // ne pas bloquer un utilisateur connecte sur la landing.
+  try {
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if (!k || k.indexOf('sb-') !== 0 || k.indexOf('-auth-token') === -1) continue;
+      var raw = localStorage.getItem(k);
+      if (!raw) continue;
+      var s = JSON.parse(raw);
+      var exp = (s && (s.expires_at || (s.currentSession && s.currentSession.expires_at))) || 0;
+      if (exp && exp * 1000 > Date.now()) { location.replace('/dashboard'); return; }
+    }
+  } catch (e) { /* localStorage indisponible: on reste sur la landing */ }
+
+  document.getElementById('year').textContent = new Date().getFullYear();
+
+  // ----- language switch -----
+  var saved = null;
+  try { saved = localStorage.getItem('ba9alino_lang'); } catch(e){}
+  function setLang(lang){
+    document.documentElement.lang = lang;
+    document.documentElement.dir = (lang === 'ar') ? 'rtl' : 'ltr';
+    document.querySelectorAll('.lang-toggle button').forEach(function(b){
+      b.classList.toggle('active', b.dataset.lang === lang);
+    });
+    try { localStorage.setItem('ba9alino_lang', lang); } catch(e){}
+  }
+  document.querySelectorAll('.lang-toggle button').forEach(function(b){
+    b.addEventListener('click', function(){ setLang(b.dataset.lang); });
+  });
+  setLang(saved === 'fr' ? 'fr' : 'ar');
+
+  // ----- 3D parallax on hero device (pointer) -----
+  var scene = document.getElementById('scene');
+  var device = document.getElementById('device');
+  if (scene && device && window.matchMedia('(pointer:fine)').matches){
+    scene.addEventListener('mousemove', function(e){
+      var r = scene.getBoundingClientRect();
+      var px = (e.clientX - r.left) / r.width - .5;
+      var py = (e.clientY - r.top) / r.height - .5;
+      device.style.transform = 'rotateY(' + (-18 + px*16) + 'deg) rotateX(' + (8 - py*16) + 'deg)';
+    });
+    scene.addEventListener('mouseleave', function(){
+      device.style.transform = 'rotateY(-18deg) rotateX(8deg)';
+    });
+  }
+
+  // ----- reveal on scroll -----
+  if ('IntersectionObserver' in window){
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if (en.isIntersecting){ en.target.style.opacity = 1; en.target.style.transform = 'none'; io.unobserve(en.target); }
+      });
+    }, {threshold:.12});
+    document.querySelectorAll('.feat,.step,.bene .item,.stat').forEach(function(el,i){
+      el.style.opacity = 0;
+      el.style.transform = 'translateY(24px)';
+      el.style.transition = 'opacity .6s ease ' + (i%4*0.06) + 's, transform .6s ease ' + (i%4*0.06) + 's';
+      io.observe(el);
+    });
+  }
+})();
+</script>
+</body>
+</html>
