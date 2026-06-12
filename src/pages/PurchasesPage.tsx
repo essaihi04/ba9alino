@@ -366,11 +366,9 @@ export default function PurchasesPage() {
       })
     : filteredProducts
 
-  const purchaseSelectableItems: Array<{ key: string; product: Product; primaryVariant?: ProductPrimaryVariant }> = filteredProductsForPurchase.flatMap((p) => {
-    const pvs = (primaryVariantsByProductId[p.id] || []).filter(v => v?.is_active !== false)
-    if (pvs.length === 0) return [{ key: p.id, product: p }]
-    return pvs.map((pv) => ({ key: `${p.id}:${pv.id}`, product: p, primaryVariant: pv }))
-  })
+  // Une seule carte par produit (comme la page des produits). La variante par défaut
+  // est choisie automatiquement dans addProductToInvoice et reste modifiable ensuite.
+  const purchaseSelectableItems: Array<{ key: string; product: Product; primaryVariant?: ProductPrimaryVariant }> = filteredProductsForPurchase.map((p) => ({ key: p.id, product: p }))
 
   const purchaseInitialVisibleLimit = 120
   const shouldLimitPurchaseItems = !normalizedPurchaseQuery && !selectedCategory
