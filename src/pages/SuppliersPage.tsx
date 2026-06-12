@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Search, Plus, Eye, Edit2, Trash2, Phone, Mail, MapPin, Building, DollarSign } from 'lucide-react'
+import { Search, Plus, Eye, Edit2, Trash2, Phone, Mail, MapPin, Building, DollarSign, Truck, Percent } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useInputPad } from '../components/useInputPad'
+import { parsePurchaseConfig, type DiscountTier, type SupplierPurchaseConfig } from '../utils/purchaseDiscount'
 
 interface Supplier {
   id: string
@@ -22,6 +23,7 @@ interface Supplier {
   payment_terms_ar?: string
   payment_terms_en?: string
   is_active: boolean
+  purchase_config?: SupplierPurchaseConfig
   created_at: string
   updated_at?: string
 }
@@ -50,7 +52,9 @@ export default function SuppliersPage() {
     city: '',
     payment_terms_ar: '',
     payment_terms_en: '',
-    is_active: true
+    is_active: true,
+    transport_rate: '' as string,
+    discount_tiers: [] as DiscountTier[]
   })
   const [paymentForm, setPaymentForm] = useState({
     amount: '',
@@ -80,33 +84,45 @@ export default function SuppliersPage() {
     }
   }
 
+  const isMissingColumnError = (err: any, column: string) => {
+    const msg = String(err?.message || '')
+    const code = String(err?.code || '')
+    return (code === 'PGRST204' || code === '42703') && (msg.includes(column) || msg.includes(`'${column}'`))
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      const supplierData = {
-        ...formData,
+      const { transport_rate, discount_tiers, ...baseForm } = formData
+      const purchase_config: SupplierPurchaseConfig = parsePurchaseConfig({
+        transport_rate: parseFloat(transport_rate) || 0,
+        discount_tiers,
+      })
+
+      const supplierData: any = {
+        ...baseForm,
+        purchase_config,
         updated_at: new Date().toISOString()
       }
 
-      if (editingSupplier) {
-        // Update existing supplier
-        const { error } = await supabase
+      // Sauvegarde tolérante : si la colonne purchase_config n'existe pas encore sur le
+      // serveur, on retire le champ et on réessaie (l'app reste fonctionnelle sans remise).
+      const save = async (payload: any) => {
+        if (editingSupplier) {
+          return await supabase.from('suppliers').update(payload).eq('id', editingSupplier.id)
+        }
+        return await supabase
           .from('suppliers')
-          .update(supplierData)
-          .eq('id', editingSupplier.id)
-
-        if (error) throw error
-      } else {
-        // Create new supplier
-        const { error } = await supabase
-          .from('suppliers')
-          .insert({
-            ...supplierData,
-            created_at: new Date().toISOString()
-          })
-
-        if (error) throw error
+          .insert({ ...payload, created_at: new Date().toISOString() })
       }
+
+      let { error } = await save(supplierData)
+      if (error && isMissingColumnError(error, 'purchase_config')) {
+        console.warn('suppliers: colonne purchase_config absente, sauvegarde sans config')
+        const { purchase_config: _omit, ...withoutConfig } = supplierData
+        ;({ error } = await save(withoutConfig))
+      }
+      if (error) throw error
 
       setShowFormModal(false)
       setEditingSupplier(null)
@@ -186,12 +202,15 @@ export default function SuppliersPage() {
       city: '',
       payment_terms_ar: '',
       payment_terms_en: '',
-      is_active: true
+      is_active: true,
+      transport_rate: '',
+      discount_tiers: []
     })
   }
 
   const openEditModal = (supplier: Supplier) => {
     setEditingSupplier(supplier)
+    const cfg = parsePurchaseConfig(supplier.purchase_config)
     setFormData({
       name_ar: supplier.name_ar,
       name_en: supplier.name_en || '',
@@ -205,9 +224,32 @@ export default function SuppliersPage() {
       city: supplier.city || '',
       payment_terms_ar: supplier.payment_terms_ar || '',
       payment_terms_en: supplier.payment_terms_en || '',
-      is_active: supplier.is_active
+      is_active: supplier.is_active,
+      transport_rate: cfg.transport_rate ? String(cfg.transport_rate) : '',
+      discount_tiers: cfg.discount_tiers || []
     })
     setShowFormModal(true)
+  }
+
+  const addDiscountTier = () => {
+    setFormData(prev => ({
+      ...prev,
+      discount_tiers: [...prev.discount_tiers, { min_qty: 0, type: 'centime', value: 0, basis: 'kilo' }]
+    }))
+  }
+
+  const updateDiscountTier = (index: number, patch: Partial<DiscountTier>) => {
+    setFormData(prev => ({
+      ...prev,
+      discount_tiers: prev.discount_tiers.map((t, i) => i === index ? { ...t, ...patch } : t)
+    }))
+  }
+
+  const removeDiscountTier = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      discount_tiers: prev.discount_tiers.filter((_, i) => i !== index)
+    }))
   }
 
   const filteredSuppliers = useMemo(() => {
@@ -556,6 +598,134 @@ export default function SuppliersPage() {
                   />
                 </div>
               </div>
+              {/* إعدادات الشراء: النقل + خصومات حسب الكمية الشهرية */}
+              <div className="border rounded-lg p-4 bg-gray-50 space-y-4">
+                <h3 className="font-semibold flex items-center gap-2 text-gray-800">
+                  <Percent className="w-4 h-4 text-green-600" />
+                  إعدادات الشراء (خصومات و نقل)
+                </h3>
+
+                {/* Transport */}
+                <div className="flex items-center gap-3">
+                  <Truck className="w-4 h-4 text-blue-600" />
+                  <label className="text-sm font-medium flex-1">
+                    ثمن النقل (د.م لكل كيلو)
+                    <span className="block text-xs text-gray-500 font-normal">يُفعَّل أو يُلغى في كل عملية شراء</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      inputPad.open({
+                        title: 'ثمن النقل (د.م/كغ)',
+                        mode: 'decimal',
+                        dir: 'ltr',
+                        initialValue: formData.transport_rate || '0',
+                        min: 0,
+                        onConfirm: (v) => setFormData({ ...formData, transport_rate: v }),
+                      })
+                    }
+                    className="w-28 px-3 py-2 border rounded-lg bg-white text-left focus:outline-none focus:ring-2 focus:ring-green-500"
+                  >
+                    {formData.transport_rate || '0.00'}
+                  </button>
+                </div>
+
+                {/* Paliers de remise */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">مراحل الخصم (حسب الكمية الشهرية)</span>
+                    <button
+                      type="button"
+                      onClick={addDiscountTier}
+                      className="text-xs bg-green-600 text-white px-2 py-1 rounded flex items-center gap-1 hover:bg-green-700"
+                    >
+                      <Plus className="w-3 h-3" /> إضافة مرحلة
+                    </button>
+                  </div>
+
+                  {formData.discount_tiers.length === 0 && (
+                    <p className="text-xs text-gray-500">لا توجد خصومات. أضف مرحلة لتطبيق خصم تلقائي عند بلوغ كمية معينة.</p>
+                  )}
+
+                  {formData.discount_tiers.map((tier, index) => (
+                    <div key={index} className="grid grid-cols-12 gap-2 items-center bg-white border rounded-lg p-2">
+                      <div className="col-span-3">
+                        <label className="block text-[10px] text-gray-500 mb-0.5">عند بلوغ</label>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            inputPad.open({
+                              title: 'الكمية (كغ)',
+                              mode: 'decimal',
+                              dir: 'ltr',
+                              initialValue: String(tier.min_qty || 0),
+                              min: 0,
+                              onConfirm: (v) => updateDiscountTier(index, { min_qty: parseFloat(v) || 0 }),
+                            })
+                          }
+                          className="w-full px-2 py-1.5 border rounded text-sm text-left"
+                        >
+                          {tier.min_qty || 0}
+                        </button>
+                      </div>
+                      <div className="col-span-3">
+                        <label className="block text-[10px] text-gray-500 mb-0.5">قيمة الخصم</label>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            inputPad.open({
+                              title: 'قيمة الخصم',
+                              mode: 'decimal',
+                              dir: 'ltr',
+                              initialValue: String(tier.value || 0),
+                              min: 0,
+                              onConfirm: (v) => updateDiscountTier(index, { value: parseFloat(v) || 0 }),
+                            })
+                          }
+                          className="w-full px-2 py-1.5 border rounded text-sm text-left"
+                        >
+                          {tier.value || 0}
+                        </button>
+                      </div>
+                      <div className="col-span-3">
+                        <label className="block text-[10px] text-gray-500 mb-0.5">الوحدة</label>
+                        <select
+                          value={tier.type}
+                          onChange={(e) => updateDiscountTier(index, { type: e.target.value as DiscountTier['type'] })}
+                          className="w-full px-1 py-1.5 border rounded text-sm"
+                        >
+                          <option value="centime">سنتيم</option>
+                          <option value="dirham">درهم</option>
+                          <option value="percent">%</option>
+                        </select>
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block text-[10px] text-gray-500 mb-0.5">لكل</label>
+                        <select
+                          value={tier.basis}
+                          onChange={(e) => updateDiscountTier(index, { basis: e.target.value as DiscountTier['basis'] })}
+                          disabled={tier.type === 'percent'}
+                          className="w-full px-1 py-1.5 border rounded text-sm disabled:bg-gray-100"
+                        >
+                          <option value="kilo">كيلو</option>
+                          <option value="boite">صندوق</option>
+                        </select>
+                      </div>
+                      <div className="col-span-1 flex items-end justify-center">
+                        <button
+                          type="button"
+                          onClick={() => removeDiscountTier(index)}
+                          className="text-red-600 hover:text-red-800 mt-4"
+                          title="حذف"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div className="flex items-center">
                 <input
                   type="checkbox"

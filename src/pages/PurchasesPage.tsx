@@ -3,6 +3,15 @@ import { Search, Plus, Package, CheckCircle, Truck, AlertCircle, Trash2, X, Shop
 import { supabase } from '../lib/supabase'
 import { useInputPad } from '../components/useInputPad'
 import { normalizeSearch } from '../utils/searchNormalize'
+import {
+  parsePurchaseConfig,
+  getApplicableTier,
+  tierTotalReduction,
+  lineBaseQty,
+  tierLabel,
+  type DiscountTier,
+  type SupplierPurchaseConfig,
+} from '../utils/purchaseDiscount'
 
 interface Supplier {
   id: string
@@ -12,6 +21,7 @@ interface Supplier {
   email: string
   phone: string
   address: string
+  purchase_config?: SupplierPurchaseConfig
   created_at?: string
 }
 
@@ -155,8 +165,14 @@ export default function PurchasesPage() {
     check_date: '',
     check_deposit_date: '',
     credit_due_date: '',
-    notes: ''
+    notes: '',
+    transport_enabled: false
   })
+
+  // Cumul mensuel des quantités déjà achetées chez le fournisseur (avant l'achat courant)
+  // et achats du mois (pour la régularisation rétroactive).
+  const [monthlyBaseQtyBefore, setMonthlyBaseQtyBefore] = useState(0)
+  const [monthlyPurchasesOfSupplier, setMonthlyPurchasesOfSupplier] = useState<any[]>([])
 
   useEffect(() => {
     loadPurchases()
@@ -178,6 +194,16 @@ export default function PurchasesPage() {
       }
     }, 50)
   }, [showCreatePurchaseModal])
+
+  // Recharger le cumul mensuel + initialiser le transport quand le fournisseur change
+  useEffect(() => {
+    const sup = suppliers.find(s => s.id === purchaseForm.supplier_id)
+    const cfg = parsePurchaseConfig(sup?.purchase_config)
+    loadSupplierMonthlyQty(purchaseForm.supplier_id)
+    // Transport activé par défaut si un taux est configuré
+    setPurchaseForm(prev => ({ ...prev, transport_enabled: (cfg.transport_rate || 0) > 0 }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [purchaseForm.supplier_id, suppliers])
 
   const loadPurchases = async () => {
     setLoading(true)
@@ -228,6 +254,48 @@ export default function PurchasesPage() {
       setSuppliers(data || [])
     } catch (error) {
       console.error('Error loading suppliers:', error)
+    }
+  }
+
+  // Somme des quantités de base (kg) de tous les achats du fournisseur sur le mois courant,
+  // en excluant éventuellement un achat (lors d'une édition).
+  const sumBaseQtyOfPurchases = (rows: any[], excludeId?: string): number => {
+    return rows.reduce((total, row) => {
+      if (excludeId && String(row.id) === String(excludeId)) return total
+      let items: any[] = []
+      try {
+        items = Array.isArray(row.items) ? row.items : JSON.parse(row.items || '[]')
+      } catch {
+        items = []
+      }
+      return total + items.reduce((s, it) => s + lineBaseQty(it), 0)
+    }, 0)
+  }
+
+  const loadSupplierMonthlyQty = async (supplierId: string, excludeId?: string) => {
+    if (!supplierId) {
+      setMonthlyBaseQtyBefore(0)
+      setMonthlyPurchasesOfSupplier([])
+      return
+    }
+    try {
+      const now = new Date()
+      const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
+      const { data, error } = await supabase
+        .from('purchases')
+        .select('id, items, purchase_date, status')
+        .eq('supplier_id', supplierId)
+        .gte('purchase_date', start)
+        .lte('purchase_date', end)
+      if (error) throw error
+      const rows = (data || []).filter((r: any) => r.status !== 'cancelled')
+      setMonthlyPurchasesOfSupplier(rows)
+      setMonthlyBaseQtyBefore(sumBaseQtyOfPurchases(rows, excludeId))
+    } catch (error) {
+      console.warn('Error loading supplier monthly qty:', error)
+      setMonthlyBaseQtyBefore(0)
+      setMonthlyPurchasesOfSupplier([])
     }
   }
 
@@ -734,11 +802,58 @@ export default function PurchasesPage() {
     setEditingItemIndex(null)
   }
 
+  // Config remise/transport du fournisseur sélectionné
+  const selectedSupplier = suppliers.find(s => s.id === purchaseForm.supplier_id)
+  const supplierConfig = parsePurchaseConfig(selectedSupplier?.purchase_config)
+  const transportRate = supplierConfig.transport_rate || 0
+
   // Calculer les totaux
   const subtotal = purchaseItems.reduce((sum, item) => sum + item.line_total, 0)
+
+  // Cumul mensuel incluant l'achat courant → palier applicable (remise rétroactive mensuelle)
+  const currentPurchaseBaseQty = purchaseItems.reduce((sum, item) => sum + lineBaseQty(item), 0)
+  const cumulLive = monthlyBaseQtyBefore + currentPurchaseBaseQty
+  const applicableTier: DiscountTier | null = getApplicableTier(cumulLive, supplierConfig.discount_tiers)
+
+  // Remise appliquée aux lignes de l'achat courant
+  const discountAmount = tierTotalReduction(applicableTier, purchaseItems)
+  const subtotalAfterDiscount = Math.max(0, subtotal - discountAmount)
+
+  // Transport : taux × total des quantités (kg) de l'achat, si activé
+  const transportAmount = purchaseForm.transport_enabled ? transportRate * currentPurchaseBaseQty : 0
+
   const taxRate = parseFloat(purchaseForm.tax_rate) || 0
-  const taxAmount = subtotal * (taxRate / 100)
-  const totalAmount = subtotal + taxAmount
+  const taxAmount = subtotalAfterDiscount * (taxRate / 100)
+  const totalAmount = subtotalAfterDiscount + taxAmount + transportAmount
+
+  // Régularisation rétroactive : si l'achat courant fait franchir un palier supérieur à
+  // celui déjà appliqué aux achats antérieurs du mois, on calcule l'avoir dû sur ces achats.
+  const retroAdjustment = (() => {
+    if (!applicableTier || monthlyPurchasesOfSupplier.length === 0) return { amount: 0, count: 0 }
+    let amount = 0
+    let count = 0
+    for (const row of monthlyPurchasesOfSupplier) {
+      let items: any[] = []
+      try {
+        items = Array.isArray(row.items) ? row.items : JSON.parse(row.items || '[]')
+      } catch {
+        items = []
+      }
+      if (items.length === 0) continue
+      // Remise déjà figée sur cet achat (palier enregistré au moment de l'achat)
+      const savedTier = typeof row.applied_tier_min_qty === 'number'
+        ? getApplicableTier(row.applied_tier_min_qty, supplierConfig.discount_tiers)
+        : null
+      const alreadyReduced = tierTotalReduction(savedTier, items)
+      const shouldReduce = tierTotalReduction(applicableTier, items)
+      const delta = shouldReduce - alreadyReduced
+      if (delta > 0.001) {
+        amount += delta
+        count += 1
+      }
+    }
+    return { amount, count }
+  })()
 
   const upsertWarehouseStock = async (params: {
     productId: string
@@ -1038,6 +1153,10 @@ export default function PurchasesPage() {
         status: purchaseForm.status,
         items: purchaseItems,
         subtotal,
+        discount_amount: discountAmount,
+        transport_amount: transportAmount,
+        applied_tier_min_qty: applicableTier?.min_qty ?? null,
+        monthly_qty_at_save: cumulLive,
         tax_rate: taxRate,
         tax_amount: taxAmount,
         total_amount: totalAmount,
@@ -1086,6 +1205,10 @@ export default function PurchasesPage() {
           'credit_due_date',
           'tax_rate',
           'tax_amount',
+          'discount_amount',
+          'transport_amount',
+          'applied_tier_min_qty',
+          'monthly_qty_at_save',
         ]
         for (const col of optionalCols) {
           if (!error) break
@@ -1495,7 +1618,8 @@ export default function PurchasesPage() {
         check_date: '',
         check_deposit_date: '',
         credit_due_date: '',
-        notes: ''
+        notes: '',
+        transport_enabled: false
       })
       await loadPurchases()
       await loadProducts() // Recharger les produits pour mettre à jour les stocks
@@ -2614,12 +2738,52 @@ export default function PurchasesPage() {
                   </div>
                 </div>
 
+                {/* Bandeau cumul mensuel + palier */}
+                {purchaseForm.supplier_id && supplierConfig.discount_tiers && supplierConfig.discount_tiers.length > 0 && (
+                  <div className="flex-shrink-0 bg-blue-50 border border-blue-200 rounded-lg p-2 text-xs text-blue-800">
+                    الشراء الشهري للمورد: <span className="font-bold">{cumulLive.toFixed(2)} كغ</span>
+                    {applicableTier ? (
+                      <span className="text-green-700 font-bold"> — خصم نشط {tierLabel(applicableTier)}</span>
+                    ) : (
+                      <span className="text-gray-500"> — لا خصم بعد (المرحلة القادمة: {supplierConfig.discount_tiers.find(t => t.min_qty > cumulLive)?.min_qty ?? '-'} كغ)</span>
+                    )}
+                  </div>
+                )}
+
+                {/* Bandeau régularisation rétroactive */}
+                {retroAdjustment.amount > 0 && (
+                  <div className="flex-shrink-0 bg-amber-50 border border-amber-300 rounded-lg p-2 text-xs text-amber-800">
+                    ⚠️ تسوية بأثر رجعي: هذا الشراء يرفع المرحلة، يُستحق
+                    <span className="font-bold"> {retroAdjustment.amount.toFixed(2)} MAD </span>
+                    كإشعار دائن على {retroAdjustment.count} شراء سابق هذا الشهر.
+                  </div>
+                )}
+
                 {/* Résumé */}
                 <div className="flex-shrink-0 bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-2 space-y-1 border-2 border-green-200">
                   <div className="flex justify-between text-xs">
                     <span className="text-gray-700">الإجمالي الفرعي:</span>
                     <span className="font-bold text-gray-800">{subtotal.toFixed(2)} MAD</span>
                   </div>
+                  {discountAmount > 0 && (
+                    <div className="flex justify-between text-xs text-green-700">
+                      <span>الخصم {applicableTier ? `(${tierLabel(applicableTier)})` : ''}:</span>
+                      <span className="font-bold">- {discountAmount.toFixed(2)} MAD</span>
+                    </div>
+                  )}
+                  {transportRate > 0 && (
+                    <div className="flex justify-between items-center text-xs">
+                      <label className="flex items-center gap-1 text-gray-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={purchaseForm.transport_enabled}
+                          onChange={(e) => setPurchaseForm({ ...purchaseForm, transport_enabled: e.target.checked })}
+                        />
+                        النقل ({transportRate} د.م/كغ):
+                      </label>
+                      <span className="font-bold text-gray-800">+ {transportAmount.toFixed(2)} MAD</span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-xs">
                     <span className="text-gray-700">الضريبة ({taxRate}%):</span>
                     <span className="font-bold text-gray-800">{taxAmount.toFixed(2)} MAD</span>
@@ -3844,6 +4008,39 @@ export default function PurchasesPage() {
                   <option value="check">شيك</option>
                   <option value="credit">دين</option>
                 </select>
+              </div>
+
+              {/* Récapitulatif (remise + transport inclus) */}
+              <div className="bg-gray-50 rounded-lg p-3 space-y-1 text-sm border">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">الإجمالي الفرعي:</span>
+                  <span className="font-bold">{subtotal.toFixed(2)} MAD</span>
+                </div>
+                {discountAmount > 0 && (
+                  <div className="flex justify-between text-green-700">
+                    <span>الخصم {applicableTier ? `(${tierLabel(applicableTier)})` : ''}:</span>
+                    <span className="font-bold">- {discountAmount.toFixed(2)} MAD</span>
+                  </div>
+                )}
+                {transportAmount > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">النقل:</span>
+                    <span className="font-bold">+ {transportAmount.toFixed(2)} MAD</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-gray-600">الضريبة ({taxRate}%):</span>
+                  <span className="font-bold">{taxAmount.toFixed(2)} MAD</span>
+                </div>
+                <div className="flex justify-between border-t pt-1 text-base">
+                  <span className="font-bold">الإجمالي:</span>
+                  <span className="font-bold text-green-700">{totalAmount.toFixed(2)} MAD</span>
+                </div>
+                {retroAdjustment.amount > 0 && (
+                  <div className="text-xs text-amber-700 pt-1">
+                    + تسوية بأثر رجعي مستحقة: {retroAdjustment.amount.toFixed(2)} MAD على {retroAdjustment.count} شراء سابق
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex gap-2 mt-6">
