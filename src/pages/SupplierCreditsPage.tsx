@@ -10,6 +10,8 @@ interface Supplier {
   contact_person_email?: string
   contact_person_phone?: string
   is_active: boolean
+  // Dette préexistante saisie sur la page Fournisseurs (ancien crédit).
+  opening_balance?: number
 }
 
 interface Purchase {
@@ -41,7 +43,9 @@ interface SupplierPayment {
 
 interface SupplierCredit {
   supplier: Supplier
+  openingBalance: number
   totalPurchases: number
+  totalDebt: number
   totalPaid: number
   remainingAmount: number
   status: 'debt' | 'partial' | 'paid' | 'no-debt'
@@ -109,35 +113,41 @@ export default function SupplierCreditsPage() {
       const supplierPurchases = purchases.filter(p => p.supplier_id === supplier.id)
       const supplierPayments = payments.filter(p => p.supplier_id === supplier.id)
       
+      // Ancien crédit (dette préexistante) saisi sur la page Fournisseurs.
+      // Il s'ajoute aux dettes issues des achats reçus.
+      const openingBalance = Number(supplier.opening_balance) || 0
       const totalPurchases = supplierPurchases.reduce((sum, p) => sum + (p.total_amount || 0), 0)
+      const totalDebt = openingBalance + totalPurchases
       const totalPaid = supplierPayments.reduce((sum, p) => sum + (p.amount || 0), 0)
-      const remainingAmount = totalPurchases - totalPaid
-      
+      const remainingAmount = totalDebt - totalPaid
+
       let status: 'debt' | 'partial' | 'paid' | 'no-debt' = 'no-debt'
-      if (totalPurchases > 0) {
+      if (totalDebt > 0) {
         if (totalPaid === 0) {
           status = 'debt'
-        } else if (totalPaid < totalPurchases) {
+        } else if (totalPaid < totalDebt) {
           status = 'partial'
-        } else if (totalPaid >= totalPurchases) {
+        } else if (totalPaid >= totalDebt) {
           status = 'paid'
         }
       }
 
-      const lastPayment = supplierPayments.sort((a, b) => 
+      const lastPayment = supplierPayments.sort((a, b) =>
         new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime()
       )[0]
 
       return {
         supplier,
+        openingBalance,
         totalPurchases,
+        totalDebt,
         totalPaid,
         remainingAmount,
         status,
         purchaseCount: supplierPurchases.length,
         lastPaymentDate: lastPayment?.payment_date
       }
-    }).filter(credit => credit.totalPurchases > 0 || credit.totalPaid > 0)
+    }).filter(credit => credit.totalDebt > 0 || credit.totalPaid > 0)
   }, [suppliers, purchases, payments])
 
   const filteredCredits = useMemo(() => {
@@ -373,7 +383,7 @@ export default function SupplierCreditsPage() {
             <thead className="bg-gray-50 border-b">
               <tr>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">المورد</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">إجمالي المشتريات</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">إجمالي الدين</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">المدفوع</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">المتبقي</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">الحالة</th>
@@ -395,11 +405,16 @@ export default function SupplierCreditsPage() {
                       <div>
                         <p className="font-medium">{credit.supplier.name_ar}</p>
                         <p className="text-sm text-gray-500">{credit.purchaseCount} مشتريات</p>
+                        {credit.openingBalance > 0 && (
+                          <p className="text-xs text-red-600 font-semibold mt-0.5">
+                            + دين سابق: {credit.openingBalance.toFixed(2)} MAD
+                          </p>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-4">
                       <span className="font-bold text-blue-600">
-                        {credit.totalPurchases.toFixed(2)} MAD
+                        {credit.totalDebt.toFixed(2)} MAD
                       </span>
                     </td>
                     <td className="px-4 py-4">
@@ -783,6 +798,12 @@ export default function SupplierCreditsPage() {
                   const credit = supplierCredits.find(c => c.supplier.id === selectedSupplier.id)
                   return credit ? (
                     <div className="grid grid-cols-2 gap-4">
+                      {credit.openingBalance > 0 && (
+                        <div className="bg-orange-50 p-3 rounded">
+                          <p className="text-sm text-gray-600">دين سابق (رصيد افتتاحي)</p>
+                          <p className="font-bold text-orange-600">{credit.openingBalance.toFixed(2)} MAD</p>
+                        </div>
+                      )}
                       <div className="bg-blue-50 p-3 rounded">
                         <p className="text-sm text-gray-600">إجمالي المشتريات</p>
                         <p className="font-bold text-blue-600">{credit.totalPurchases.toFixed(2)} MAD</p>

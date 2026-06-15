@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Search, Plus, Eye, Edit2, Trash2, Phone, Mail, MapPin, Building, DollarSign, Truck, Percent } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useInputPad } from '../components/useInputPad'
+import SubmitButton from '../components/SubmitButton'
 import { parsePurchaseConfig, type DiscountTier, type SupplierPurchaseConfig } from '../utils/purchaseDiscount'
 
 interface Supplier {
@@ -24,6 +25,9 @@ interface Supplier {
   payment_terms_en?: string
   is_active: boolean
   purchase_config?: SupplierPurchaseConfig
+  // Dette préexistante (avant utilisation de l'app) — s'ajoute aux crédits
+  // calculés depuis les achats dans la page des crédits fournisseurs.
+  opening_balance?: number
   created_at: string
   updated_at?: string
 }
@@ -32,6 +36,7 @@ export default function SuppliersPage() {
   const inputPad = useInputPad()
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all')
   const [showDetailsModal, setShowDetailsModal] = useState(false)
@@ -53,6 +58,7 @@ export default function SuppliersPage() {
     payment_terms_ar: '',
     payment_terms_en: '',
     is_active: true,
+    opening_balance: '' as string,
     transport_rate: '' as string,
     discount_tiers: [] as DiscountTier[]
   })
@@ -92,8 +98,10 @@ export default function SuppliersPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (saving) return
+    setSaving(true)
     try {
-      const { transport_rate, discount_tiers, ...baseForm } = formData
+      const { transport_rate, discount_tiers, opening_balance, ...baseForm } = formData
       const purchase_config: SupplierPurchaseConfig = parsePurchaseConfig({
         transport_rate: parseFloat(transport_rate) || 0,
         discount_tiers,
@@ -101,6 +109,7 @@ export default function SuppliersPage() {
 
       const supplierData: any = {
         ...baseForm,
+        opening_balance: parseFloat(opening_balance) || 0,
         purchase_config,
         updated_at: new Date().toISOString()
       }
@@ -122,6 +131,12 @@ export default function SuppliersPage() {
         const { purchase_config: _omit, ...withoutConfig } = supplierData
         ;({ error } = await save(withoutConfig))
       }
+      // Idem si la colonne opening_balance n'existe pas encore sur le serveur.
+      if (error && isMissingColumnError(error, 'opening_balance')) {
+        console.warn('suppliers: colonne opening_balance absente, sauvegarde sans dette initiale')
+        const { opening_balance: _omitOB, ...withoutOB } = supplierData
+        ;({ error } = await save(withoutOB))
+      }
       if (error) throw error
 
       setShowFormModal(false)
@@ -131,6 +146,8 @@ export default function SuppliersPage() {
     } catch (error) {
       console.error('Error saving supplier:', error)
       alert('Erreur lors de la sauvegarde du fournisseur')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -203,6 +220,7 @@ export default function SuppliersPage() {
       payment_terms_ar: '',
       payment_terms_en: '',
       is_active: true,
+      opening_balance: '',
       transport_rate: '',
       discount_tiers: []
     })
@@ -225,6 +243,7 @@ export default function SuppliersPage() {
       payment_terms_ar: supplier.payment_terms_ar || '',
       payment_terms_en: supplier.payment_terms_en || '',
       is_active: supplier.is_active,
+      opening_balance: supplier.opening_balance ? String(supplier.opening_balance) : '',
       transport_rate: cfg.transport_rate ? String(cfg.transport_rate) : '',
       discount_tiers: cfg.discount_tiers || []
     })
@@ -510,6 +529,12 @@ export default function SuppliersPage() {
                 <h3 className="font-semibold mb-2">معلومات مالية</h3>
                 <div className="space-y-2">
                   <p><span className="text-gray-500">شروط الدفع:</span> {selectedSupplier.payment_terms_ar}</p>
+                  <p>
+                    <span className="text-gray-500">دين سابق (رصيد افتتاحي):</span>{' '}
+                    <span className={`font-bold ${(selectedSupplier.opening_balance || 0) > 0 ? 'text-red-600' : 'text-gray-700'}`}>
+                      {(selectedSupplier.opening_balance || 0).toFixed(2)} د.م
+                    </span>
+                  </p>
                 </div>
               </div>
               <div>
@@ -596,6 +621,29 @@ export default function SuppliersPage() {
                     onChange={(e) => setFormData({...formData, city: e.target.value})}
                     className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1 flex items-center gap-1">
+                    <DollarSign className="w-4 h-4 text-red-600" />
+                    دين سابق (رصيد افتتاحي)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      inputPad.open({
+                        title: 'دين سابق (د.م)',
+                        mode: 'decimal',
+                        dir: 'ltr',
+                        initialValue: formData.opening_balance || '0',
+                        min: 0,
+                        onConfirm: (v) => setFormData({ ...formData, opening_balance: v }),
+                      })
+                    }
+                    className="w-full px-3 py-2 border rounded-lg bg-white text-left focus:outline-none focus:ring-2 focus:ring-red-500"
+                  >
+                    {formData.opening_balance || '0.00'}
+                  </button>
+                  <span className="block text-xs text-gray-500 mt-1">دين قديم قبل استعمال التطبيق، يُضاف إلى ديون المشتريات الجديدة</span>
                 </div>
               </div>
               {/* إعدادات الشراء: النقل + خصومات حسب الكمية الشهرية */}
@@ -750,12 +798,13 @@ export default function SuppliersPage() {
                 >
                   إلغاء
                 </button>
-                <button
+                <SubmitButton
                   type="submit"
+                  loading={saving}
                   className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
                 >
                   {editingSupplier ? 'تحديث' : 'حفظ'}
-                </button>
+                </SubmitButton>
               </div>
             </form>
           </div>
