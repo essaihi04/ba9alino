@@ -2,9 +2,11 @@ import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useInputPad } from '../components/useInputPad'
+import SubmitButton from '../components/SubmitButton'
 import { getCategoryLabelArabic } from '../utils/categoryLabels'
 import { getCurrentOrgId } from '../lib/withOrg'
 import { normalizeSearch } from '../utils/searchNormalize'
+import ProductFormModal from '../components/ProductFormModal'
 import { 
   Search, 
   ShoppingCart, 
@@ -236,12 +238,19 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
   const [editLinePrice, setEditLinePrice] = useState('')
   const [editLineUnitType, setEditLineUnitType] = useState('unit')
   const [editLinePricingTier, setEditLinePricingTier] = useState<'auto' | 'A' | 'B' | 'C' | 'D' | 'E'>('auto')
+  // Modal produit (ajout/modification) reutilise depuis la page Produits,
+  // pour creer/editer un produit sans quitter la caisse.
+  const [showProductFormModal, setShowProductFormModal] = useState(false)
+  const [productFormMode, setProductFormMode] = useState<'add' | 'edit'>('add')
+  const [productFormProductId, setProductFormProductId] = useState<string | undefined>(undefined)
 
   const [packagingVariantsByPrimaryId, setPackagingVariantsByPrimaryId] = useState<Record<string, PackagingVariant[]>>({})
   const [packagingVariantsFlat, setPackagingVariantsFlat] = useState<PackagingVariant[]>([])
   
   // États pour popup type de paiement
   const [showPaymentTypeModal, setShowPaymentTypeModal] = useState(false)
+  const [processingSale, setProcessingSale] = useState(false)
+  const [addingClient, setAddingClient] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'check' | 'debt'>('cash')
   const [paymentDetails, setPaymentDetails] = useState({
     bank_name_ar: '',
@@ -1868,6 +1877,8 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       return
     }
 
+    if (addingClient) return
+    setAddingClient(true)
     try {
       const { data, error } = await supabase
         .from('clients')
@@ -1900,6 +1911,8 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     } catch (error) {
       console.error('Error adding client:', error)
       alert('❌ حدث خطأ أثناء إضافة العميل')
+    } finally {
+      setAddingClient(false)
     }
   }
 
@@ -2080,6 +2093,25 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     setShowEditInvoiceLineModal(true)
   }
 
+  // Ouvre le formulaire produit (meme que page Produits) sans quitter la caisse.
+  const openAddProductForm = () => {
+    setProductFormMode('add')
+    setProductFormProductId(undefined)
+    setShowProductFormModal(true)
+  }
+
+  const openEditProductForm = (productId?: string) => {
+    if (!productId) return
+    setProductFormMode('edit')
+    setProductFormProductId(productId)
+    setShowProductFormModal(true)
+  }
+
+  // Apres ajout/modification d'un produit, on recharge la liste de la caisse.
+  const handleProductFormSaved = async () => {
+    await loadProducts(true)
+  }
+
   const openEditItemModal = (item: CartItem) => {
     setEditingItem(item)
     setEditQuantity(item.quantity.toString())
@@ -2160,6 +2192,8 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       return
     }
 
+    if (processingSale) return
+    setProcessingSale(true)
     try {
       // Déterminer le client
       let clientId = selectedClient?.id
@@ -2674,6 +2708,8 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     } catch (error) {
       console.error('Error:', error)
       alert('❌ حدث خطأ')
+    } finally {
+      setProcessingSale(false)
     }
   }
 
@@ -3252,6 +3288,16 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                 )
               })}
             </select>
+            {/* Ajouter un nouveau produit (meme formulaire que la page Produits) */}
+            <button
+              type="button"
+              onClick={openAddProductForm}
+              className="mr-auto flex items-center gap-1 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
+              title="إضافة منتج جديد"
+            >
+              <Plus size={16} />
+              <span>منتج جديد</span>
+            </button>
           </div>
         </div>
 
@@ -3850,9 +3896,21 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-[95vw] sm:w-[420px] max-h-[95vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-3 border-b border-gray-200">
               <h3 className="text-base font-bold text-gray-800">{editingInvoiceLine.product_name_ar}</h3>
-              <button onClick={handleEditInvoiceLineCancel} className="text-gray-500 hover:text-gray-700 transition-colors">
-                <X size={20} />
-              </button>
+              <div className="flex items-center gap-2">
+                {/* Modifier le produit lui-meme (meme formulaire que la page Produits) */}
+                <button
+                  type="button"
+                  onClick={() => openEditProductForm(editingInvoiceLine.product_id)}
+                  className="flex items-center gap-1 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
+                  title="تعديل المنتج"
+                >
+                  <FileText size={14} />
+                  <span>تعديل المنتج</span>
+                </button>
+                <button onClick={handleEditInvoiceLineCancel} className="text-gray-500 hover:text-gray-700 transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
             </div>
 
             <div className="p-3 overflow-y-auto flex-1">
@@ -4144,12 +4202,13 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
               </div>
               
               <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-3 sm:pt-4">
-                <button
+                <SubmitButton
                   type="submit"
+                  loading={addingClient}
                   className="flex-1 bg-indigo-600 text-white py-2 px-3 sm:px-4 rounded-lg hover:bg-indigo-700 transition font-medium text-sm sm:text-base"
                 >
                   إضافة
-                </button>
+                </SubmitButton>
                 <button
                   type="button"
                   onClick={() => setShowAddClientModal(false)}
@@ -4919,8 +4978,9 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
             )}
 
             <div className="flex gap-3">
-              <button
-                onClick={() => {
+              <SubmitButton
+                loading={processingSale}
+                onClick={async () => {
                   // Validation
                   if (paymentMethod === 'check' && (!paymentDetails.bank_name_ar || !paymentDetails.check_number || !paymentDetails.check_date)) {
                     alert('يرجى ملء جميع حقول الشيك')
@@ -4930,15 +4990,15 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                     alert('يرجى تحديد تاريخ الدين')
                     return
                   }
-                  
+
                   setShowPaymentTypeModal(false)
-                  processSaleAfterTVA()
+                  await processSaleAfterTVA()
                 }}
                 className="flex-1 bg-green-600 hover:bg-green-700 text-white py-4 rounded-lg font-bold text-lg transition-colors flex items-center justify-center gap-3"
               >
                 <Check size={20} />
                 تأكيد البيع
-              </button>
+              </SubmitButton>
               <button
                 onClick={() => setShowPaymentTypeModal(false)}
                 className="flex-1 bg-red-600 hover:bg-red-700 text-white py-4 rounded-lg font-bold text-lg transition-colors flex items-center justify-center gap-3"
@@ -4952,6 +5012,15 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       )}
 
       {inputPad.Modal}
+
+      {/* Formulaire produit (ajout / modification) — meme que la page Produits */}
+      <ProductFormModal
+        isOpen={showProductFormModal}
+        mode={productFormMode}
+        productId={productFormProductId}
+        onClose={() => setShowProductFormModal(false)}
+        onSaved={handleProductFormSaved}
+      />
     </div>
   )
 }
