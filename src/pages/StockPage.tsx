@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Search, Package, TrendingUp, TrendingDown, AlertTriangle, Building, CheckCircle } from 'lucide-react'
+import { Search, Package, TrendingUp, TrendingDown, AlertTriangle, Building, CheckCircle, Plus, Minus, X, Pencil } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 interface Product {
@@ -45,6 +45,14 @@ export default function StockPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<'all' | 'low' | 'out' | 'good'>('all')
+  // Ajustement manuel du stock (stock préexistant / inventaire)
+  const [showAllProducts, setShowAllProducts] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [adjustOpen, setAdjustOpen] = useState(false)
+  const [adjustTargets, setAdjustTargets] = useState<Product[]>([])
+  const [adjustMode, setAdjustMode] = useState<'add' | 'sub' | 'set'>('add')
+  const [adjustQty, setAdjustQty] = useState('')
+  const [adjustSaving, setAdjustSaving] = useState(false)
 
   useEffect(() => {
     loadProducts()
@@ -157,9 +165,11 @@ export default function StockPage() {
       : product.stock
 
   // Quand un dépôt est sélectionné, restreindre aux produits ayant une ligne
-  // dans `stock` pour ce dépôt (= produits effectivement présents dans ce dépôt).
+  // dans `warehouse_stock` pour ce dépôt (= produits effectivement présents).
+  // Sauf si "afficher tous les produits" est activé (pour saisir un stock
+  // préexistant sur des produits encore absents du dépôt → quantité 0).
   const currentStockData = selectedWarehouse
-    ? products.filter(p => warehouseStockByProduct[p.id] !== undefined)
+    ? (showAllProducts ? products : products.filter(p => warehouseStockByProduct[p.id] !== undefined))
     : products
   const filteredStockData = currentStockData.filter(product =>
     product.name_ar?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -218,6 +228,189 @@ export default function StockPage() {
     if (stock < 50) return { text: 'متوسط', color: 'text-yellow-700 bg-yellow-100' }
     return { text: 'جيد', color: 'text-green-700 bg-green-100' }
   }
+
+  // ============================ AJUSTEMENT DE STOCK =====================
+  // Applique un delta (signé) au stock d'un produit pour le dépôt courant en
+  // gardant cohérentes les 4 tables (cf. invariant stock):
+  //   warehouse_stock.quantity (dépôt), stock.quantity_in_stock (caisse),
+  //   products.stock (legacy), product_variants.stock (par unité).
+  // Le delta est en UNITÉS DE BASE (= la valeur affichée dans cette page).
+  // On NE touche JAMAIS cost_price (un ajustement manuel n'a pas de prix d'achat).
+  const adjustProductStock = async (productId: string, warehouseId: string, delta: number) => {
+    if (!Number.isFinite(delta) || delta === 0) return
+
+    // 1) warehouse_stock — source de vérité par dépôt (lue par cette page)
+    try {
+      const { data: existingWS } = await supabase
+        .from('warehouse_stock')
+        .select('id, quantity')
+        .eq('warehouse_id', warehouseId)
+        .eq('product_id', productId)
+        .maybeSingle()
+      if (existingWS?.id) {
+        const nextQty = Math.max(0, (Number((existingWS as any).quantity) || 0) + delta)
+        await supabase
+          .from('warehouse_stock')
+          .update({ quantity: nextQty, updated_at: new Date().toISOString() })
+          .eq('id', (existingWS as any).id)
+      } else if (delta > 0) {
+        await supabase.from('warehouse_stock').insert({
+          warehouse_id: warehouseId,
+          product_id: productId,
+          quantity: Math.max(0, delta),
+          min_alert_level: 0,
+        })
+      }
+    } catch (e) {
+      console.warn('warehouse_stock adjust skipped:', e)
+    }
+
+    // 2) stock.quantity_in_stock — source lue par la caisse (résolution: NULL -> première)
+    try {
+      const { data: stockRows } = await supabase
+        .from('stock')
+        .select('id, quantity_in_stock, primary_variant_id')
+        .eq('product_id', productId)
+      if (Array.isArray(stockRows) && stockRows.length > 0) {
+        const stockRow = stockRows.find((r: any) => r.primary_variant_id === null) || stockRows[0]
+        if (stockRow?.id) {
+          await supabase
+            .from('stock')
+            .update({ quantity_in_stock: Math.max(0, (Number(stockRow.quantity_in_stock) || 0) + delta) })
+            .eq('id', stockRow.id)
+        }
+      } else if (delta > 0) {
+        let ins = await supabase
+          .from('stock')
+          .insert({ product_id: productId, quantity_in_stock: Math.max(0, delta), quantity_reserved: 0 })
+        if (ins.error) await supabase.from('stock').insert({ product_id: productId, quantity_in_stock: Math.max(0, delta) })
+      }
+    } catch (e) {
+      console.warn('stock.quantity_in_stock adjust skipped:', e)
+    }
+
+    // 3) products.stock — colonne legacy / fallback (cost_price inchangé)
+    try {
+      const { data: prod } = await supabase.from('products').select('stock').eq('id', productId).single()
+      if (prod) {
+        await supabase
+          .from('products')
+          .update({ stock: Math.max(0, (Number(prod.stock) || 0) + delta) })
+          .eq('id', productId)
+      }
+    } catch (e) {
+      console.warn('products.stock adjust skipped:', e)
+    }
+
+    // 4) product_variants.stock — base (unit/kilo) en unités de base ;
+    //    carton dérivé = delta / unités-par-carton (miroir du décrément caisse).
+    try {
+      const { data: variants } = await supabase
+        .from('product_variants')
+        .select('id, unit_type, quantity_contained, stock')
+        .eq('product_id', productId)
+      const list = variants || []
+      const unitV = list.find((v: any) => v.unit_type === 'unit')
+      const kiloV = list.find((v: any) => v.unit_type === 'kilo')
+      const cartonV = list.find((v: any) => v.unit_type === 'carton')
+      const upc = cartonV?.quantity_contained ? Number(cartonV.quantity_contained) : 0
+      if (unitV?.id) {
+        await supabase.from('product_variants').update({ stock: Math.max(0, (Number(unitV.stock) || 0) + delta) }).eq('id', unitV.id)
+      }
+      if (kiloV?.id) {
+        await supabase.from('product_variants').update({ stock: Math.max(0, (Number(kiloV.stock) || 0) + delta) }).eq('id', kiloV.id)
+      }
+      if (cartonV?.id && upc > 0) {
+        await supabase.from('product_variants').update({ stock: Math.max(0, (Number(cartonV.stock) || 0) + delta / upc) }).eq('id', cartonV.id)
+      }
+    } catch (e) {
+      console.warn('product_variants.stock adjust skipped:', e)
+    }
+  }
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const allVisibleSelected = filteredStockData.length > 0 && filteredStockData.every((p) => selectedIds.has(p.id))
+  const toggleSelectAll = () => {
+    if (allVisibleSelected) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(filteredStockData.map((p) => p.id)))
+    }
+  }
+
+  const openAdjust = (targets: Product[], mode: 'add' | 'sub' | 'set' = 'add') => {
+    if (!selectedWarehouse) {
+      alert('يرجى اختيار مخزن أولاً')
+      return
+    }
+    if (targets.length === 0) return
+    setAdjustTargets(targets)
+    setAdjustMode(mode)
+    setAdjustQty('')
+    setAdjustOpen(true)
+  }
+
+  const closeAdjust = () => {
+    if (adjustSaving) return
+    setAdjustOpen(false)
+    setAdjustTargets([])
+    setAdjustQty('')
+  }
+
+  const confirmAdjust = async () => {
+    if (!selectedWarehouse) return
+    const qty = Number(adjustQty)
+    if (!Number.isFinite(qty) || qty < 0) {
+      alert('يرجى إدخال كمية صحيحة')
+      return
+    }
+    setAdjustSaving(true)
+    try {
+      for (const target of adjustTargets) {
+        const current = getStockForProduct(target)
+        let delta = 0
+        if (adjustMode === 'add') delta = qty
+        else if (adjustMode === 'sub') delta = -Math.min(qty, current) // ne pas descendre sous 0
+        else delta = qty - current // set absolu
+        await adjustProductStock(target.id, selectedWarehouse, delta)
+      }
+      // Recharger les données du dépôt + produits (cost/stock legacy)
+      await loadWarehouseStock(selectedWarehouse)
+      await loadProducts()
+      setSelectedIds(new Set())
+      setAdjustOpen(false)
+      setAdjustTargets([])
+      setAdjustQty('')
+    } catch (e) {
+      console.error('Error adjusting stock:', e)
+      alert('❌ حدث خطأ أثناء تعديل المخزون')
+    } finally {
+      setAdjustSaving(false)
+    }
+  }
+
+  // Ajustement rapide +/- 1 sur une ligne (sans ouvrir le modal)
+  const quickAdjust = async (product: Product, delta: number) => {
+    if (!selectedWarehouse) {
+      alert('يرجى اختيار مخزن أولاً')
+      return
+    }
+    const current = getStockForProduct(product)
+    if (delta < 0 && current <= 0) return
+    await adjustProductStock(product.id, selectedWarehouse, delta)
+    await loadWarehouseStock(selectedWarehouse)
+    await loadProducts()
+  }
+
+  const selectedProducts = filteredStockData.filter((p) => selectedIds.has(p.id))
 
   return (
     <div className="space-y-6" dir="rtl">
@@ -361,6 +554,54 @@ export default function StockPage() {
         </div>
       </div>
 
+      {/* Barre d'ajustement du stock (sélection + actions groupées) */}
+      <div className="bg-white rounded-xl shadow-lg p-3 flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={showAllProducts}
+            onChange={(e) => setShowAllProducts(e.target.checked)}
+            className="w-4 h-4 accent-teal-600"
+            disabled={!selectedWarehouse}
+          />
+          عرض كل المنتجات (لإضافة مخزون مبدئي)
+        </label>
+
+        <div className="flex-1" />
+
+        {selectedIds.size > 0 ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-bold text-teal-700">{selectedIds.size} محدد</span>
+            <button
+              onClick={() => openAdjust(selectedProducts, 'add')}
+              className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white text-sm font-bold px-3 py-1.5 rounded-lg"
+            >
+              <Plus size={16} /> إضافة كمية
+            </button>
+            <button
+              onClick={() => openAdjust(selectedProducts, 'sub')}
+              className="flex items-center gap-1 bg-orange-600 hover:bg-orange-700 text-white text-sm font-bold px-3 py-1.5 rounded-lg"
+            >
+              <Minus size={16} /> إنقاص كمية
+            </button>
+            <button
+              onClick={() => openAdjust(selectedProducts, 'set')}
+              className="flex items-center gap-1 bg-teal-600 hover:bg-teal-700 text-white text-sm font-bold px-3 py-1.5 rounded-lg"
+            >
+              <Pencil size={16} /> تعيين الكمية
+            </button>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="flex items-center gap-1 bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-bold px-3 py-1.5 rounded-lg"
+            >
+              <X size={16} /> إلغاء التحديد
+            </button>
+          </div>
+        ) : (
+          <span className="text-xs text-gray-500">حدّد منتجات لإضافة أو إنقاص أو تعيين الكمية</span>
+        )}
+      </div>
+
       {/* Tableau des produits */}
       <div className="bg-white rounded-xl shadow-lg overflow-hidden">
         {loading ? (
@@ -375,19 +616,31 @@ export default function StockPage() {
           <div>
             <table className="w-full table-fixed text-xs">
               <colgroup>
-                <col className="w-[46%]" />
-                <col className="w-[18%]" />
-                <col className="w-[10%]" />
+                <col className="w-[4%]" />
+                <col className="w-[34%]" />
                 <col className="w-[14%]" />
+                <col className="w-[9%]" />
                 <col className="w-[12%]" />
+                <col className="w-[11%]" />
+                <col className="w-[16%]" />
               </colgroup>
               <thead className="bg-gradient-to-r from-teal-600 to-teal-700 text-white">
                 <tr>
+                  <th className="px-2 py-1.5 text-center">
+                    <input
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 accent-white"
+                      title="تحديد الكل"
+                    />
+                  </th>
                   <th className="px-2 py-1.5 text-right font-bold">اسم المنتج</th>
                   <th className="px-2 py-1.5 text-right font-bold">SKU</th>
                   <th className="px-2 py-1.5 text-right font-bold">المخزون</th>
                   <th className="px-2 py-1.5 text-right font-bold">الحالة</th>
                   <th className="px-2 py-1.5 text-right font-bold">القيمة</th>
+                  <th className="px-2 py-1.5 text-center font-bold">تعديل</th>
                 </tr>
               </thead>
               <tbody>
@@ -395,12 +648,21 @@ export default function StockPage() {
                   const stock = getStockForProduct(product)
                   const stockStatus = getStockStatus(stock)
                   const value = stock * (product.cost_price || product.price_a * 0.7)
-                  
+                  const isSelected = selectedIds.has(product.id)
+
                   return (
                     <tr
                       key={product.id}
-                      className="border-b hover:bg-teal-50 transition-colors"
+                      className={`border-b transition-colors ${isSelected ? 'bg-teal-50' : 'hover:bg-teal-50'}`}
                     >
+                      <td className="px-2 py-1 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelect(product.id)}
+                          className="w-4 h-4 accent-teal-600"
+                        />
+                      </td>
                       <td className="px-2 py-1">
                         <div className="font-semibold text-gray-800 truncate" title={product.name_ar}>{product.name_ar}</div>
                         {product.name_en && (
@@ -424,6 +686,34 @@ export default function StockPage() {
                       <td className="px-2 py-1 font-bold text-gray-800 whitespace-nowrap">
                         {value.toFixed(2)} MAD
                       </td>
+                      <td className="px-2 py-1">
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            onClick={() => quickAdjust(product, -1)}
+                            disabled={!selectedWarehouse || stock <= 0}
+                            className="w-6 h-6 rounded bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold flex items-center justify-center disabled:opacity-40"
+                            title="إنقاص 1"
+                          >
+                            <Minus size={14} />
+                          </button>
+                          <button
+                            onClick={() => quickAdjust(product, 1)}
+                            disabled={!selectedWarehouse}
+                            className="w-6 h-6 rounded bg-green-600 hover:bg-green-700 text-white font-bold flex items-center justify-center disabled:opacity-40"
+                            title="إضافة 1"
+                          >
+                            <Plus size={14} />
+                          </button>
+                          <button
+                            onClick={() => openAdjust([product], 'set')}
+                            disabled={!selectedWarehouse}
+                            className="w-6 h-6 rounded bg-teal-600 hover:bg-teal-700 text-white flex items-center justify-center disabled:opacity-40"
+                            title="تعيين الكمية"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   )
                 })}
@@ -432,6 +722,105 @@ export default function StockPage() {
           </div>
         )}
       </div>
+
+      {/* Modal d'ajustement du stock */}
+      {adjustOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3"
+          dir="rtl"
+          onClick={closeAdjust}
+        >
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h3 className="text-lg font-bold text-gray-800">
+                {adjustMode === 'add' ? 'إضافة كمية للمخزون' : adjustMode === 'sub' ? 'إنقاص كمية من المخزون' : 'تعيين كمية المخزون'}
+              </h3>
+              <button onClick={closeAdjust} className="text-gray-500 hover:text-gray-700" disabled={adjustSaving}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto flex-1 space-y-4">
+              {/* Type d'opération */}
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { v: 'add', label: 'إضافة' },
+                  { v: 'sub', label: 'إنقاص' },
+                  { v: 'set', label: 'تعيين' },
+                ] as const).map((opt) => (
+                  <button
+                    key={opt.v}
+                    type="button"
+                    onClick={() => setAdjustMode(opt.v)}
+                    className={`py-2 rounded-lg text-sm font-bold border transition-colors ${
+                      adjustMode === opt.v ? 'bg-teal-600 text-white border-teal-600' : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-teal-500'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">
+                  {adjustMode === 'set' ? 'الكمية الجديدة' : 'الكمية'}
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={adjustQty}
+                  onChange={(e) => setAdjustQty(e.target.value)}
+                  autoFocus
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-teal-500 focus:outline-none text-lg"
+                  placeholder="0"
+                />
+              </div>
+
+              {/* Liste des produits concernés */}
+              <div className="border border-gray-200 rounded-lg divide-y divide-gray-100 max-h-48 overflow-y-auto">
+                {adjustTargets.map((t) => {
+                  const current = getStockForProduct(t)
+                  const qty = Number(adjustQty) || 0
+                  const next = adjustMode === 'add'
+                    ? current + qty
+                    : adjustMode === 'sub'
+                      ? Math.max(0, current - qty)
+                      : qty
+                  return (
+                    <div key={t.id} className="flex items-center justify-between px-3 py-2 text-sm">
+                      <span className="font-medium text-gray-800 truncate flex-1" title={t.name_ar}>{t.name_ar}</span>
+                      <span className="text-gray-500 whitespace-nowrap mr-2">{current}</span>
+                      <span className="text-teal-700 font-bold whitespace-nowrap">→ {next}</span>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <p className="text-xs text-gray-500">
+                سيتم تطبيق التغيير على المخزن المحدد فقط. سعر الشراء لا يتغيّر.
+              </p>
+            </div>
+
+            <div className="p-4 border-t border-gray-200 flex gap-2">
+              <button
+                onClick={confirmAdjust}
+                disabled={adjustSaving}
+                className="flex-1 bg-teal-600 hover:bg-teal-700 text-white py-2.5 rounded-lg font-bold disabled:opacity-50"
+              >
+                {adjustSaving ? 'جاري الحفظ...' : 'تأكيد'}
+              </button>
+              <button
+                onClick={closeAdjust}
+                disabled={adjustSaving}
+                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-2.5 rounded-lg font-bold disabled:opacity-50"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
