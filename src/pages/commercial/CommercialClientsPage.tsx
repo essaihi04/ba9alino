@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { getCategoryLabelArabic } from '../../utils/categoryLabels'
 import { Search, Plus, Phone, MapPin, Image as ImageIcon, MapPinOff, Users } from 'lucide-react'
 import CommercialLayout from '../../components/commercial/CommercialLayout'
+import SubmitButton from '../../components/SubmitButton'
 
 const SHOP_PHOTO_BUCKET = import.meta.env.VITE_SHOP_PHOTO_BUCKET || 'magasin'
 
@@ -25,6 +26,7 @@ export default function CommercialClientsPage() {
   const navigate = useNavigate()
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
   const [formData, setFormData] = useState({
@@ -86,6 +88,8 @@ export default function CommercialClientsPage() {
     const commercialId = localStorage.getItem('commercial_id')
     if (!commercialId) return
 
+    if (saving) return
+    setSaving(true)
     try {
       const { error } = await supabase
         .from('clients')
@@ -127,6 +131,8 @@ export default function CommercialClientsPage() {
     } catch (error) {
       console.error('Error adding client:', error)
       alert('❌ حدث خطأ أثناء إضافة العميل')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -485,13 +491,14 @@ export default function CommercialClientsPage() {
                 >
                   إلغاء
                 </button>
-                <button
+                <SubmitButton
                   type="submit"
+                  loading={saving}
                   className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 transition-colors"
                   disabled={uploadingPhoto || locating}
                 >
                   حفظ
-                </button>
+                </SubmitButton>
               </div>
             </form>
           </div>

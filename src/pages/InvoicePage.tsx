@@ -4,6 +4,7 @@ import { Edit3, Printer, ArrowLeft, Save, Download, DollarSign, FileText, Clock,
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 import { supabase } from '../lib/supabase'
+import SubmitButton from '../components/SubmitButton'
 
 interface OrderItem {
   id: string
@@ -113,6 +114,7 @@ export default function InvoicePage() {
   const { id: invoiceId } = useParams()
   const [order, setOrder] = useState<Order | null>(null)
   const [isEditing, setIsEditing] = useState(false)
+  const [savingSale, setSavingSale] = useState(false)
   const [showPaymentConfirmModal, setShowPaymentConfirmModal] = useState(false)
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'cash' | 'cheque' | 'credit'>('cash')
   const [companyInfo, setCompanyInfo] = useState<any>(null)
@@ -673,6 +675,8 @@ export default function InvoicePage() {
       alert('تم تسليم الطلب ودفعه، لا يمكن تأكيد البيع أو تعديل الفاتورة')
       return
     }
+    if (savingSale) return
+    setSavingSale(true)
     try {
       if (!companyInfo) {
         alert('يرجى ملء معلومات الشركة أولاً')
@@ -1049,6 +1053,8 @@ export default function InvoicePage() {
     } catch (error: any) {
       console.error('Error confirming sale:', error)
       alert(`حدث خطأ أثناء تأكيد البيع: ${error?.message || 'خطأ غير معروف'}`)
+    } finally {
+      setSavingSale(false)
     }
   }
 
@@ -1571,8 +1577,9 @@ export default function InvoicePage() {
             )}
 
             <div className="flex gap-3">
-              <button
-                onClick={() => {
+              <SubmitButton
+                loading={savingSale}
+                onClick={async () => {
                   // Validation
                   if (paymentMethod === 'check' && (!paymentDetails.bank_name_ar || !paymentDetails.check_number || !paymentDetails.check_date)) {
                     alert('يرجى ملء جميع حقول الشيك')
@@ -1582,15 +1589,14 @@ export default function InvoicePage() {
                     alert('يرجى تحديد تاريخ استحقاق الدين')
                     return
                   }
-                  
-                  setShowPaymentTypeModal(false)
-                  confirmSale()
+
+                  await confirmSale()
                 }}
                 className="flex-1 bg-green-600 hover:bg-green-700 text-white py-4 rounded-lg font-bold text-lg transition-colors flex items-center justify-center gap-3"
               >
                 <Check size={20} />
                 تأكيد البيع
-              </button>
+              </SubmitButton>
               <button
                 onClick={() => setShowPaymentTypeModal(false)}
                 className="flex-1 bg-red-600 hover:bg-red-700 text-white py-4 rounded-lg font-bold text-lg transition-colors flex items-center justify-center gap-3"

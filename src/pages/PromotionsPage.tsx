@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { Search, Plus, Trash2, Edit2, Package, X, ChevronDown } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import SubmitButton from '../components/SubmitButton'
 
 interface Promotion {
   id: string
@@ -204,6 +205,7 @@ export default function PromotionsPage() {
   const [products, setProducts] = useState<ProductOption[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(null)
@@ -334,6 +336,8 @@ export default function PromotionsPage() {
       }
     }
 
+    if (saving) return
+    setSaving(true)
     try {
       const payload = {
         title: formData.title.trim(),
@@ -361,6 +365,8 @@ export default function PromotionsPage() {
     } catch (error) {
       console.error('Error adding promotion:', error)
       alert('حدث خطأ أثناء إضافة العرض')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -642,12 +648,13 @@ export default function PromotionsPage() {
               </div>
 
               <div className="flex gap-3 pt-2">
-                <button
+                <SubmitButton
                   type="submit"
+                  loading={saving}
                   className="flex-1 bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition"
                 >
                   حفظ العرض
-                </button>
+                </SubmitButton>
                 <button
                   type="button"
                   onClick={() => {

@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { Search, Plus, Trash2, Edit2, Users, CheckCircle, AlertCircle, DollarSign } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useInputPad } from '../components/useInputPad'
+import SubmitButton from '../components/SubmitButton'
 import { getCategoryLabelArabic } from '../utils/categoryLabels'
 
 interface Employee {
@@ -57,6 +58,7 @@ export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [transactions, setTransactions] = useState<EmployeeTransaction[]>([])
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterRole, setFilterRole] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<string>('all')
@@ -218,6 +220,8 @@ export default function EmployeesPage() {
       return
     }
 
+    if (saving) return
+    setSaving(true)
     try {
       const employeeData: any = {
         name: formData.name,
@@ -269,6 +273,8 @@ export default function EmployeesPage() {
     } catch (error) {
       console.error('Error saving employee:', error)
       alert('❌ حدث خطأ أثناء حفظ الموظف')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -994,12 +1000,13 @@ export default function EmployeesPage() {
                 >
                   إلغاء
                 </button>
-                <button
+                <SubmitButton
                   type="submit"
+                  loading={saving}
                   className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
                 >
                   {editingEmployee ? 'تحديث' : 'حفظ'}
-                </button>
+                </SubmitButton>
               </div>
             </form>
           </div>

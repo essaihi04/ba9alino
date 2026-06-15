@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Search, Eye, Edit2, Trash2, Plus, Copy, Check } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import SubmitButton from '../components/SubmitButton'
 
 interface Coupon {
   id: string
@@ -38,6 +39,7 @@ interface FormData {
 export default function CouponsPage() {
   const [coupons, setCoupons] = useState<Coupon[]>([])
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
@@ -94,6 +96,8 @@ export default function CouponsPage() {
 
   const handleAddCoupon = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (saving) return
+    setSaving(true)
     try {
       const { error } = await supabase
         .from('coupons')
@@ -127,6 +131,8 @@ export default function CouponsPage() {
       fetchCoupons()
     } catch (error) {
       console.error('Error adding coupon:', error)
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -466,12 +472,13 @@ export default function CouponsPage() {
 
               {/* Actions */}
               <div className="flex space-x-3 pt-6">
-                <button
+                <SubmitButton
                   type="submit"
+                  loading={saving}
                   className="flex-1 bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 transition font-medium"
                 >
                   إنشاء الكوبون
-                </button>
+                </SubmitButton>
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}

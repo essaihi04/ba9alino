@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Search, Plus, ArrowRight, ArrowLeft, CheckCircle, XCircle, Clock, Trash2, Eye, Edit2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useInputPad } from '../components/useInputPad'
+import SubmitButton from '../components/SubmitButton'
 
 interface Warehouse {
   id: string
@@ -57,6 +58,7 @@ export default function StockTransfersPage() {
   const [transfers, setTransfers] = useState<StockTransfer[]>([])
   const [selectedTransfer, setSelectedTransfer] = useState<StockTransfer | null>(null)
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showDetailsModal, setShowDetailsModal] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
@@ -220,6 +222,8 @@ export default function StockTransfersPage() {
       return
     }
 
+    if (saving) return
+    setSaving(true)
     try {
       // Créer le transfert
       const { data: transfer, error: transferError } = await supabase
@@ -259,6 +263,8 @@ export default function StockTransfersPage() {
     } catch (error) {
       console.error('Error creating transfer:', error)
       alert('❌ حدث خطأ أثناء إنشاء طلب النقل')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -620,13 +626,14 @@ export default function StockTransfersPage() {
             )}
 
             <div className="flex gap-3">
-              <button
+              <SubmitButton
                 onClick={handleCreateTransfer}
+                loading={saving}
                 disabled={!fromWarehouse || !toWarehouse || selectedProducts.length === 0}
                 className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white py-3 rounded-lg font-medium transition-colors"
               >
                 إنشاء طلب النقل
-              </button>
+              </SubmitButton>
               <button
                 onClick={() => {
                   setShowCreateModal(false)

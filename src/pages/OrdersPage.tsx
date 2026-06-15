@@ -4,6 +4,7 @@ import { Search, Plus, Eye, Edit2, Truck, Package, CheckCircle, XCircle, Clock, 
 import { supabase } from '../lib/supabase'
 import { useNavigate } from 'react-router-dom'
 import { useInputPad } from '../components/useInputPad'
+import SubmitButton from '../components/SubmitButton'
 import { normalizeSearch } from '../utils/searchNormalize'
 
 interface Order {
@@ -105,6 +106,7 @@ export default function OrdersPage() {
   const ORDERS_CACHE_TTL_MS = 2 * 60 * 1000
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('all')
@@ -773,6 +775,8 @@ export default function OrdersPage() {
       return
     }
 
+    if (saving) return
+    setSaving(true)
     try {
       // Create client with updated fields
       const { data: clientData, error: clientError } = await supabase
@@ -808,6 +812,8 @@ export default function OrdersPage() {
     } catch (error) {
       console.error('Error creating client:', error)
       alert('حدث خطأ أثناء إنشاء العميل')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -1322,6 +1328,8 @@ export default function OrdersPage() {
       return
     }
 
+    if (saving) return
+    setSaving(true)
     try {
       const orderNumber = `ORD-${Date.now()}${Math.floor(Math.random() * 1000)}`
       const orderTotal = orderItems.reduce(
@@ -1444,6 +1452,8 @@ export default function OrdersPage() {
     } catch (error: any) {
       console.error('Error creating order:', error)
       alert(`حدث خطأ أثناء إنشاء الطلب: ${error?.message || 'خطأ غير معروف'}`)
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -1460,6 +1470,8 @@ export default function OrdersPage() {
 
     if (!newStatus) return
 
+    if (saving) return
+    setSaving(true)
     try {
       const previousStatus = selectedOrder.status
 
@@ -1491,6 +1503,8 @@ export default function OrdersPage() {
     } catch (error: any) {
       console.error('Error updating order status:', error)
       alert(`حدث خطأ أثناء تحديث الحالة: ${error?.message || 'خطأ غير معروف'}`)
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -1521,6 +1535,8 @@ export default function OrdersPage() {
   const addPayment = async () => {
     if (!selectedOrder || !paymentData.amount) return
 
+    if (saving) return
+    setSaving(true)
     try {
       const orderTotal = selectedOrder.final_amount || selectedOrder.total_amount
       const paymentAmount = parseFloat(paymentData.amount)
@@ -1679,6 +1695,8 @@ export default function OrdersPage() {
     } catch (error: any) {
       console.error('Error adding payment:', error)
       alert(`حدث خطأ أثناء تسجيل الدفعة: ${error?.message || 'خطأ غير معروف'}`)
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -2648,12 +2666,13 @@ export default function OrdersPage() {
                 >
                   إلغاء
                 </button>
-                <button
+                <SubmitButton
                   type="submit"
+                  loading={saving}
                   className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
                 >
                   تسجيل الدفعة
-                </button>
+                </SubmitButton>
               </div>
             </form>
           </div>
@@ -2693,12 +2712,13 @@ export default function OrdersPage() {
                 >
                   إلغاء
                 </button>
-                <button
+                <SubmitButton
                   type="submit"
+                  loading={saving}
                   className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
                 >
                   تحديث
-                </button>
+                </SubmitButton>
               </div>
             </form>
           </div>
@@ -3099,13 +3119,14 @@ export default function OrdersPage() {
                   إلغاء
                 </button>
               </div>
-              <button
+              <SubmitButton
                 type="button"
                 onClick={handleCreateOrder}
+                loading={saving}
                 className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 font-medium text-sm"
               >
                 تأكيد الطلب
-              </button>
+              </SubmitButton>
             </div>
           </div>
         </div>
@@ -3210,12 +3231,13 @@ export default function OrdersPage() {
                 >
                   إلغاء
                 </button>
-                <button
+                <SubmitButton
                   type="submit"
+                  loading={saving}
                   className="flex-1 bg-green-600 text-white py-2 px-3 sm:px-4 rounded-lg hover:bg-green-700 transition font-medium text-sm sm:text-base"
                 >
                   إنشاء العميل
-                </button>
+                </SubmitButton>
               </div>
             </form>
           </div>

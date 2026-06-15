@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Plus, Trash2, Search } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import SubmitButton from '../components/SubmitButton'
 
 interface Category {
   id: string
@@ -276,14 +277,14 @@ export default function FamiliesPage() {
                 required
               />
             </div>
-            <button
+            <SubmitButton
               type="submit"
-              disabled={saving}
-              className="bg-purple-600 text-white px-4 py-3 rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+              loading={saving}
+              className="bg-purple-600 text-white px-4 py-3 rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
             >
               <Plus size={18} />
               إضافة
-            </button>
+            </SubmitButton>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Plus, Search, Edit2, Trash2, Eye, EyeOff, Key, User, Users, Briefcase } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import SubmitButton from '../components/SubmitButton'
 
 interface UserAccount {
   id: string
@@ -18,6 +19,8 @@ export default function UserAccountsPage() {
   const [users, setUsers] = useState<UserAccount[]>([])
   const [employees, setEmployees] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [creatingVirtual, setCreatingVirtual] = useState(false)
+  const [savingUser, setSavingUser] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [virtualAccounts, setVirtualAccounts] = useState<Array<{ id: string; name: string; role: 'employee' | 'commercial'; is_active: boolean; created_at: string; employee_id?: string }>>([])
   const [virtualForm, setVirtualForm] = useState<{ name: string; password: string; role: 'employee' | 'commercial'; employee_id?: string }>({
@@ -82,6 +85,8 @@ export default function UserAccountsPage() {
       return
     }
 
+    if (creatingVirtual) return
+    setCreatingVirtual(true)
     try {
       const { data, error } = await supabase.rpc('virtual_create_account', {
         p_admin_password: ADMIN_PASSWORD,
@@ -108,6 +113,8 @@ export default function UserAccountsPage() {
       alert('تم إنشاء الحساب بنجاح')
     } catch (e: any) {
       alert('Erreur: ' + (e?.message || 'failed'))
+    } finally {
+      setCreatingVirtual(false)
     }
   }
 
@@ -185,7 +192,8 @@ export default function UserAccountsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+    if (savingUser) return
+    setSavingUser(true)
     try {
       if (editingUser) {
         // Update existing user
@@ -285,6 +293,8 @@ export default function UserAccountsPage() {
     } catch (error) {
       console.error('Error saving user:', error)
       alert('Erreur lors de la sauvegarde de l\'utilisateur: ' + (error as Error).message)
+    } finally {
+      setSavingUser(false)
     }
   }
 
@@ -458,12 +468,13 @@ export default function UserAccountsPage() {
             <div className="text-sm text-gray-600">
               admin / admin123
             </div>
-            <button
+            <SubmitButton
               type="submit"
+              loading={creatingVirtual}
               className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
             >
               إنشاء حساب
-            </button>
+            </SubmitButton>
           </div>
         </form>
 
@@ -741,12 +752,13 @@ export default function UserAccountsPage() {
                 >
                   إلغاء
                 </button>
-                <button
+                <SubmitButton
                   type="submit"
+                  loading={savingUser}
                   className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
                 >
                   {editingUser ? 'تحديث' : 'إضافة'}
-                </button>
+                </SubmitButton>
               </div>
             </form>
           </div>

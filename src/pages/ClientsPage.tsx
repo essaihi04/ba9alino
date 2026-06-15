@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Plus, Search, Edit2, Trash2, Eye } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useInputPad } from '../components/useInputPad'
+import SubmitButton from '../components/SubmitButton'
 import { getCategoryLabelArabic } from '../utils/categoryLabels'
 
 interface Client {
@@ -20,6 +21,7 @@ export default function ClientsPage() {
   const inputPad = useInputPad()
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editingClient, setEditingClient] = useState<string | null>(null)
@@ -56,6 +58,8 @@ export default function ClientsPage() {
 
   const handleAddClient = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (saving) return
+    setSaving(true)
     try {
       if (editingClient) {
         // Update existing client
@@ -79,6 +83,8 @@ export default function ClientsPage() {
       fetchClients()
     } catch (error) {
       console.error('Error saving client:', error)
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -363,12 +369,13 @@ export default function ClientsPage() {
               </div>
               
               <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-3 sm:pt-4">
-                <button
+                <SubmitButton
                   type="submit"
+                  loading={saving}
                   className="flex-1 bg-indigo-600 text-white py-2 px-3 sm:px-4 rounded-lg hover:bg-indigo-700 transition font-medium text-sm sm:text-base"
                 >
                   {editingClient ? 'تحديث' : 'إضافة'}
-                </button>
+                </SubmitButton>
                 <button
                   type="button"
                   onClick={() => {

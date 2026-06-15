@@ -5,6 +5,7 @@ import { ArrowLeft, Plus, Minus, ShoppingCart, User, Check, Package, Navigation,
 import { useInputPad } from '../../components/useInputPad'
 import { normalizeSearch } from '../../utils/searchNormalize'
 import { CATEGORY_LABELS_AR } from '../../utils/categoryLabels'
+import SubmitButton from '../../components/SubmitButton'
 
 const PAGE_SIZE = 60
 
@@ -112,6 +113,7 @@ export default function CommercialNewOrderPage() {
   const [cart, setCart] = useState<CartItem[]>([])
   const [promotions, setPromotions] = useState<Promotion[]>([])
   const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [showClientModal, setShowClientModal] = useState(false)
@@ -746,6 +748,8 @@ export default function CommercialNewOrderPage() {
     const commercialId = localStorage.getItem('commercial_id')
     if (!commercialId) return
 
+    if (submitting) return
+    setSubmitting(true)
     try {
       // Générer un numéro de commande
       const { data: lastOrder } = await supabase
@@ -802,6 +806,8 @@ export default function CommercialNewOrderPage() {
     } catch (error) {
       console.error('Error creating order:', error)
       alert('❌ حدث خطأ أثناء إنشاء الطلب')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -1208,13 +1214,14 @@ export default function CommercialNewOrderPage() {
               )}
             </div>
           )}
-          <button
+          <SubmitButton
             onClick={handleSubmitOrder}
+            loading={submitting}
             className="w-full bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
           >
             <Check size={20} />
             تأكيد الطلب
-          </button>
+          </SubmitButton>
         </div>
       )}
 
@@ -1446,12 +1453,13 @@ export default function CommercialNewOrderPage() {
                 >
                   إلغاء
                 </button>
-                <button
+                <SubmitButton
                   type="submit"
+                  loading={loading}
                   className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 transition-colors"
                 >
                   حفظ
-                </button>
+                </SubmitButton>
               </div>
             </form>
           </div>

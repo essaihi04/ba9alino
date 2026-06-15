@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import * as XLSX from 'xlsx'
 import { BarcodeScanner } from '../components/BarcodeScanner'
 import { useInputPad } from '../components/useInputPad'
+import SubmitButton from '../components/SubmitButton'
 import { normalizeSearch } from '../utils/searchNormalize'
 
 interface ProductVariant {
@@ -1527,6 +1528,8 @@ export default function ProductsPage() {
 
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isSavingProduct) return
+    setIsSavingProduct(true)
     try {
       const packagingManagedByPurchases = true
       // Prevent duplicate SKU
@@ -1722,6 +1725,8 @@ export default function ProductsPage() {
     } catch (error) {
       console.error('Error adding product:', error)
       alert(`❌ حدث خطأ: ${error instanceof Error ? error.message : 'Erreur inconnue'}`)
+    } finally {
+      setIsSavingProduct(false)
     }
   }
 
@@ -2453,12 +2458,13 @@ export default function ProductsPage() {
 
             <form onSubmit={handleAddProduct} className="space-y-4">
               <div className="sticky top-0 z-20 bg-white py-3 border-b border-gray-200 flex gap-3">
-                <button
+                <SubmitButton
                   type="submit"
+                  loading={isSavingProduct}
                   className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg font-bold"
                 >
                   حفظ المنتج
-                </button>
+                </SubmitButton>
                 <button
                   type="button"
                   onClick={() => { setShowAddModal(false); setVariants([]); setPrimaryVariants([]); }}
@@ -2702,13 +2708,13 @@ export default function ProductsPage() {
             
             <form onSubmit={handleEditProduct} className="space-y-4">
               <div className="sticky top-0 z-20 bg-white py-3 border-b border-gray-200 flex gap-3">
-                <button
+                <SubmitButton
                   type="submit"
-                  className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg font-bold disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={isSavingProduct}
+                  loading={isSavingProduct}
+                  className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg font-bold"
                 >
                   حفظ التعديلات
-                </button>
+                </SubmitButton>
                 <button
                   type="button"
                   onClick={() => { setShowEditProductModal(false); setVariants([]); setPrimaryVariants([]); }}

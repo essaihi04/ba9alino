@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { ArrowLeft, Plus, Minus, ShoppingCart, X, Check } from 'lucide-react'
 import { useInputPad } from '../../components/useInputPad'
+import SubmitButton from '../../components/SubmitButton'
 
 interface Product {
   id: string
@@ -29,6 +30,7 @@ export default function EmployeePOSPage() {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
+  const [processingSale, setProcessingSale] = useState(false)
   const [showClientModal, setShowClientModal] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'check' | 'transfer'>('cash')
 
@@ -98,6 +100,8 @@ export default function EmployeePOSPage() {
       return
     }
 
+    if (processingSale) return
+    setProcessingSale(true)
     try {
       const orderNumber = `POS-${Date.now()}`
       const total = calculateTotal()
@@ -137,6 +141,8 @@ export default function EmployeePOSPage() {
     } catch (error) {
       console.error('Error checkout:', error)
       alert('❌ حدث خطأ أثناء إتمام البيع')
+    } finally {
+      setProcessingSale(false)
     }
   }
 
@@ -285,14 +291,15 @@ export default function EmployeePOSPage() {
               </div>
             </div>
 
-            <button
+            <SubmitButton
               onClick={handleCheckout}
+              loading={processingSale}
               disabled={cart.length === 0}
               className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition-colors disabled:bg-gray-400 flex items-center justify-center gap-2"
             >
               <Check size={20} />
               إتمام البيع
-            </button>
+            </SubmitButton>
           </div>
         </div>
       </div>

@@ -4,6 +4,7 @@ import { Edit3, Printer, ArrowLeft, Save, Download } from 'lucide-react'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 import { supabase } from '../lib/supabase'
+import SubmitButton from '../components/SubmitButton'
 
 interface OrderItem {
   id: string
@@ -53,6 +54,7 @@ export default function DeliveryNotePage() {
   const navigate = useNavigate()
   const [order, setOrder] = useState<Order | null>(null)
   const [isEditing, setIsEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [companyInfo, setCompanyInfo] = useState<any>(null)
   const [deliveryNoteData, setDeliveryNoteData] = useState<DeliveryNoteData>({
     noteNumber: '',
@@ -223,6 +225,8 @@ export default function DeliveryNotePage() {
       return
     }
 
+    if (saving) return
+    setSaving(true)
     try {
       const deliveryNotePayload = {
         note_number: deliveryNoteData.noteNumber,
@@ -254,6 +258,8 @@ export default function DeliveryNotePage() {
     } catch (error: any) {
       console.error('Error saving delivery note:', error)
       alert('فشل حفظ بون التسليم: ' + (error.message || 'خطأ غير معروف'))
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -406,13 +412,14 @@ export default function DeliveryNotePage() {
                   <span>تعديل</span>
                 </button>
               )}
-              <button
+              <SubmitButton
                 onClick={handleSaveDeliveryNote}
+                loading={saving}
                 className="flex items-center space-x-1 bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700"
               >
                 <Save size={14} />
                 <span>حفظ</span>
-              </button>
+              </SubmitButton>
               <button
                 onClick={handlePrint}
                 className="flex items-center space-x-1 bg-gray-600 text-white px-2 py-1 rounded text-xs hover:bg-gray-700"

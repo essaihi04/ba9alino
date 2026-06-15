@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Search, Plus, Package, CheckCircle, Truck, AlertCircle, Trash2, X, ShoppingCart, CreditCard, Edit, Eye } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useInputPad } from '../components/useInputPad'
+import SubmitButton from '../components/SubmitButton'
 import { normalizeSearch } from '../utils/searchNormalize'
 import {
   parsePurchaseConfig,
@@ -119,6 +120,7 @@ export default function PurchasesPage() {
   const [syncingOldPurchases, setSyncingOldPurchases] = useState(false)
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [showCreatePurchaseModal, setShowCreatePurchaseModal] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
@@ -1128,6 +1130,8 @@ export default function PurchasesPage() {
 
   // Finaliser l'achat après confirmation
   const finalizePurchase = async () => {
+    if (saving) return
+    setSaving(true)
     try {
       const purchaseNumber = `ACH-${Date.now()}`
       
@@ -1631,6 +1635,8 @@ export default function PurchasesPage() {
     } catch (error) {
       console.error('Error creating purchase:', error)
       alert('❌ حدث خطأ أثناء إنشاء الفاتورة')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -1648,7 +1654,8 @@ export default function PurchasesPage() {
 
   const handleAddPayment = async () => {
     if (!selectedPurchase || !paymentForm.amount) return
-
+    if (saving) return
+    setSaving(true)
     try {
       const amount = parseFloat(paymentForm.amount)
       const newPaidAmount = selectedPurchase.paid_amount + amount
@@ -1687,6 +1694,8 @@ export default function PurchasesPage() {
     } catch (error) {
       console.error('Error adding payment:', error)
       alert('❌ حدث خطأ أثناء إضافة الدفعة')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -1920,7 +1929,8 @@ export default function PurchasesPage() {
 
   const handleUpdatePurchase = async () => {
     if (!editingPurchase) return
-
+    if (saving) return
+    setSaving(true)
     try {
       const normalizedOldItems = parsePurchaseItems(editingPurchase.items).map(resolvePrimaryVariantForItem)
 
@@ -2376,6 +2386,8 @@ export default function PurchasesPage() {
     } catch (error) {
       console.error('Error updating purchase:', error)
       alert('❌ حدث خطأ أثناء تحديث الفاتورة')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -3269,12 +3281,13 @@ export default function PurchasesPage() {
                     >
                       إلغاء
                     </button>
-                    <button
+                    <SubmitButton
                       onClick={handleAddPayment}
+                      loading={saving}
                       className="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 font-bold"
                     >
                       إضافة الدفعة
-                    </button>
+                    </SubmitButton>
                   </div>
                 </div>
               </div>
@@ -3400,12 +3413,13 @@ export default function PurchasesPage() {
                     >
                       إغلاق
                     </button>
-                    <button
+                    <SubmitButton
                       onClick={handleUpdatePurchase}
+                      loading={saving}
                       className="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 font-bold"
                     >
                       حفظ التعديلات
-                    </button>
+                    </SubmitButton>
                   </div>
                 </div>
               </div>
@@ -3476,12 +3490,13 @@ export default function PurchasesPage() {
               >
                 إلغاء
               </button>
-              <button
+              <SubmitButton
                 onClick={handleAddPayment}
+                loading={saving}
                 className="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 font-bold"
               >
                 إضافة الدفعة
-              </button>
+              </SubmitButton>
             </div>
           </div>
         </div>
@@ -3640,12 +3655,13 @@ export default function PurchasesPage() {
               >
                 إغلاق
               </button>
-              <button
+              <SubmitButton
                 onClick={handleUpdatePurchase}
+                loading={saving}
                 className="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 font-bold"
               >
                 حفظ التعديلات
-              </button>
+              </SubmitButton>
             </div>
           </div>
         </div>
@@ -4052,12 +4068,13 @@ export default function PurchasesPage() {
               >
                 إلغاء
               </button>
-              <button
+              <SubmitButton
                 onClick={finalizePurchase}
+                loading={saving}
                 className="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 font-bold"
               >
                 تأكيد
-              </button>
+              </SubmitButton>
             </div>
           </div>
         </div>

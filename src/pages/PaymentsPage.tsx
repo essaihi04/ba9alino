@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { Search, DollarSign, CreditCard, CheckCircle, Clock, AlertCircle, Plus, FileText, ArrowUpDown, Calendar, Filter } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useInputPad } from '../components/useInputPad'
+import SubmitButton from '../components/SubmitButton'
 
 interface Invoice {
   id: string
@@ -33,6 +34,7 @@ export default function PaymentsPage() {
   const inputPad = useInputPad()
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('unpaid')
   const [filterPaymentMethod, setFilterPaymentMethod] = useState<string>('all')
@@ -213,6 +215,8 @@ export default function PaymentsPage() {
       alert('المبلغ يتجاوز الباقي المستحق')
       return
     }
+    if (saving) return
+    setSaving(true)
     try {
       if (!selectedInvoice || !paymentAmount || parseFloat(paymentAmount) <= 0) {
         alert('يرجى إدخال مبلغ صحيح')
@@ -362,6 +366,8 @@ export default function PaymentsPage() {
     } catch (error) {
       console.error('Error processing payment:', error)
       alert('❌ حدث خطأ')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -794,12 +800,13 @@ export default function PaymentsPage() {
             </div>
 
             <div className="flex gap-3 mt-6">
-              <button
+              <SubmitButton
                 onClick={handlePayment}
+                loading={saving}
                 className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-bold"
               >
                 تسديد الدفعة
-              </button>
+              </SubmitButton>
               <button
                 onClick={() => setShowPaymentModal(false)}
                 className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 rounded-lg font-bold"

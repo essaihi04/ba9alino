@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Search, Plus, Package, TrendingUp, Edit2, Trash2, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import SubmitButton from '../components/SubmitButton'
 
 interface Warehouse {
   id: string
@@ -65,6 +66,7 @@ interface StockMovement {
 
 export default function WarehousesPage() {
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
+  const [saving, setSaving] = useState(false)
   const [selectedWarehouse, setSelectedWarehouse] = useState<Warehouse | null>(null)
   const [warehouseStock, setWarehouseStock] = useState<WarehouseStock[]>([])
   const [stockMovements, setStockMovements] = useState<StockMovement[]>([])
@@ -198,6 +200,8 @@ export default function WarehousesPage() {
 
   const handleAddWarehouse = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (saving) return
+    setSaving(true)
     try {
       const { error } = await supabase
         .from('warehouses')
@@ -216,13 +220,16 @@ export default function WarehousesPage() {
     } catch (error) {
       console.error('Error adding warehouse:', error)
       alert('❌ حدث خطأ')
+    } finally {
+      setSaving(false)
     }
   }
 
   const handleEditWarehouse = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedWarehouse) return
-
+    if (saving) return
+    setSaving(true)
     try {
       const { error } = await supabase
         .from('warehouses')
@@ -243,6 +250,8 @@ export default function WarehousesPage() {
     } catch (error) {
       console.error('Error updating warehouse:', error)
       alert('❌ حدث خطأ')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -505,12 +514,13 @@ export default function WarehousesPage() {
                 />
               </div>
               <div className="flex gap-3">
-                <button
+                <SubmitButton
                   type="submit"
+                  loading={saving}
                   className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium transition-colors"
                 >
                   إضافة
-                </button>
+                </SubmitButton>
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
@@ -550,12 +560,13 @@ export default function WarehousesPage() {
                 />
               </div>
               <div className="flex gap-3">
-                <button
+                <SubmitButton
                   type="submit"
+                  loading={saving}
                   className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium transition-colors"
                 >
                   تحديث
-                </button>
+                </SubmitButton>
                 <button
                   type="button"
                   onClick={() => setShowEditModal(false)}

@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { Search, Plus, Trash2, Edit2, DollarSign, TrendingDown } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useInputPad } from '../components/useInputPad'
+import SubmitButton from '../components/SubmitButton'
 
 interface Employee {
   id: string
@@ -47,6 +48,7 @@ export default function ExpensesPage() {
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [employees, setEmployees] = useState<Employee[]>([])
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterCategory, setFilterCategory] = useState<string>('all')
   const [showAddModal, setShowAddModal] = useState(false)
@@ -159,6 +161,8 @@ export default function ExpensesPage() {
       return
     }
 
+    if (saving) return
+    setSaving(true)
     try {
       const expenseData = {
         date: formData.date,
@@ -211,6 +215,8 @@ export default function ExpensesPage() {
     } catch (error) {
       console.error('Error saving expense:', error)
       alert('❌ حدث خطأ أثناء حفظ المصروف')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -542,12 +548,13 @@ export default function ExpensesPage() {
                 >
                   إلغاء
                 </button>
-                <button
+                <SubmitButton
                   type="submit"
+                  loading={saving}
                   className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
                 >
                   {editingExpense ? 'تحديث' : 'حفظ'}
-                </button>
+                </SubmitButton>
               </div>
             </form>
           </div>
