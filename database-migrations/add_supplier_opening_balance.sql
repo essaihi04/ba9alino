@@ -18,3 +18,7 @@ ALTER TABLE public.suppliers
 
 COMMENT ON COLUMN public.suppliers.opening_balance IS
   'Dette préexistante envers le fournisseur (ancien crédit), ajoutée aux dettes des achats.';
+
+-- Recharger le cache de schéma de PostgREST pour que la nouvelle colonne soit
+-- immédiatement exposée via l'API REST (sinon le front continue de l'ignorer).
+NOTIFY pgrst, 'reload schema';
