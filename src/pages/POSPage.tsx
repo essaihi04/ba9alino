@@ -1401,16 +1401,22 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
     return result
   }, [products, debouncedSearchQuery, selectedCategory])
 
-  // 30 products per page for fast rendering
+  // 30 produits/page en navigation libre. Pendant une recherche on montre
+  // beaucoup plus de résultats (jusqu'à 300) pour ne pas en cacher derrière
+  // la pagination — l'utilisateur veut voir TOUTES les correspondances.
+  const pageSize = useMemo(() => {
+    return debouncedSearchQuery.trim() ? 300 : MAX_VISIBLE_PRODUCTS
+  }, [debouncedSearchQuery])
+
   const totalPages = useMemo(() => {
-    return Math.max(1, Math.ceil(filteredProducts.length / MAX_VISIBLE_PRODUCTS))
-  }, [filteredProducts.length])
+    return Math.max(1, Math.ceil(filteredProducts.length / pageSize))
+  }, [filteredProducts.length, pageSize])
 
   const visibleProducts = useMemo(() => {
     const safePage = Math.min(Math.max(1, currentPage), totalPages)
-    const start = (safePage - 1) * MAX_VISIBLE_PRODUCTS
-    return filteredProducts.slice(start, start + MAX_VISIBLE_PRODUCTS)
-  }, [filteredProducts, currentPage, totalPages])
+    const start = (safePage - 1) * pageSize
+    return filteredProducts.slice(start, start + pageSize)
+  }, [filteredProducts, currentPage, totalPages, pageSize])
 
   useEffect(() => {
     setCurrentPage(1)
@@ -3321,7 +3327,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
 
         {/* Liste des produits */}
         <div className="flex-1 overflow-y-auto">
-          {filteredProducts.length > MAX_VISIBLE_PRODUCTS && (
+          {filteredProducts.length > pageSize && (
             <div className="text-xs text-gray-500 text-center py-1 bg-yellow-50 rounded mb-2">
               صفحة {currentPage} / {totalPages} — عرض {visibleProducts.length} من {filteredProducts.length} منتج
             </div>
@@ -3374,7 +3380,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
             })}
           </div>
 
-          {filteredProducts.length > MAX_VISIBLE_PRODUCTS && (
+          {filteredProducts.length > pageSize && (
             <div className="mt-3 flex items-center justify-center gap-2 pb-2">
               <button
                 type="button"

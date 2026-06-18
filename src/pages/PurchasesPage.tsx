@@ -152,6 +152,10 @@ export default function PurchasesPage() {
   const [editPurchaseItems, setEditPurchaseItems] = useState<PurchaseLineItem[]>([])
   const [showConfirmPurchaseModal, setShowConfirmPurchaseModal] = useState(false)
   const purchaseSearchInputRef = useRef<HTMLInputElement>(null)
+  // Recherche fournisseur (combobox)
+  const [supplierSearch, setSupplierSearch] = useState('')
+  const [showSupplierDropdown, setShowSupplierDropdown] = useState(false)
+  const supplierBoxRef = useRef<HTMLDivElement>(null)
   
   // Formulaire d'achat
   const [purchaseForm, setPurchaseForm] = useState({
@@ -196,6 +200,18 @@ export default function PurchasesPage() {
       }
     }, 50)
   }, [showCreatePurchaseModal])
+
+  // Fermer le dropdown fournisseur au clic extérieur
+  useEffect(() => {
+    if (!showSupplierDropdown) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (supplierBoxRef.current && !supplierBoxRef.current.contains(e.target as Node)) {
+        setShowSupplierDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showSupplierDropdown])
 
   // Recharger le cumul mensuel + initialiser le transport quand le fournisseur change
   useEffect(() => {
@@ -2653,18 +2669,50 @@ export default function PurchasesPage() {
                 <div className="grid grid-cols-2 gap-2 mb-3 flex-shrink-0">
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-1">المورد *</label>
-                    <select
-                      value={purchaseForm.supplier_id}
-                      onChange={(e) => setPurchaseForm({ ...purchaseForm, supplier_id: e.target.value })}
-                      className="w-full p-2 border rounded-lg text-sm"
-                    >
-                      <option value="">اختر المورد</option>
-                      {suppliers.map((supplier) => (
-                        <option key={supplier.id} value={supplier.id}>
-                          {supplier.name_ar}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="relative" ref={supplierBoxRef}>
+                      <div className="relative">
+                        <Search className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                        <input
+                          type="text"
+                          value={showSupplierDropdown ? supplierSearch : (selectedSupplier?.name_ar || '')}
+                          onChange={(e) => { setSupplierSearch(e.target.value); setShowSupplierDropdown(true) }}
+                          onFocus={() => { setSupplierSearch(''); setShowSupplierDropdown(true) }}
+                          placeholder="ابحث عن المورد..."
+                          className="w-full p-2 pr-8 border rounded-lg text-sm"
+                        />
+                      </div>
+                      {showSupplierDropdown && (
+                        <div className="absolute z-20 mt-1 w-full bg-white border rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                          {suppliers
+                            .filter((s) => {
+                              const q = normalizeSearch(supplierSearch)
+                              if (!q) return true
+                              return normalizeSearch(s.name_ar).includes(q) || normalizeSearch(s.name_en || '').includes(q)
+                            })
+                            .map((supplier) => (
+                              <button
+                                key={supplier.id}
+                                type="button"
+                                onClick={() => {
+                                  setPurchaseForm({ ...purchaseForm, supplier_id: supplier.id })
+                                  setShowSupplierDropdown(false)
+                                  setSupplierSearch('')
+                                }}
+                                className={`w-full text-right px-3 py-2 text-sm hover:bg-blue-50 ${supplier.id === purchaseForm.supplier_id ? 'bg-blue-100 font-bold' : ''}`}
+                              >
+                                {supplier.name_ar}
+                              </button>
+                            ))}
+                          {suppliers.filter((s) => {
+                            const q = normalizeSearch(supplierSearch)
+                            if (!q) return true
+                            return normalizeSearch(s.name_ar).includes(q) || normalizeSearch(s.name_en || '').includes(q)
+                          }).length === 0 && (
+                            <div className="px-3 py-2 text-sm text-gray-400">لا يوجد مورد</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-bold text-gray-700 mb-1">المستودع *</label>
