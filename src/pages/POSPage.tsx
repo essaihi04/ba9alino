@@ -192,7 +192,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
   const CASH_SESSION_KEY = isEmployeeMode ? 'employee_pos_cash_session_id' : 'pos_cash_session_id'
   const EMPLOYEE_KEY = isEmployeeMode ? 'employee_pos_employee_id' : 'pos_employee_id'
   const WAREHOUSE_KEY = isEmployeeMode ? 'employee_pos_warehouse_id' : 'pos_warehouse_id'
-  const PRODUCTS_CACHE_KEY_PREFIX = isEmployeeMode ? 'employee_pos_products_cache' : 'pos_products_cache'
+  const PRODUCTS_CACHE_KEY_PREFIX = isEmployeeMode ? 'employee_pos_products_cache_v2' : 'pos_products_cache_v2'
   const PRODUCTS_CACHE_TTL_MS = 2 * 60 * 1000
 
   const [products, setProducts] = useState<Product[]>([])
@@ -957,7 +957,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       while (true) {
         const { data: pvPage, error: pvErr } = await supabase
           .from('product_primary_variants')
-          .select('id, product_id, variant_name, barcode, price_a, price_b, price_c, price_d, price_e, is_active')
+          .select('id, product_id, variant_name, barcode, price_a, price_b, price_c, price_d, price_e, is_active, is_default')
           .eq('is_active', true)
           .range(pvFrom, pvFrom + pvPageSize - 1)
         if (pvErr) throw pvErr
@@ -1052,17 +1052,28 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       const productsById = new Map<string, any>()
       ;(allProducts || []).forEach(p => productsById.set(p.id, p))
 
-      const dedupedPrimaryVariants = Array.from(
-        new Map(
-          (primaryVariants || [])
-            .filter((pv: any) => productsById.has(pv.product_id))
-            .map((pv: any) => {
-              const normalizedVariant = String(pv.variant_name || '').trim().toLowerCase()
-              const normalizedBarcode = String(pv.barcode || '').trim()
-              return [`${String(pv.product_id)}:${normalizedVariant}:${normalizedBarcode}`, pv]
-            })
-        ).values()
-      )
+      // Dédoublonnage des variantes primaires.
+      // Deux variantes primaires d'un même produit qui partagent le même code-barres
+      // désignent le même article scannable → on n'en garde qu'une (la variante par
+      // défaut en priorité) pour éviter les cartes en double dans la caisse.
+      // Quand le code-barres est vide, on retombe sur l'ancien critère (nom de variante)
+      // pour ne pas fusionner des variantes réellement distinctes mais sans code-barres.
+      const dedupMap = new Map<string, any>()
+      ;(primaryVariants || [])
+        .filter((pv: any) => productsById.has(pv.product_id))
+        .forEach((pv: any) => {
+          const normalizedVariant = String(pv.variant_name || '').trim().toLowerCase()
+          const normalizedBarcode = String(pv.barcode || '').trim()
+          const key = normalizedBarcode
+            ? `bc:${String(pv.product_id)}:${normalizedBarcode}`
+            : `nv:${String(pv.product_id)}:${normalizedVariant}`
+          const existing = dedupMap.get(key)
+          // En cas de conflit on privilégie la variante marquée par défaut.
+          if (!existing || (!existing.is_default && pv.is_default)) {
+            dedupMap.set(key, pv)
+          }
+        })
+      const dedupedPrimaryVariants = Array.from(dedupMap.values())
 
       // Products WITH primary variants
       const productIdsWithPV = new Set(dedupedPrimaryVariants.map((pv: any) => pv.product_id))
@@ -2808,7 +2819,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       const debtAmount = remaining > 0 ? remaining : 0
 
       printContent = `
-        <div style="direction: rtl; font-family: monospace; color: #000; width: 80mm; margin: 0 auto; padding: 6px; font-size: 14px; line-height: 1.35; font-weight: bold;">
+        <div style="direction: rtl; font-family: monospace; color: #000; width: 80mm; max-width: 80mm; box-sizing: border-box; margin: 0 auto; padding: 3mm; font-size: 14px; line-height: 1.35; font-weight: bold;">
           <div style="text-align: center; margin-bottom: 6px;">
             <div style="font-size: 20px; font-weight: bold;">${companyInfo.company_name_ar || companyInfo.company_name || 'BA9ALINO'}</div>
             <div style="font-size: 16px; font-weight: bold;">${companyInfo.company_name_ar || companyInfo.company_name || 'BA9ALINO'}</div>
@@ -2839,24 +2850,31 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
             </div>
           </div>
 
-          <table style="width: 100%; border-collapse: collapse; font-size: 13px; border: 1px solid #000;">
+          <table style="width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12px; border: 1px solid #000;">
+            <colgroup>
+              <col style="width: 12%;" />
+              <col style="width: 12%;" />
+              <col style="width: 16%;" />
+              <col style="width: 38%;" />
+              <col style="width: 22%;" />
+            </colgroup>
             <thead>
               <tr style="background: #f9f9f9;">
-                <th style="text-align: right; padding: 4px 3px; border: 1px solid #000;">الكمية</th>
-                <th style="text-align: right; padding: 4px 3px; border: 1px solid #000;">الوحدة</th>
-                <th style="text-align: right; padding: 4px 3px; border: 1px solid #000;">الثمن</th>
-                <th style="text-align: right; padding: 4px 3px; border: 1px solid #000;">الاسم</th>
-                <th style="text-align: left; padding: 4px 3px; border: 1px solid #000;">المجموع</th>
+                <th style="text-align: right; padding: 4px 2px; border: 1px solid #000;">الكمية</th>
+                <th style="text-align: right; padding: 4px 2px; border: 1px solid #000;">الوحدة</th>
+                <th style="text-align: right; padding: 4px 2px; border: 1px solid #000;">الثمن</th>
+                <th style="text-align: right; padding: 4px 2px; border: 1px solid #000;">الاسم</th>
+                <th style="text-align: left; padding: 4px 2px; border: 1px solid #000;">المجموع</th>
               </tr>
             </thead>
             <tbody>
               ${confirmedInvoice.lines.filter(l => !l.deleted).map(line => `
                 <tr>
-                  <td style=\"padding: 4px 3px; text-align: right; white-space: nowrap; border: 1px solid #000;\">${line.quantity}</td>
-                  <td style=\"padding: 4px 3px; text-align: right; white-space: nowrap; border: 1px solid #000;\">وحدة</td>
-                  <td style=\"padding: 4px 3px; text-align: right; white-space: nowrap; border: 1px solid #000;\">${(line.unit_price || 0).toFixed(2)}</td>
-                  <td style=\"padding: 4px 3px; text-align: right; border: 1px solid #000;\">${line.product_name_ar}</td>
-                  <td style=\"padding: 4px 3px; text-align: left; white-space: nowrap; border: 1px solid #000;\">${(line.total || 0).toFixed(2)}</td>
+                  <td style=\"padding: 4px 2px; text-align: right; word-break: break-word; border: 1px solid #000;\">${line.quantity}</td>
+                  <td style=\"padding: 4px 2px; text-align: right; word-break: break-word; border: 1px solid #000;\">وحدة</td>
+                  <td style=\"padding: 4px 2px; text-align: right; word-break: break-word; border: 1px solid #000;\">${(line.unit_price || 0).toFixed(2)}</td>
+                  <td style=\"padding: 4px 2px; text-align: right; word-break: break-word; border: 1px solid #000;\">${line.product_name_ar}</td>
+                  <td style=\"padding: 4px 2px; text-align: left; word-break: break-word; border: 1px solid #000;\">${(line.total || 0).toFixed(2)}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -2965,7 +2983,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
           <style>
             @media print {
               body { margin: 0; }
-              @page { ${type === 'invoice' ? 'margin: 10mm;' : 'margin: 5mm;'} }
+              @page { ${type === 'invoice' ? 'margin: 10mm;' : 'size: 80mm auto; margin: 0;'} }
             }
           </style>
         </head>

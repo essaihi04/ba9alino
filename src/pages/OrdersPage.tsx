@@ -1882,14 +1882,19 @@ export default function OrdersPage() {
           <head>
             <title>Ticket ${order.order_number}</title>
             <style>
-              body { font-family: monospace; direction: rtl; margin: 0; padding: 8px; color: #000; }
-              .ticket { width: 80mm; margin: 0 auto; font-size: 13px; font-weight: bold; }
+              @page { size: 80mm auto; margin: 0; }
+              body { font-family: monospace; direction: rtl; margin: 0; padding: 3mm; color: #000; box-sizing: border-box; }
+              .ticket { width: 80mm; max-width: 80mm; box-sizing: border-box; margin: 0 auto; font-size: 13px; font-weight: bold; }
               .center { text-align: center; }
               .row { display: flex; justify-content: space-between; gap: 8px; }
               .sep { border-top: 1px dashed #000; margin: 6px 0; padding-top: 6px; }
-              table { width: 100%; border-collapse: collapse; font-size: 12px; }
-              th, td { border: 1px solid #000; padding: 3px; }
+              table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12px; }
+              th, td { border: 1px solid #000; padding: 3px; word-break: break-word; }
               th { background: #f5f5f5; }
+              col.c-qty { width: 14%; }
+              col.c-price { width: 18%; }
+              col.c-name { width: 44%; }
+              col.c-total { width: 24%; }
             </style>
           </head>
           <body>
@@ -1904,6 +1909,12 @@ export default function OrdersPage() {
                 <div class="row"><span>الزبون</span><span>${order.client?.company_name_ar || ''}</span></div>
               </div>
               <table>
+                <colgroup>
+                  <col class="c-qty" />
+                  <col class="c-price" />
+                  <col class="c-name" />
+                  <col class="c-total" />
+                </colgroup>
                 <thead>
                   <tr>
                     <th>الكمية</th>
