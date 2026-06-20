@@ -239,9 +239,15 @@ export default function CreditsPage() {
     unpaid: { border: 'border-red-400 bg-red-50', badge: 'bg-red-100 text-red-700', label: 'غير مدفوع' },
   }
 
-  // Insère un enregistrement de paiement avec repli si certaines colonnes
-  // n'existent pas dans le schéma déployé.
-  const insertPayment = async (invoiceId: string, clientId: string | null, amount: number, dateIso: string) => {
+  // Insère un enregistrement de paiement. Essaie plusieurs payloads (du plus
+  // complet au plus minimal) pour s'adapter au schéma déployé. Renvoie le
+  // message d'erreur si TOUTES les tentatives échouent, sinon null.
+  const insertPayment = async (
+    invoiceId: string,
+    clientId: string | null,
+    amount: number,
+    dateIso: string
+  ): Promise<string | null> => {
     const base: any = {
       invoice_id: invoiceId,
       client_id: clientId,
@@ -250,15 +256,20 @@ export default function CreditsPage() {
       payment_date: dateIso,
       status: 'completed',
     }
-    const { error } = await supabase.from('payments').insert({
-      ...base,
-      payment_number: `PAY-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      notes: 'دفعة من متابعة الديون',
-    })
-    if (error) {
-      const retry = await supabase.from('payments').insert(base)
-      if (retry.error) console.error('Payment insert failed:', retry.error)
+    const attempts: any[] = [
+      { ...base, payment_number: `PAY-${Date.now()}-${Math.floor(Math.random() * 1000)}`, notes: 'دفعة من متابعة الديون' },
+      base,
+      { invoice_id: invoiceId, client_id: clientId, amount, payment_method: 'cash', payment_date: dateIso },
+      { invoice_id: invoiceId, amount, payment_date: dateIso },
+    ]
+    let lastError = ''
+    for (const payload of attempts) {
+      const { error } = await supabase.from('payments').insert(payload)
+      if (!error) return null
+      lastError = `${error.code || ''} ${error.message || ''}`.trim()
+      console.error('Payment insert attempt failed:', error)
     }
+    return lastError || 'unknown error'
   }
 
   // Enregistre un paiement et le répartit sur les factures les plus anciennes
@@ -293,18 +304,25 @@ export default function CreditsPage() {
         return remaining > 0.009 && method !== 'check' && method !== 'cheque'
       })
 
+      const clientId = paymentClient.client_id
       let leftover = amount
       const todayIso = new Date().toISOString()
+      let paymentRecordFailures = 0
+      let firstPaymentError = ''
+      let stillUnpaidCount = 0
 
       for (const inv of unpaid) {
-        if (leftover <= 0.009) break
         const total = inv.total_amount || 0
         const alreadyPaid = inv.paid_amount || 0
         const invRemaining = total - alreadyPaid
-        const applied = Math.min(invRemaining, leftover)
+        const applied = leftover > 0.009 ? Math.min(invRemaining, leftover) : 0
         const newPaid = alreadyPaid + applied
         const newRemaining = Math.max(0, total - newPaid)
         const newStatus = newRemaining <= 0.009 ? 'paid' : 'partial'
+
+        if (newRemaining > 0.009) stillUnpaidCount += 1
+
+        if (applied <= 0.009) continue
 
         // Mise à jour progressive : certaines installations n'ont pas toutes
         // les colonnes (payment_status / remaining_amount). On tente du payload
@@ -325,21 +343,42 @@ export default function CreditsPage() {
         }
         if (updErr) throw updErr
 
-        await insertPayment(inv.id, paymentClient.client_id, applied, todayIso)
+        const payErr = await insertPayment(inv.id, clientId, applied, todayIso)
+        if (payErr) {
+          paymentRecordFailures += 1
+          if (!firstPaymentError) firstPaymentError = payErr
+        }
         leftover -= applied
       }
 
-      alert('✅ تم تسجيل الدفعة وتوزيعها على الفواتير بنجاح')
-      setShowPaymentModal(false)
-      setPaymentAmount('')
-      const clientId = paymentClient.client_id
-      setPaymentClient(null)
+      const appliedTotal = amount - leftover
 
+      // Mise à jour en place du résumé du client (montant payé, restant, nb factures)
+      setSelectedClient(prev => {
+        if (!prev || prev.client_id !== clientId) return prev
+        return {
+          ...prev,
+          total_paid: prev.total_paid + appliedTotal,
+          remaining: Math.max(0, prev.remaining - appliedTotal),
+          invoices_count: stillUnpaidCount,
+        }
+      })
+
+      // Rafraîchir les listes
       await loadCredits()
       await loadAllInvoices()
-      // Rafraîchir le détail si le client est ouvert
       if (selectedClient && selectedClient.client_id === clientId) {
         await loadClientInvoices(clientId)
+      }
+
+      setShowPaymentModal(false)
+      setPaymentAmount('')
+      setPaymentClient(null)
+
+      if (paymentRecordFailures > 0) {
+        alert(`⚠️ تم خصم ${appliedTotal.toFixed(2)} MAD من الدين، لكن تعذّر حفظ ${paymentRecordFailures} سجل دفع.\nالسبب: ${firstPaymentError}`)
+      } else {
+        alert(`✅ تم تسجيل دفعة ${appliedTotal.toFixed(2)} MAD وتوزيعها على الفواتير بنجاح`)
       }
     } catch (e) {
       console.error('Error recording payment:', e)
