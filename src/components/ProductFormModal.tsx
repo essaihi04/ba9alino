@@ -85,6 +85,21 @@ const unitTypes = [
   { value: 'sac', label: 'كيس' },
 ]
 
+// Invalide le cache des produits utilisé par la caisse (POSPage) afin que
+// les modifications (image, prix, nom...) apparaissent sans rafraîchir la page.
+const invalidateProductCaches = () => {
+  try {
+    const keysToRemove: string[] = []
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const k = sessionStorage.key(i)
+      if (k && k.includes('pos_products_cache')) keysToRemove.push(k)
+    }
+    keysToRemove.forEach((k) => sessionStorage.removeItem(k))
+  } catch (e) {
+    console.warn('Could not invalidate product caches:', e)
+  }
+}
+
 export default function ProductFormModal({ isOpen, mode, productId, onClose, onSaved }: ProductFormModalProps) {
   const [categories, setCategories] = useState<Category[]>([])
   const [formData, setFormData] = useState({ ...emptyForm })
@@ -589,6 +604,7 @@ export default function ProductFormModal({ isOpen, mode, productId, onClose, onS
         )
       }
 
+      invalidateProductCaches()
       alert('✅ تم إضافة المنتج بنجاح')
       onSaved?.()
       onClose()
@@ -724,6 +740,7 @@ export default function ProductFormModal({ isOpen, mode, productId, onClose, onS
         }
       }
 
+      invalidateProductCaches()
       alert('✅ تم تحديث المنتج بنجاح')
       onSaved?.()
       onClose()
