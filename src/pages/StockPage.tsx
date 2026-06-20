@@ -1,6 +1,41 @@
 import { useEffect, useState } from 'react'
-import { Search, Package, TrendingUp, TrendingDown, AlertTriangle, Building, CheckCircle, Plus, Minus, X, Pencil } from 'lucide-react'
+import { Search, Package, TrendingUp, TrendingDown, AlertTriangle, Building, CheckCircle, Plus, Minus, X, Pencil, ShoppingCart } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { useInputPad } from '../components/useInputPad'
+
+// Mêmes unités d'achat que la page Achats (PurchasesPage)
+type UnitType = 'kilo' | 'litre' | 'carton' | 'paquet' | 'sac' | 'unit'
+
+interface BuyForm {
+  quantity: number
+  unit_price: number
+  unit_type: UnitType
+  units_per_carton: number | null
+  weight_per_unit: number | null
+  packaging_mode: 'none' | 'carton' | 'sachet'
+}
+
+// Convertit la saisie d'achat (quantité × unité × packaging) en quantité de base
+// (= unité affichée dans le stock). Identique à PurchasesPage.calculateBaseQuantity.
+const calculateBaseQuantity = (form: BuyForm) => {
+  const safeQuantity = Number(form.quantity) || 0
+  const hasUnitsPerCarton = form.units_per_carton != null && form.units_per_carton > 0
+  const hasWeightPerUnit = form.weight_per_unit != null && form.weight_per_unit > 0
+  const unitsPerCarton = hasUnitsPerCarton ? Number(form.units_per_carton) : 1
+  const weightPerUnit = hasWeightPerUnit ? Number(form.weight_per_unit) : 1
+
+  switch (form.unit_type) {
+    case 'carton':
+      return safeQuantity * unitsPerCarton * weightPerUnit
+    case 'paquet':
+    case 'sac':
+      return safeQuantity * weightPerUnit
+    case 'litre':
+    case 'kilo':
+    default:
+      return safeQuantity
+  }
+}
 
 interface Product {
   id: string
@@ -36,6 +71,7 @@ interface WarehouseStock {
 }
 
 export default function StockPage() {
+  const inputPad = useInputPad()
   const [products, setProducts] = useState<Product[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [warehouses, setWarehouses] = useState<Warehouse[]>([])
@@ -53,6 +89,20 @@ export default function StockPage() {
   const [adjustMode, setAdjustMode] = useState<'add' | 'sub' | 'set'>('add')
   const [adjustQty, setAdjustQty] = useState('')
   const [adjustSaving, setAdjustSaving] = useState(false)
+  // Réapprovisionnement « comme un achat » (même fenêtre que la page Achats) :
+  // saisie quantité + unité + prix d'achat, qui met à jour le stock ET le prix
+  // d'achat de référence (propagé vers la page Produits et la caisse).
+  const [buyOpen, setBuyOpen] = useState(false)
+  const [buyTarget, setBuyTarget] = useState<Product | null>(null)
+  const [buySaving, setBuySaving] = useState(false)
+  const [buyForm, setBuyForm] = useState<BuyForm>({
+    quantity: 1,
+    unit_price: 0,
+    unit_type: 'kilo',
+    units_per_carton: 1,
+    weight_per_unit: 1,
+    packaging_mode: 'none',
+  })
 
   useEffect(() => {
     loadProducts()
@@ -410,6 +460,133 @@ export default function StockPage() {
     await loadProducts()
   }
 
+  // =================== RÉAPPRO « COMME UN ACHAT » ====================
+  // Ouvre la même fenêtre que la page Achats pour un produit donné.
+  const openBuy = (product: Product) => {
+    if (!selectedWarehouse) {
+      alert('يرجى اختيار مخزن أولاً')
+      return
+    }
+    setBuyTarget(product)
+    setBuyForm({
+      quantity: 1,
+      unit_price: product.cost_price || product.price_a || 0,
+      unit_type: 'kilo',
+      units_per_carton: 1,
+      weight_per_unit: 1,
+      packaging_mode: 'none',
+    })
+    setBuyOpen(true)
+  }
+
+  const closeBuy = () => {
+    if (buySaving) return
+    setBuyOpen(false)
+    setBuyTarget(null)
+  }
+
+  // Met à jour le prix d'achat de référence (purchase_price) sur toutes les
+  // variantes du produit, exprimé par unité de base, afin que la page Produits
+  // et la caisse affichent le nouveau prix. baseUnitCost = coût d'une unité de base.
+  const updateVariantPurchasePrices = async (productId: string, baseUnitCost: number) => {
+    try {
+      const { data: variants } = await supabase
+        .from('product_variants')
+        .select('id, unit_type, quantity_contained')
+        .eq('product_id', productId)
+      for (const v of variants || []) {
+        let price = baseUnitCost
+        if (v.unit_type === 'carton' || v.unit_type === 'paquet' || v.unit_type === 'sac') {
+          const factor = Number(v.quantity_contained) || 1
+          price = baseUnitCost * factor
+        }
+        await supabase.from('product_variants').update({ purchase_price: price }).eq('id', v.id)
+      }
+    } catch (e) {
+      console.warn('variant purchase_price update skipped:', e)
+    }
+  }
+
+  // Validation identique à PurchasesPage.saveEdit (champs requis selon l'unité)
+  const validateBuyForm = (): boolean => {
+    if (!buyForm.quantity || buyForm.quantity <= 0) {
+      alert('يرجى إدخال كمية صحيحة')
+      return false
+    }
+    if (buyForm.unit_type === 'carton') {
+      if (!buyForm.units_per_carton || buyForm.units_per_carton <= 0) {
+        alert('يرجى إدخال عدد الوحدات في الكرتون')
+        return false
+      }
+      if (!buyForm.weight_per_unit || buyForm.weight_per_unit <= 0) {
+        alert('يرجى إدخال وزن/كمية كل وحدة داخل الكرتون')
+        return false
+      }
+    }
+    if ((buyForm.unit_type === 'kilo' || buyForm.unit_type === 'litre') && buyForm.packaging_mode === 'carton') {
+      if (!buyForm.units_per_carton || buyForm.units_per_carton <= 0) {
+        alert('يرجى إدخال عدد الوحدات في الكرتون')
+        return false
+      }
+      if (!buyForm.weight_per_unit || buyForm.weight_per_unit <= 0) {
+        alert('يرجى إدخال وزن/كمية كل وحدة داخل الكرتون')
+        return false
+      }
+    }
+    if ((buyForm.unit_type === 'paquet' || buyForm.unit_type === 'sac' || buyForm.packaging_mode === 'sachet') && (!buyForm.weight_per_unit || buyForm.weight_per_unit <= 0)) {
+      alert('يرجى إدخال الوزن/الكمية لكل كيس/ساشي')
+      return false
+    }
+    return true
+  }
+
+  const confirmBuy = async () => {
+    if (!selectedWarehouse || !buyTarget) return
+    if (!validateBuyForm()) return
+
+    const baseQty = calculateBaseQuantity(buyForm)
+    if (baseQty <= 0) {
+      alert('الكمية الأساسية المضافة يجب أن تكون أكبر من صفر')
+      return
+    }
+
+    setBuySaving(true)
+    try {
+      // 1) Coût moyen pondéré (par unité de base) AVANT d'ajouter le stock.
+      const { data: prod } = await supabase
+        .from('products')
+        .select('stock, cost_price')
+        .eq('id', buyTarget.id)
+        .single()
+      const oldStock = Number(prod?.stock) || 0
+      const oldCost = Number(prod?.cost_price) || 0
+      const totalSpend = buyForm.quantity * buyForm.unit_price
+      const baseUnitCost = baseQty > 0 ? totalSpend / baseQty : buyForm.unit_price
+      const newStock = oldStock + baseQty
+      const newCost = newStock > 0 ? (oldStock * oldCost + totalSpend) / newStock : oldCost
+
+      // 2) Ajouter la quantité de base aux 4 tables de stock (invariant stock).
+      await adjustProductStock(buyTarget.id, selectedWarehouse, baseQty)
+
+      // 3) Mettre à jour le prix d'achat de référence sur le produit
+      //    (adjustProductStock a déjà incrémenté products.stock).
+      await supabase.from('products').update({ cost_price: newCost }).eq('id', buyTarget.id)
+
+      // 4) Propager le prix d'achat de référence aux variantes (page Produits + caisse).
+      await updateVariantPurchasePrices(buyTarget.id, baseUnitCost)
+
+      await loadWarehouseStock(selectedWarehouse)
+      await loadProducts()
+      setBuyOpen(false)
+      setBuyTarget(null)
+    } catch (e) {
+      console.error('Error restocking product:', e)
+      alert('❌ حدث خطأ أثناء تحديث المخزون')
+    } finally {
+      setBuySaving(false)
+    }
+  }
+
   const selectedProducts = filteredStockData.filter((p) => selectedIds.has(p.id))
 
   return (
@@ -617,12 +794,12 @@ export default function StockPage() {
             <table className="w-full table-fixed text-xs">
               <colgroup>
                 <col className="w-[4%]" />
-                <col className="w-[34%]" />
-                <col className="w-[14%]" />
+                <col className="w-[31%]" />
+                <col className="w-[13%]" />
                 <col className="w-[9%]" />
-                <col className="w-[12%]" />
                 <col className="w-[11%]" />
-                <col className="w-[16%]" />
+                <col className="w-[10%]" />
+                <col className="w-[22%]" />
               </colgroup>
               <thead className="bg-gradient-to-r from-teal-600 to-teal-700 text-white">
                 <tr>
@@ -711,6 +888,14 @@ export default function StockPage() {
                             title="تعيين الكمية"
                           >
                             <Pencil size={13} />
+                          </button>
+                          <button
+                            onClick={() => openBuy(product)}
+                            disabled={!selectedWarehouse}
+                            className="w-6 h-6 rounded bg-purple-600 hover:bg-purple-700 text-white flex items-center justify-center disabled:opacity-40"
+                            title="تعديل المخزون (شراء: كمية + وحدة + سعر الشراء)"
+                          >
+                            <ShoppingCart size={13} />
                           </button>
                         </div>
                       </td>
@@ -821,6 +1006,269 @@ export default function StockPage() {
           </div>
         </div>
       )}
+
+      {/* Modal de réapprovisionnement « comme un achat » (même fenêtre que la page Achats) */}
+      {buyOpen && buyTarget && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3" dir="rtl" onClick={closeBuy}>
+          <div className="bg-white rounded-2xl p-4 sm:p-5 w-full max-w-[420px] max-h-[92vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-gray-800 mb-3">تعديل المخزون (شراء)</h3>
+
+            <div className="mb-3">
+              <p className="text-xs text-gray-500 mb-1">المنتج:</p>
+              <p className="font-bold text-gray-800 text-sm">{buyTarget.name_ar}</p>
+              <p className="text-[11px] text-gray-500">SKU: {buyTarget.sku} · المخزون الحالي: {getStockForProduct(buyTarget)}</p>
+            </div>
+
+            <div className="space-y-3 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">الكمية</label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      inputPad.open({
+                        title: 'الكمية',
+                        mode: 'number',
+                        dir: 'ltr',
+                        initialValue: buyForm.quantity.toString(),
+                        min: 1,
+                        onConfirm: (v) => setBuyForm({ ...buyForm, quantity: parseInt(v) || 1 }),
+                      })
+                    }
+                    className="w-full p-2 border rounded-lg text-left"
+                  >
+                    {buyForm.quantity}
+                  </button>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">سعر وحدة الشراء (MAD)</label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      inputPad.open({
+                        title: 'سعر وحدة الشراء (MAD)',
+                        mode: 'decimal',
+                        dir: 'ltr',
+                        initialValue: buyForm.unit_price.toString(),
+                        min: 0,
+                        onConfirm: (v) => setBuyForm({ ...buyForm, unit_price: parseFloat(v) || 0 }),
+                      })
+                    }
+                    className="w-full p-2 border rounded-lg text-left"
+                  >
+                    {buyForm.unit_price}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">وحدة الشراء</label>
+                <select
+                  value={buyForm.unit_type}
+                  onChange={(e) => {
+                    const newUnit = e.target.value as UnitType
+                    setBuyForm(prev => ({
+                      ...prev,
+                      unit_type: newUnit,
+                      packaging_mode: (newUnit === 'kilo' || newUnit === 'litre') ? prev.packaging_mode : 'none'
+                    }))
+                  }}
+                  className="w-full p-2 border rounded-lg bg-white"
+                >
+                  <option value="kilo">كيلو</option>
+                  <option value="litre">لتر</option>
+                  <option value="carton">كرتون</option>
+                  <option value="paquet">باكيت</option>
+                  <option value="sac">كيس</option>
+                  <option value="unit">وحدة</option>
+                </select>
+              </div>
+
+              {(buyForm.unit_type === 'kilo' || buyForm.unit_type === 'litre') && (
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">خيارات التعبئة للكِيلو</label>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    {[
+                      { key: 'none', label: 'بدون' },
+                      { key: 'carton', label: 'يوجد كرتون' },
+                      { key: 'sachet', label: 'يوجد كيس/ساشي' },
+                    ].map(option => (
+                      <button
+                        key={option.key}
+                        type="button"
+                        onClick={() => setBuyForm(prev => ({ ...prev, packaging_mode: option.key as any }))}
+                        className={`p-2 border rounded-lg ${buyForm.packaging_mode === option.key ? 'bg-purple-100 border-purple-400' : 'bg-white'}`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {buyForm.packaging_mode === 'carton' && (
+                    <div className="mt-3">
+                      <label className="block text-xs font-bold text-gray-700 mb-1">عدد الوحدات في الكرتون</label>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          inputPad.open({
+                            title: 'عدد الوحدات في الكرتون',
+                            mode: 'number',
+                            dir: 'ltr',
+                            initialValue: (buyForm.units_per_carton || 0).toString(),
+                            min: 1,
+                            onConfirm: (v) => setBuyForm({ ...buyForm, units_per_carton: parseInt(v) || 1 }),
+                          })
+                        }
+                        className="w-full p-2 border rounded-lg text-left"
+                      >
+                        {buyForm.units_per_carton || 1}
+                      </button>
+                      <label className="block text-xs font-bold text-gray-700 mb-1 mt-3">وزن/كمية كل وحدة داخل الكرتون</label>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          inputPad.open({
+                            title: 'وزن/كمية كل وحدة داخل الكرتون',
+                            mode: 'decimal',
+                            dir: 'ltr',
+                            initialValue: (buyForm.weight_per_unit || 0).toString(),
+                            min: 0.001,
+                            onConfirm: (v) => setBuyForm({ ...buyForm, weight_per_unit: parseFloat(v) || 1 }),
+                          })
+                        }
+                        className="w-full p-2 border rounded-lg text-left"
+                      >
+                        {buyForm.weight_per_unit || 1}
+                      </button>
+                    </div>
+                  )}
+
+                  {buyForm.packaging_mode === 'sachet' && (
+                    <div className="mt-3">
+                      <label className="block text-xs font-bold text-gray-700 mb-1">عدد/وزن كل كيس</label>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          inputPad.open({
+                            title: 'عدد/وزن كل كيس',
+                            mode: 'decimal',
+                            dir: 'ltr',
+                            initialValue: (buyForm.weight_per_unit || 0).toString(),
+                            min: 0.001,
+                            onConfirm: (v) => setBuyForm({ ...buyForm, weight_per_unit: parseFloat(v) || 1 }),
+                          })
+                        }
+                        className="w-full p-2 border rounded-lg text-left"
+                      >
+                        {buyForm.weight_per_unit || 1}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {buyForm.unit_type === 'carton' && (
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">عدد الوحدات في الكرتون</label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      inputPad.open({
+                        title: 'عدد الوحدات في الكرتون',
+                        mode: 'number',
+                        dir: 'ltr',
+                        initialValue: (buyForm.units_per_carton || 0).toString(),
+                        min: 1,
+                        onConfirm: (v) => setBuyForm({ ...buyForm, units_per_carton: parseInt(v) || 1 }),
+                      })
+                    }
+                    className="w-full p-2 border rounded-lg text-left"
+                  >
+                    {buyForm.units_per_carton || 1}
+                  </button>
+                  <label className="block text-xs font-bold text-gray-700 mb-1 mt-3">الوزن/الكمية لكل وحدة</label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      inputPad.open({
+                        title: 'الوزن/الكمية لكل وحدة داخل الكرتون',
+                        mode: 'decimal',
+                        dir: 'ltr',
+                        initialValue: (buyForm.weight_per_unit || 0).toString(),
+                        min: 0.001,
+                        onConfirm: (v) => setBuyForm({ ...buyForm, weight_per_unit: parseFloat(v) || 1 }),
+                      })
+                    }
+                    className="w-full p-2 border rounded-lg text-left"
+                  >
+                    {buyForm.weight_per_unit || 1}
+                  </button>
+                </div>
+              )}
+              {(buyForm.unit_type === 'paquet' || buyForm.unit_type === 'sac') && (
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">الوزن/الكمية لكل باكيت/كيس</label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      inputPad.open({
+                        title: 'الوزن/الكمية لكل باكيت/كيس',
+                        mode: 'decimal',
+                        dir: 'ltr',
+                        initialValue: (buyForm.weight_per_unit || 0).toString(),
+                        min: 0.001,
+                        onConfirm: (v) => setBuyForm({ ...buyForm, weight_per_unit: parseFloat(v) || 1 }),
+                      })
+                    }
+                    className="w-full p-2 border rounded-lg text-left"
+                  >
+                    {buyForm.weight_per_unit || 1}
+                  </button>
+                </div>
+              )}
+
+              {/* Résumé prix + quantité de base + nouveau stock */}
+              {(() => {
+                const baseQty = calculateBaseQuantity(buyForm)
+                const total = buyForm.quantity * buyForm.unit_price
+                const baseUnitCost = baseQty > 0 ? total / baseQty : 0
+                const current = getStockForProduct(buyTarget)
+                return (
+                  <div className="mt-4 p-3 bg-gray-50 border rounded-lg space-y-2 text-sm">
+                    <p className="font-bold text-gray-800">ملخص السعر والكمية</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="flex justify-between"><span className="text-gray-600">المجموع:</span><span className="font-bold">{total.toFixed(2)} MAD</span></div>
+                      <div className="flex justify-between"><span className="text-gray-600">الكمية الأساسية المضافة:</span><span className="font-bold">{baseQty.toFixed(2)}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-600">التكلفة لكل وحدة أساسية:</span><span className="font-bold">{baseUnitCost.toFixed(2)} MAD</span></div>
+                      <div className="flex justify-between"><span className="text-gray-600">المخزون بعد التعديل:</span><span className="font-bold text-teal-700">{current} → {(current + baseQty).toFixed(2)}</span></div>
+                    </div>
+                    <p className="text-[11px] text-gray-500">سيتم اعتماد سعر الشراء هذا كمرجع في صفحة المنتجات والكاسة.</p>
+                  </div>
+                )
+              })()}
+            </div>
+
+            <div className="flex gap-2 mt-5 text-sm">
+              <button
+                onClick={closeBuy}
+                disabled={buySaving}
+                className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300 font-bold disabled:opacity-50"
+              >
+                إلغاء
+              </button>
+              <button
+                onClick={confirmBuy}
+                disabled={buySaving}
+                className="flex-1 bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 font-bold disabled:opacity-50"
+              >
+                {buySaving ? 'جاري الحفظ...' : 'حفظ التعديل'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {inputPad.Modal}
     </div>
   )
 }
