@@ -2241,7 +2241,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       const resolvedClientName = selectedClient?.company_name_ar || selectedClient?.company_name_en || currentInvoice.client_name || 'عميل عام'
 
       // Fixer explicitement paid_amount selon le mode de paiement avant de sauvegarder
-      const isDebtSale = paymentMethod === 'debt' || paymentMethod === 'credit'
+      const isDebtSale = paymentMethod === 'debt'
       if (isDebtSale) {
         currentInvoice.paid_amount = 0
         currentInvoice.remaining_amount = currentInvoice.total_amount

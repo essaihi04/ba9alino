@@ -7,6 +7,7 @@ interface Client {
   id: string
   company_name_ar: string
   contact_person_name: string
+  contact_person_phone?: string
   gps_lat?: number
   gps_lng?: number
 }

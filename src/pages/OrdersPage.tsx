@@ -2923,10 +2923,11 @@ export default function OrdersPage() {
                               if (!hasVariants) {
                                 addOrderItem(product.id, 1)
                               } else {
-                                // For products with variants, add the default variant or first variant
+                                // NOTE: addOrderItem ne gère pas (encore) les variantes ;
+                                // on ajoute le produit de base (comportement runtime inchangé).
                                 const defaultVariant = variants.find(v => v.is_default) || variants[0]
                                 if (defaultVariant) {
-                                  addOrderItem(product.id, 1, defaultVariant)
+                                  addOrderItem(product.id, 1)
                                 }
                               }
                             }}

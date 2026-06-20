@@ -267,10 +267,12 @@ export default function DeliveryNotePage() {
     const element = document.querySelector('.bg-white.rounded-lg.shadow-lg.p-8') as HTMLElement
     if (!element) return
 
+    // Déclarés hors du try pour rester accessibles dans le catch (restauration du bouton)
+    const downloadButton = document.querySelector('button[class*="bg-purple-600"]') as HTMLButtonElement
+    const originalContent = downloadButton?.innerHTML || ''
+
     try {
       // Show loading state
-      const downloadButton = document.querySelector('button[class*="bg-purple-600"]') as HTMLButtonElement
-      const originalContent = downloadButton?.innerHTML || ''
       if (downloadButton) {
         downloadButton.innerHTML = '<span class="animate-spin">⟳</span> جاري الإنشاء...'
         downloadButton.disabled = true
@@ -352,7 +354,6 @@ export default function DeliveryNotePage() {
       alert('حدث خطأ أثناء إنشاء ملف PDF')
       
       // Restore button state on error
-      const downloadButton = document.querySelector('button[class*="bg-purple-600"]') as HTMLButtonElement
       if (downloadButton) {
         downloadButton.innerHTML = originalContent
         downloadButton.disabled = false
