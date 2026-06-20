@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { AlertCircle, Clock, DollarSign, User, Calendar, TrendingUp, FileText, CreditCard, Eye, ArrowRight, CheckCircle, Search, Filter, ShoppingCart } from 'lucide-react'
+import { AlertCircle, Clock, DollarSign, User, Calendar, TrendingUp, FileText, CreditCard, Eye, ArrowRight, CheckCircle, Search, Filter, ShoppingCart, Wallet } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
@@ -66,7 +66,13 @@ export default function CreditsPage() {
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceWithPayments | null>(null)
   const [showChequePaymentModal, setShowChequePaymentModal] = useState(false)
   const [selectedChequeInvoice, setSelectedChequeInvoice] = useState<InvoiceWithPayments | null>(null)
-  
+
+  // Enregistrement d'une dette (paiement réparti sur les factures les plus anciennes)
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [paymentClient, setPaymentClient] = useState<ClientCredit | null>(null)
+  const [paymentAmount, setPaymentAmount] = useState('')
+  const [isSubmittingPayment, setIsSubmittingPayment] = useState(false)
+
   // Filtres
   const [searchTerm, setSearchTerm] = useState('')
   const [filterAmount, setFilterAmount] = useState<'all' | 'low' | 'medium' | 'high'>('all')
@@ -189,6 +195,8 @@ export default function CreditsPage() {
     }
   }
 
+  // Charge TOUTES les factures du client (payées, partielles, non payées) pour
+  // l'historique complet, des plus anciennes aux plus récentes.
   const loadClientInvoices = async (clientId: string) => {
     const { data } = await supabase
       .from('invoices')
@@ -198,23 +206,131 @@ export default function CreditsPage() {
         payments (*)
       `)
       .eq('client_id', clientId)
-      .order('created_at', { ascending: false })
+      .order('created_at', { ascending: true })
 
     if (data) {
-      // Filtrer les factures non soldées côté client
-      const unpaidInvoices = data.filter(invoice => {
-        const remaining = (invoice.total_amount || 0) - (invoice.paid_amount || 0)
-        return invoice.payment_status === 'partial' || 
-               invoice.payment_status === 'credit' || 
-               remaining > 0
-      })
-
-      const invoicesWithPayments = unpaidInvoices.map(invoice => ({
+      const invoicesWithPayments = data.map(invoice => ({
         ...invoice,
         remaining: (invoice.total_amount || 0) - (invoice.paid_amount || 0),
-        payment_method: invoice.payments?.[0]?.payment_method || null
+        payment_method: invoice.payment_method || invoice.payments?.[0]?.payment_method || null
       }))
       setClientInvoices(invoicesWithPayments)
+    }
+  }
+
+  // Statut de paiement d'une facture : 'paid' (vert), 'partial' (orange), 'unpaid' (rouge)
+  const getInvoiceStatus = (invoice: InvoiceWithPayments): 'paid' | 'partial' | 'unpaid' => {
+    const total = invoice.total_amount || 0
+    const paid = invoice.paid_amount || 0
+    if (total > 0 && paid >= total - 0.009) return 'paid'
+    if (paid > 0.009) return 'partial'
+    return 'unpaid'
+  }
+
+  const statusStyles: Record<'paid' | 'partial' | 'unpaid', { border: string; badge: string; label: string }> = {
+    paid: { border: 'border-green-400 bg-green-50', badge: 'bg-green-100 text-green-700', label: 'مدفوع' },
+    partial: { border: 'border-orange-400 bg-orange-50', badge: 'bg-orange-100 text-orange-700', label: 'مدفوع جزئياً' },
+    unpaid: { border: 'border-red-400 bg-red-50', badge: 'bg-red-100 text-red-700', label: 'غير مدفوع' },
+  }
+
+  // Insère un enregistrement de paiement avec repli si certaines colonnes
+  // n'existent pas dans le schéma déployé.
+  const insertPayment = async (invoiceId: string, clientId: string | null, amount: number, dateIso: string) => {
+    const base: any = {
+      invoice_id: invoiceId,
+      client_id: clientId,
+      amount,
+      payment_method: 'cash',
+      payment_date: dateIso,
+      status: 'completed',
+    }
+    const { error } = await supabase.from('payments').insert({
+      ...base,
+      payment_number: `PAY-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      notes: 'دفعة من متابعة الديون',
+    })
+    if (error) {
+      const retry = await supabase.from('payments').insert(base)
+      if (retry.error) console.error('Payment insert failed:', retry.error)
+    }
+  }
+
+  // Enregistre un paiement et le répartit sur les factures les plus anciennes
+  // d'abord (FIFO). Ex: 1500 DH sur 5 factures de 1000 -> facture 1 soldée,
+  // facture 2 partielle (500 restant), les autres inchangées.
+  const handleRecordPayment = async () => {
+    if (!paymentClient) return
+    const amount = parseFloat(paymentAmount)
+    if (!amount || amount <= 0) {
+      alert('يرجى إدخال مبلغ صحيح')
+      return
+    }
+    if (amount > paymentClient.remaining + 0.01) {
+      alert(`المبلغ أكبر من إجمالي الدين (${paymentClient.remaining.toFixed(2)} MAD)`)
+      return
+    }
+
+    setIsSubmittingPayment(true)
+    try {
+      // Récupérer les factures non soldées, des plus anciennes aux plus récentes
+      const { data: invs, error } = await supabase
+        .from('invoices')
+        .select('*')
+        .eq('client_id', paymentClient.client_id)
+        .order('created_at', { ascending: true })
+
+      if (error) throw error
+
+      const unpaid = (invs || []).filter(inv => {
+        const remaining = (inv.total_amount || 0) - (inv.paid_amount || 0)
+        const method = inv.payment_method
+        return remaining > 0.009 && method !== 'check' && method !== 'cheque'
+      })
+
+      let leftover = amount
+      const todayIso = new Date().toISOString()
+
+      for (const inv of unpaid) {
+        if (leftover <= 0.009) break
+        const total = inv.total_amount || 0
+        const alreadyPaid = inv.paid_amount || 0
+        const invRemaining = total - alreadyPaid
+        const applied = Math.min(invRemaining, leftover)
+        const newPaid = alreadyPaid + applied
+        const newRemaining = Math.max(0, total - newPaid)
+        const newStatus = newRemaining <= 0.009 ? 'paid' : 'partial'
+
+        const { error: updErr } = await supabase
+          .from('invoices')
+          .update({
+            paid_amount: newPaid,
+            remaining_amount: newRemaining,
+            payment_status: newStatus,
+          })
+          .eq('id', inv.id)
+        if (updErr) throw updErr
+
+        await insertPayment(inv.id, paymentClient.client_id, applied, todayIso)
+        leftover -= applied
+      }
+
+      alert('✅ تم تسجيل الدفعة وتوزيعها على الفواتير بنجاح')
+      setShowPaymentModal(false)
+      setPaymentAmount('')
+      const clientId = paymentClient.client_id
+      setPaymentClient(null)
+
+      await loadCredits()
+      await loadAllInvoices()
+      // Rafraîchir le détail si le client est ouvert
+      if (selectedClient && selectedClient.client_id === clientId) {
+        await loadClientInvoices(clientId)
+      }
+    } catch (e) {
+      console.error('Error recording payment:', e)
+      alert(`❌ حدث خطأ أثناء تسجيل الدفعة: ${e instanceof Error ? e.message : ''}`)
+    } finally {
+      setIsSubmittingPayment(false)
     }
   }
 
@@ -250,26 +366,25 @@ export default function CreditsPage() {
 
   const handleClientClick = (client: ClientCredit) => {
     setSelectedClient(client)
-
-    const localClientInvoices = creditInvoices.filter(invoice => {
-      if (client.client_id && invoice.client_id) {
-        return invoice.client_id === client.client_id
-      }
-
-      return (invoice.client?.company_name_ar || 'عميل غير معروف') === client.client_name
-    })
-
-    if (localClientInvoices.length > 0) {
-      setClientInvoices(localClientInvoices)
-      return
-    }
+    setClientInvoices([])
 
     if (client.client_id) {
+      // Charger l'historique complet (factures payées + non payées)
       loadClientInvoices(client.client_id)
       return
     }
 
-    setClientInvoices([])
+    // Repli : pas d'id client, on filtre localement les factures non soldées
+    const localClientInvoices = creditInvoices.filter(invoice =>
+      (invoice.client?.company_name_ar || 'عميل غير معروف') === client.client_name
+    )
+    setClientInvoices(localClientInvoices)
+  }
+
+  const openPaymentModal = (client: ClientCredit) => {
+    setPaymentClient(client)
+    setPaymentAmount('')
+    setShowPaymentModal(true)
   }
 
   const handleInvoiceClick = (invoice: InvoiceWithPayments) => {
@@ -703,6 +818,13 @@ export default function CreditsPage() {
                     <td className="px-6 py-4">
                       <div className="flex gap-2">
                         <button
+                          onClick={() => openPaymentModal(client)}
+                          className="bg-green-100 hover:bg-green-200 text-green-700 p-2 rounded-lg transition-colors"
+                          title="تسجيل دفعة"
+                        >
+                          <Wallet size={18} />
+                        </button>
+                        <button
                           onClick={() => handleClientClick(client)}
                           className="bg-red-100 hover:bg-red-200 text-red-700 p-2 rounded-lg transition-colors"
                           title="عرض التفاصيل"
@@ -722,6 +844,26 @@ export default function CreditsPage() {
                 ))
               )}
             </tbody>
+            {!loading && filteredCredits.length > 0 && (
+              <tfoot className="bg-gray-100 border-t-2 border-gray-300">
+                <tr>
+                  <td className="px-6 py-3 font-bold text-gray-800">المجموع</td>
+                  <td className="px-6 py-3 font-bold text-gray-700">
+                    {filteredCredits.reduce((s, c) => s + c.total_debt, 0).toFixed(2)} MAD
+                  </td>
+                  <td className="px-6 py-3 font-bold text-green-600">
+                    {filteredCredits.reduce((s, c) => s + c.total_paid, 0).toFixed(2)} MAD
+                  </td>
+                  <td className="px-6 py-3 font-bold text-red-600 text-lg">
+                    {filteredCredits.reduce((s, c) => s + c.remaining, 0).toFixed(2)} MAD
+                  </td>
+                  <td className="px-6 py-3 font-bold text-gray-700">
+                    {filteredCredits.reduce((s, c) => s + c.invoices_count, 0)}
+                  </td>
+                  <td colSpan={3}></td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </div>
@@ -941,33 +1083,78 @@ export default function CreditsPage() {
               </button>
             </div>
 
+            {/* Résumé du crédit + bouton de paiement */}
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 bg-gray-50 border border-gray-200 rounded-lg p-3">
+              <div className="flex flex-wrap gap-4 text-sm">
+                <div>
+                  <span className="text-gray-500">إجمالي الدين: </span>
+                  <span className="font-bold text-gray-800">{selectedClient.total_debt.toFixed(2)} MAD</span>
+                </div>
+                <div>
+                  <span className="text-gray-500">المدفوع: </span>
+                  <span className="font-bold text-green-600">{selectedClient.total_paid.toFixed(2)} MAD</span>
+                </div>
+                <div>
+                  <span className="text-gray-500">المتبقي: </span>
+                  <span className="font-bold text-red-600">{selectedClient.remaining.toFixed(2)} MAD</span>
+                </div>
+              </div>
+              <button
+                onClick={() => openPaymentModal(selectedClient)}
+                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors"
+              >
+                <Wallet size={16} />
+                تسجيل دفعة
+              </button>
+            </div>
+
+            {/* Légende des couleurs */}
+            <div className="flex flex-wrap gap-3 mb-3 text-xs">
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-400 inline-block" /> مدفوع</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-orange-400 inline-block" /> مدفوع جزئياً</span>
+              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-400 inline-block" /> غير مدفوع</span>
+            </div>
+
             <div className="space-y-3">
               {clientInvoices.length > 0 ? clientInvoices.map(invoice => {
+                const status = getInvoiceStatus(invoice)
+                const style = statusStyles[status]
+                const sortedPayments = [...(invoice.payments || [])].sort(
+                  (a, b) => new Date(a.payment_date).getTime() - new Date(b.payment_date).getTime()
+                )
                 return (
-                  <div 
-                    key={invoice.id} 
-                    className="border-2 border-gray-200 rounded-lg p-4 hover:border-red-300 transition-colors"
+                  <div
+                    key={invoice.id}
+                    className={`border-2 rounded-lg p-4 transition-colors ${style.border}`}
                   >
                     <div className="flex justify-between items-start gap-4">
                       <div className="flex-1 min-w-0 cursor-pointer" onClick={() => handleInvoiceClick(invoice)}>
                         <div className="flex items-center gap-3 mb-2 flex-wrap">
                           <p className="font-bold text-gray-800">فاتورة #{invoice.invoice_number || invoice.id.slice(0, 8)}</p>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${style.badge}`}>{style.label}</span>
                           {getPaymentTypeDisplay(invoice.payment_method)}
                         </div>
                         <p className="text-sm text-gray-600 flex items-center gap-1">
                           <Calendar size={14} />
-                          {new Date(invoice.created_at).toLocaleDateString('ar-DZ')}
+                          تاريخ الإصدار: {new Date(invoice.invoice_date || invoice.created_at).toLocaleDateString('ar-DZ')}
                         </p>
-                        {invoice.payments && invoice.payments.length > 0 && (
-                          <p className="text-xs text-blue-600 mt-1">
-                            {invoice.payments.length} عملية دفع
-                          </p>
+                        {sortedPayments.length > 0 && (
+                          <div className="mt-1 space-y-0.5">
+                            {sortedPayments.map((p, i) => (
+                              <p key={p.id || i} className="text-xs text-blue-600 flex items-center gap-1">
+                                <CheckCircle size={12} />
+                                دفعة {p.amount.toFixed(2)} MAD — {new Date(p.payment_date).toLocaleDateString('ar-DZ')}
+                              </p>
+                            ))}
+                          </div>
                         )}
                       </div>
                       <div className="text-left whitespace-nowrap">
                         <p className="text-sm text-gray-600">المجموع: {invoice.total_amount?.toFixed(2)} MAD</p>
-                        <p className="text-sm text-green-600">المدفوع: {invoice.paid_amount?.toFixed(2)} MAD</p>
-                        <p className="text-lg font-bold text-red-600">الباقي: {invoice.remaining.toFixed(2)} MAD</p>
+                        <p className="text-sm text-green-600">المدفوع: {(invoice.paid_amount || 0).toFixed(2)} MAD</p>
+                        <p className={`text-lg font-bold ${status === 'paid' ? 'text-green-600' : 'text-red-600'}`}>
+                          الباقي: {Math.max(0, invoice.remaining).toFixed(2)} MAD
+                        </p>
                         <button
                           onClick={() => openInvoiceInPOS(invoice)}
                           className="mt-2 flex items-center gap-1 bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors w-full justify-center"
@@ -985,6 +1172,68 @@ export default function CreditsPage() {
                   لا توجد فواتير لهذا العميل
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal d'enregistrement d'une dette (paiement réparti FIFO) */}
+      {showPaymentModal && paymentClient && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4" onClick={() => !isSubmittingPayment && setShowPaymentModal(false)}>
+          <div className="bg-white rounded-xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold flex items-center gap-2">
+                <Wallet className="text-green-600" />
+                تسجيل دفعة
+              </h3>
+              <button
+                onClick={() => setShowPaymentModal(false)}
+                disabled={isSubmittingPayment}
+                className="text-gray-500 hover:text-gray-700 disabled:opacity-50"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="mb-4 p-4 bg-gray-50 rounded-lg space-y-1">
+              <p className="text-sm text-gray-600">العميل: <span className="font-bold text-gray-800">{paymentClient.client_name}</span></p>
+              <p className="text-sm text-gray-600">إجمالي الدين المتبقي: <span className="font-bold text-red-600">{paymentClient.remaining.toFixed(2)} MAD</span></p>
+              <p className="text-sm text-gray-600">عدد الفواتير غير المسددة: <span className="font-bold">{paymentClient.invoices_count}</span></p>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-bold text-gray-700 mb-1">المبلغ المدفوع (MAD)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                autoFocus
+                value={paymentAmount}
+                onChange={(e) => setPaymentAmount(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !isSubmittingPayment) handleRecordPayment() }}
+                placeholder="0.00"
+                className="w-full p-3 border border-gray-300 rounded-lg text-lg font-bold focus:border-green-500 focus:outline-none"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                سيتم توزيع المبلغ على الفواتير الأقدم أولاً (الأقدم تُسدّد بالكامل قبل التالية).
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleRecordPayment}
+                disabled={isSubmittingPayment}
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-lg font-bold transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+              >
+                {isSubmittingPayment ? 'جاري الحفظ...' : (<><CheckCircle size={18} /> تأكيد الدفع</>)}
+              </button>
+              <button
+                onClick={() => setShowPaymentModal(false)}
+                disabled={isSubmittingPayment}
+                className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-3 rounded-lg font-bold transition-colors disabled:opacity-60"
+              >
+                إلغاء
+              </button>
             </div>
           </div>
         </div>
