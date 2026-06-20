@@ -965,7 +965,6 @@ export default function ProductFormModal({ isOpen, mode, productId, onClose, onS
                           onChange={(e) => updatePrimaryVariant(index, 'variant_name', e.target.value)}
                           className="w-full p-2 border border-gray-300 rounded-lg text-sm"
                           placeholder="لون / حجم / ذوق..."
-                          required
                         />
                       </div>
                       <div>
@@ -976,7 +975,6 @@ export default function ProductFormModal({ isOpen, mode, productId, onClose, onS
                             value={pv.barcode}
                             onChange={(e) => updatePrimaryVariant(index, 'barcode', e.target.value)}
                             className="flex-1 p-2 border border-gray-300 rounded-lg text-sm"
-                            required
                           />
                           <button
                             type="button"
