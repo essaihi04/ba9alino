@@ -73,6 +73,12 @@ export default function CreditsPage() {
   const [paymentAmount, setPaymentAmount] = useState('')
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false)
 
+  // Filtres de la liste des factures dans le détail client
+  const [invStatusFilter, setInvStatusFilter] = useState<'all' | 'paid' | 'partial' | 'unpaid'>('all')
+  const [invPeriodFilter, setInvPeriodFilter] = useState<'all' | 'today' | '7days' | '30days' | 'month' | 'custom'>('all')
+  const [invDateFrom, setInvDateFrom] = useState('')
+  const [invDateTo, setInvDateTo] = useState('')
+
   // Filtres
   const [searchTerm, setSearchTerm] = useState('')
   const [filterAmount, setFilterAmount] = useState<'all' | 'low' | 'medium' | 'high'>('all')
@@ -376,6 +382,10 @@ export default function CreditsPage() {
   const handleClientClick = (client: ClientCredit) => {
     setSelectedClient(client)
     setClientInvoices([])
+    setInvStatusFilter('all')
+    setInvPeriodFilter('all')
+    setInvDateFrom('')
+    setInvDateTo('')
 
     if (client.client_id) {
       // Charger l'historique complet (factures payées + non payées)
@@ -1078,7 +1088,7 @@ export default function CreditsPage() {
       {/* Modal détails client */}
       {selectedClient && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setSelectedClient(null)}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[85vh] overflow-y-auto p-5" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-6xl max-h-[90vh] overflow-y-auto p-5" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold flex items-center gap-2">
                 <User className="text-red-600" />
@@ -1117,71 +1127,143 @@ export default function CreditsPage() {
               </button>
             </div>
 
-            {/* Légende des couleurs */}
-            <div className="flex flex-wrap gap-3 mb-3 text-xs">
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-400 inline-block" /> مدفوع</span>
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-orange-400 inline-block" /> مدفوع جزئياً</span>
-              <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-400 inline-block" /> غير مدفوع</span>
+            {/* Filtres de la liste */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+              <select
+                value={invStatusFilter}
+                onChange={(e) => setInvStatusFilter(e.target.value as any)}
+                className="px-2 py-1.5 text-xs border border-gray-200 rounded focus:border-blue-500 focus:outline-none"
+              >
+                <option value="all">كل الحالات</option>
+                <option value="paid">مدفوع</option>
+                <option value="partial">مدفوع جزئياً</option>
+                <option value="unpaid">غير مدفوع</option>
+              </select>
+              <select
+                value={invPeriodFilter}
+                onChange={(e) => setInvPeriodFilter(e.target.value as any)}
+                className="px-2 py-1.5 text-xs border border-gray-200 rounded focus:border-blue-500 focus:outline-none"
+              >
+                <option value="all">كل الفترات</option>
+                <option value="today">اليوم</option>
+                <option value="7days">7 أيام</option>
+                <option value="30days">30 يوم</option>
+                <option value="month">هذا الشهر</option>
+                <option value="custom">فترة مخصصة</option>
+              </select>
+              <input
+                type="date"
+                value={invDateFrom}
+                onChange={(e) => { setInvDateFrom(e.target.value); setInvPeriodFilter('custom') }}
+                className="px-2 py-1.5 text-xs border border-gray-200 rounded focus:border-blue-500 focus:outline-none"
+              />
+              <input
+                type="date"
+                value={invDateTo}
+                onChange={(e) => { setInvDateTo(e.target.value); setInvPeriodFilter('custom') }}
+                className="px-2 py-1.5 text-xs border border-gray-200 rounded focus:border-blue-500 focus:outline-none"
+              />
             </div>
 
-            <div className="space-y-3">
-              {clientInvoices.length > 0 ? clientInvoices.map(invoice => {
-                const status = getInvoiceStatus(invoice)
-                const style = statusStyles[status]
-                const sortedPayments = [...(invoice.payments || [])].sort(
-                  (a, b) => new Date(a.payment_date).getTime() - new Date(b.payment_date).getTime()
-                )
-                return (
-                  <div
-                    key={invoice.id}
-                    className={`border-2 rounded-lg p-4 transition-colors ${style.border}`}
-                  >
-                    <div className="flex justify-between items-start gap-4">
-                      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => handleInvoiceClick(invoice)}>
-                        <div className="flex items-center gap-3 mb-2 flex-wrap">
-                          <p className="font-bold text-gray-800">فاتورة #{invoice.invoice_number || invoice.id.slice(0, 8)}</p>
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${style.badge}`}>{style.label}</span>
-                          {getPaymentTypeDisplay(invoice.payment_method)}
-                        </div>
-                        <p className="text-sm text-gray-600 flex items-center gap-1">
-                          <Calendar size={14} />
-                          تاريخ الإصدار: {new Date(invoice.invoice_date || invoice.created_at).toLocaleDateString('ar-DZ')}
-                        </p>
-                        {sortedPayments.length > 0 && (
-                          <div className="mt-1 space-y-0.5">
-                            {sortedPayments.map((p, i) => (
-                              <p key={p.id || i} className="text-xs text-blue-600 flex items-center gap-1">
-                                <CheckCircle size={12} />
-                                دفعة {p.amount.toFixed(2)} MAD — {new Date(p.payment_date).toLocaleDateString('ar-DZ')}
-                              </p>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      <div className="text-left whitespace-nowrap">
-                        <p className="text-sm text-gray-600">المجموع: {invoice.total_amount?.toFixed(2)} MAD</p>
-                        <p className="text-sm text-green-600">المدفوع: {(invoice.paid_amount || 0).toFixed(2)} MAD</p>
-                        <p className={`text-lg font-bold ${status === 'paid' ? 'text-green-600' : 'text-red-600'}`}>
-                          الباقي: {Math.max(0, invoice.remaining).toFixed(2)} MAD
-                        </p>
-                        <button
-                          onClick={() => openInvoiceInPOS(invoice)}
-                          className="mt-2 flex items-center gap-1 bg-orange-500 hover:bg-orange-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors w-full justify-center"
-                          title="تعديل في الكايس"
-                        >
-                          <ShoppingCart size={13} />
-                          تعديل في الكايس
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )
-              }) : (
-                <div className="text-center py-8 text-gray-500">
-                  لا توجد فواتير لهذا العميل
-                </div>
-              )}
+            {/* Légende + compteur */}
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3 text-xs">
+              <div className="flex flex-wrap gap-3">
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-green-400 inline-block" /> مدفوع</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-orange-400 inline-block" /> مدفوع جزئياً</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-full bg-red-400 inline-block" /> غير مدفوع</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setInvStatusFilter('all'); setInvPeriodFilter('all'); setInvDateFrom(''); setInvDateTo('') }}
+                className="text-blue-600 hover:text-blue-700 font-semibold"
+              >
+                إعادة التصفية
+              </button>
             </div>
+
+            {(() => {
+              const today = new Date()
+              const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+              const filtered = clientInvoices.filter(invoice => {
+                const status = getInvoiceStatus(invoice)
+                if (invStatusFilter !== 'all' && status !== invStatusFilter) return false
+
+                const dateValue = toInputDateValue(invoice.invoice_date || invoice.created_at)
+                const d = dateValue ? new Date(dateValue) : null
+                if (invPeriodFilter !== 'all' && invPeriodFilter !== 'custom' && d) {
+                  const diffDays = Math.floor((startOfToday.getTime() - d.getTime()) / (1000 * 60 * 60 * 24))
+                  const isSameMonth = d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth()
+                  if (invPeriodFilter === 'today' && diffDays !== 0) return false
+                  if (invPeriodFilter === '7days' && (diffDays < 0 || diffDays > 7)) return false
+                  if (invPeriodFilter === '30days' && (diffDays < 0 || diffDays > 30)) return false
+                  if (invPeriodFilter === 'month' && !isSameMonth) return false
+                }
+                if (invDateFrom && dateValue && dateValue < invDateFrom) return false
+                if (invDateTo && dateValue && dateValue > invDateTo) return false
+                return true
+              })
+
+              if (clientInvoices.length === 0) {
+                return <div className="text-center py-8 text-gray-500">لا توجد فواتير لهذا العميل</div>
+              }
+              if (filtered.length === 0) {
+                return <div className="text-center py-8 text-gray-500">لا توجد فواتير مطابقة للتصفية</div>
+              }
+
+              return (
+                <>
+                  <p className="text-xs text-gray-500 mb-2">{filtered.length} فاتورة</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {filtered.map(invoice => {
+                      const status = getInvoiceStatus(invoice)
+                      const style = statusStyles[status]
+                      const sortedPayments = [...(invoice.payments || [])].sort(
+                        (a, b) => new Date(a.payment_date).getTime() - new Date(b.payment_date).getTime()
+                      )
+                      const lastPayment = sortedPayments[sortedPayments.length - 1]
+                      return (
+                        <div
+                          key={invoice.id}
+                          onClick={() => handleInvoiceClick(invoice)}
+                          className={`border rounded-lg p-2 transition-shadow cursor-pointer hover:shadow-md ${style.border}`}
+                        >
+                          <div className="flex items-center justify-between gap-1 mb-1">
+                            <span className="font-bold text-gray-800 text-xs truncate">#{invoice.invoice_number || invoice.id.slice(0, 8)}</span>
+                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${style.badge}`}>{style.label}</span>
+                          </div>
+                          <div className="text-[11px] text-gray-600 flex items-center gap-1 mb-1">
+                            <Calendar size={11} />
+                            {new Date(invoice.invoice_date || invoice.created_at).toLocaleDateString('ar-DZ')}
+                          </div>
+                          <div className="grid grid-cols-2 gap-x-1 text-[11px] mb-1">
+                            <span className="text-gray-500">المجموع</span>
+                            <span className="text-left font-semibold text-gray-700">{(invoice.total_amount || 0).toFixed(2)}</span>
+                            <span className="text-gray-500">المدفوع</span>
+                            <span className="text-left font-semibold text-green-600">{(invoice.paid_amount || 0).toFixed(2)}</span>
+                            <span className="text-gray-500">الباقي</span>
+                            <span className={`text-left font-bold ${status === 'paid' ? 'text-green-600' : 'text-red-600'}`}>{Math.max(0, invoice.remaining).toFixed(2)}</span>
+                          </div>
+                          {lastPayment && (
+                            <div className="text-[10px] text-blue-600 flex items-center gap-1 mb-1 truncate">
+                              <CheckCircle size={10} />
+                              آخر دفعة: {new Date(lastPayment.payment_date).toLocaleDateString('ar-DZ')}
+                            </div>
+                          )}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); openInvoiceInPOS(invoice) }}
+                            className="mt-1 flex items-center gap-1 bg-orange-500 hover:bg-orange-600 text-white px-2 py-1 rounded text-[10px] font-bold transition-colors w-full justify-center"
+                            title="تعديل في الكايس"
+                          >
+                            <ShoppingCart size={11} />
+                            تعديل في الكايس
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </>
+              )
+            })()}
           </div>
         </div>
       )}
