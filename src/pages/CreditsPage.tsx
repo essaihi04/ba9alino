@@ -300,14 +300,23 @@ export default function CreditsPage() {
         const newRemaining = Math.max(0, total - newPaid)
         const newStatus = newRemaining <= 0.009 ? 'paid' : 'partial'
 
-        const { error: updErr } = await supabase
-          .from('invoices')
-          .update({
-            paid_amount: newPaid,
-            remaining_amount: newRemaining,
-            payment_status: newStatus,
-          })
-          .eq('id', inv.id)
+        // Mise à jour progressive : certaines installations n'ont pas toutes
+        // les colonnes (payment_status / remaining_amount). On tente du payload
+        // le plus complet au plus minimal.
+        const updateAttempts: any[] = [
+          { paid_amount: newPaid, remaining_amount: newRemaining, payment_status: newStatus },
+          { paid_amount: newPaid, remaining_amount: newRemaining },
+          { paid_amount: newPaid },
+        ]
+        let updErr: any = null
+        for (const payload of updateAttempts) {
+          const res = await supabase.from('invoices').update(payload).eq('id', inv.id)
+          if (!res.error) { updErr = null; break }
+          updErr = res.error
+          // Si l'erreur ne concerne pas une colonne manquante, inutile de réessayer
+          const msg = String(res.error.message || '')
+          if (!msg.includes('column') && res.error.code !== 'PGRST204') break
+        }
         if (updErr) throw updErr
 
         await insertPayment(inv.id, paymentClient.client_id, applied, todayIso)
