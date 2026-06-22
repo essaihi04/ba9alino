@@ -727,10 +727,13 @@ export default function ProductFormModal({ isOpen, mode, productId, onClose, onS
         }
         for (const variant of variants.filter((v) => v.id)) {
           await supabase.from('product_variants').update({
+            // NOTE: le code-barres est géré uniquement par la passe "variantes
+            // primaires". product_primary_variants étant une VUE de product_variants
+            // (mêmes lignes), réécrire barcode ici écraserait la valeur déjà posée
+            // et ferait "réapparaître" l'ancien code-barres.
             variant_name: variant.variant_name,
             unit_type: variant.unit_type,
             quantity_contained: variant.quantity_contained,
-            barcode: cleanBarcode(variant.barcode),
             primary_variant_id: variant.primary_variant_id || null,
             price_a: variant.price_a,
             price_b: variant.price_b,
