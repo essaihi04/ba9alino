@@ -115,7 +115,6 @@ export default function ProductFormModal({ isOpen, mode, productId, onClose, onS
   const barcodeInputRef = useRef<HTMLInputElement | null>(null)
 
   // ---- Helpers ------------------------------------------------------
-  const generateBarcode = () => Math.floor(Math.random() * 1000000000000).toString().padStart(12, '0')
   const parsePrice = (value: string) => {
     const n = Number(value)
     return Number.isFinite(n) ? n : 0
@@ -317,7 +316,7 @@ export default function ProductFormModal({ isOpen, mode, productId, onClose, onS
       ...prev,
       {
         variant_name: '',
-        barcode: generateBarcode(),
+        barcode: '',
         price_a: parsePrice(formData.price_a),
         price_b: parsePrice(formData.price_b),
         price_c: parsePrice(formData.price_c),
@@ -431,7 +430,7 @@ export default function ProductFormModal({ isOpen, mode, productId, onClose, onS
       if (normalizedPrimary.length === 0 && normalizedVariants.length > 0) {
         const defaultPrimary: ProductPrimaryVariant = {
           variant_name: 'افتراضي',
-          barcode: String(product.sku || '').trim() || generateBarcode(),
+          barcode: String(product.sku || '').trim(),
           price_a: product.price_a ?? 0,
           price_b: product.price_b ?? 0,
           price_c: product.price_c ?? 0,
@@ -577,7 +576,7 @@ export default function ProductFormModal({ isOpen, mode, productId, onClose, onS
           })()
         : [{
             variant_name: 'افتراضي',
-            barcode: String(formData.sku || '').trim() || generateBarcode(),
+            barcode: String(formData.sku || '').trim(),
             price_a: parsePrice(formData.price_a),
             price_b: parsePrice(formData.price_b),
             price_c: parsePrice(formData.price_c),
@@ -633,7 +632,7 @@ export default function ProductFormModal({ isOpen, mode, productId, onClose, onS
           })()
         : [{
             variant_name: 'افتراضي',
-            barcode: String(formData.sku || '').trim() || generateBarcode(),
+            barcode: String(formData.sku || '').trim(),
             price_a: parsePrice(formData.price_a),
             price_b: parsePrice(formData.price_b),
             price_c: parsePrice(formData.price_c),
@@ -986,22 +985,13 @@ export default function ProductFormModal({ isOpen, mode, productId, onClose, onS
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-gray-600 mb-1">الباركود</label>
-                        <div className="flex gap-1">
-                          <input
-                            type="text"
-                            value={pv.barcode}
-                            onChange={(e) => updatePrimaryVariant(index, 'barcode', e.target.value)}
-                            className="flex-1 p-2 border border-gray-300 rounded-lg text-sm"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => updatePrimaryVariant(index, 'barcode', generateBarcode())}
-                            className="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded-lg"
-                            title="توليد كود"
-                          >
-                            <Barcode size={16} />
-                          </button>
-                        </div>
+                        <input
+                          type="text"
+                          value={pv.barcode}
+                          onChange={(e) => updatePrimaryVariant(index, 'barcode', e.target.value)}
+                          placeholder="امسح أو اكتب الباركود"
+                          className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                        />
                       </div>
                     </div>
 

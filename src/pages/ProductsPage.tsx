@@ -1056,7 +1056,7 @@ export default function ProductsPage() {
           })()
         : [{
             variant_name: 'افتراضي',
-            barcode: String(formData.sku || '').trim() || generateBarcode(),
+            barcode: String(formData.sku || '').trim(),
             price_a: parsePrice(formData.price_a),
             price_b: parsePrice(formData.price_b),
             price_c: parsePrice(formData.price_c),
@@ -1353,7 +1353,7 @@ export default function ProductsPage() {
     if (normalizedPrimary.length === 0 && normalizedVariants.length > 0) {
       const defaultPrimary: ProductPrimaryVariant = {
         variant_name: 'افتراضي',
-        barcode: String(product.sku || '').trim() || generateBarcode(),
+        barcode: String(product.sku || '').trim(),
         price_a: product.price_a ?? 0,
         price_b: product.price_b ?? 0,
         price_c: product.price_c ?? 0,
@@ -1421,16 +1421,12 @@ export default function ProductsPage() {
     setVariants(normalizedVariants)
   }
 
-  const generateBarcode = () => {
-    return Math.floor(Math.random() * 1000000000000).toString().padStart(12, '0')
-  }
-
   const addVariant = () => {
     const newVariant: ProductVariant = {
       variant_name: '',
       unit_type: 'unit',
       quantity_contained: 1,
-      barcode: generateBarcode(),
+      barcode: '',
       purchase_price: 0,
       price_a: 0,
       price_b: 0,
@@ -1448,7 +1444,7 @@ export default function ProductsPage() {
   const addPrimaryVariant = () => {
     const newVariant: ProductPrimaryVariant = {
       variant_name: '',
-      barcode: generateBarcode(),
+      barcode: '',
       price_a: parsePrice(formData.price_a),
       price_b: parsePrice(formData.price_b),
       price_c: parsePrice(formData.price_c),
@@ -1637,7 +1633,7 @@ export default function ProductsPage() {
           })()
         : [{
             variant_name: 'افتراضي',
-            barcode: String(formData.sku || '').trim() || generateBarcode(),
+            barcode: String(formData.sku || '').trim(),
             price_a: parsePrice(formData.price_a),
             price_b: parsePrice(formData.price_b),
             price_c: parsePrice(formData.price_c),
@@ -2644,23 +2640,14 @@ export default function ProductsPage() {
                         </div>
                         <div>
                           <label className="block text-xs font-bold text-gray-600 mb-1">الباركود</label>
-                          <div className="flex gap-1">
-                            <input
-                              type="text"
-                              value={pv.barcode}
-                              onChange={(e) => updatePrimaryVariant(index, 'barcode', e.target.value)}
-                              className="flex-1 p-2 border border-gray-300 rounded-lg text-sm"
-                              required
-                            />
-                            <button
-                              type="button"
-                              onClick={() => updatePrimaryVariant(index, 'barcode', generateBarcode())}
-                              className="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded-lg"
-                              title="توليد كود"
-                            >
-                              <Barcode size={16} />
-                            </button>
-                          </div>
+                          <input
+                            type="text"
+                            value={pv.barcode}
+                            onChange={(e) => updatePrimaryVariant(index, 'barcode', e.target.value)}
+                            placeholder="امسح أو اكتب الباركود"
+                            className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                            required
+                          />
                         </div>
                       </div>
 
@@ -2872,23 +2859,14 @@ export default function ProductsPage() {
                               </div>
                               <div>
                                 <label className="block text-xs font-bold text-gray-600 mb-1">الباركود</label>
-                                <div className="flex gap-1">
-                                  <input
-                                    type="text"
-                                    value={pv.barcode}
-                                    onChange={(e) => updatePrimaryVariant(index, 'barcode', e.target.value)}
-                                    className="flex-1 p-2 border border-gray-300 rounded-lg text-sm"
-                                    required
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => updatePrimaryVariant(index, 'barcode', generateBarcode())}
-                                    className="px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded-lg"
-                                    title="توليد كود"
-                                  >
-                                    <Barcode size={16} />
-                                  </button>
-                                </div>
+                                <input
+                                  type="text"
+                                  value={pv.barcode}
+                                  onChange={(e) => updatePrimaryVariant(index, 'barcode', e.target.value)}
+                                  placeholder="امسح أو اكتب الباركود"
+                                  className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                                  required
+                                />
                               </div>
                             </div>
 
