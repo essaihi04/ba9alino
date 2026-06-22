@@ -19,7 +19,7 @@ interface ProductVariant {
   variant_name: string
   unit_type: string
   quantity_contained: number
-  barcode: string
+  barcode: string | null
   purchase_price: number
   price_a: number
   price_b: number
@@ -36,7 +36,7 @@ interface ProductPrimaryVariant {
   id?: string
   product_id?: string
   variant_name: string
-  barcode: string
+  barcode: string | null
   price_a: number
   price_b: number
   price_c: number
@@ -118,6 +118,11 @@ export default function ProductFormModal({ isOpen, mode, productId, onClose, onS
   const parsePrice = (value: string) => {
     const n = Number(value)
     return Number.isFinite(n) ? n : 0
+  }
+  // Code-barres optionnel : null si vide (contrainte UNIQUE).
+  const cleanBarcode = (value: any): string | null => {
+    const s = String(value ?? '').trim()
+    return s === '' ? null : s
   }
   const parseQuantity = (value: string) => {
     const n = Number.parseInt(value, 10)
@@ -430,7 +435,7 @@ export default function ProductFormModal({ isOpen, mode, productId, onClose, onS
       if (normalizedPrimary.length === 0 && normalizedVariants.length > 0) {
         const defaultPrimary: ProductPrimaryVariant = {
           variant_name: 'افتراضي',
-          barcode: String(product.sku || '').trim(),
+          barcode: cleanBarcode(product.sku),
           price_a: product.price_a ?? 0,
           price_b: product.price_b ?? 0,
           price_c: product.price_c ?? 0,
@@ -576,7 +581,7 @@ export default function ProductFormModal({ isOpen, mode, productId, onClose, onS
           })()
         : [{
             variant_name: 'افتراضي',
-            barcode: String(formData.sku || '').trim(),
+            barcode: cleanBarcode(formData.sku),
             price_a: parsePrice(formData.price_a),
             price_b: parsePrice(formData.price_b),
             price_c: parsePrice(formData.price_c),
@@ -591,7 +596,7 @@ export default function ProductFormModal({ isOpen, mode, productId, onClose, onS
           normalizedPrimary.map((v) => ({
             product_id: productResult!.id,
             variant_name: v.variant_name,
-            barcode: v.barcode,
+            barcode: cleanBarcode(v.barcode),
             price_a: v.price_a,
             price_b: v.price_b,
             price_c: v.price_c,
@@ -632,7 +637,7 @@ export default function ProductFormModal({ isOpen, mode, productId, onClose, onS
           })()
         : [{
             variant_name: 'افتراضي',
-            barcode: String(formData.sku || '').trim(),
+            barcode: cleanBarcode(formData.sku),
             price_a: parsePrice(formData.price_a),
             price_b: parsePrice(formData.price_b),
             price_c: parsePrice(formData.price_c),
@@ -681,7 +686,7 @@ export default function ProductFormModal({ isOpen, mode, productId, onClose, onS
         for (const pv of normalizedPrimary.filter((v) => v.id)) {
           await supabase.from('product_primary_variants').update({
             variant_name: pv.variant_name,
-            barcode: pv.barcode,
+            barcode: cleanBarcode(pv.barcode),
             price_a: pv.price_a,
             price_b: pv.price_b,
             price_c: pv.price_c,
@@ -697,7 +702,7 @@ export default function ProductFormModal({ isOpen, mode, productId, onClose, onS
             newPrimary.map((v) => ({
               product_id: productId,
               variant_name: v.variant_name,
-              barcode: v.barcode,
+              barcode: cleanBarcode(v.barcode),
               price_a: v.price_a,
               price_b: v.price_b,
               price_c: v.price_c,
@@ -725,7 +730,7 @@ export default function ProductFormModal({ isOpen, mode, productId, onClose, onS
             variant_name: variant.variant_name,
             unit_type: variant.unit_type,
             quantity_contained: variant.quantity_contained,
-            barcode: variant.barcode,
+            barcode: cleanBarcode(variant.barcode),
             primary_variant_id: variant.primary_variant_id || null,
             price_a: variant.price_a,
             price_b: variant.price_b,
@@ -987,7 +992,7 @@ export default function ProductFormModal({ isOpen, mode, productId, onClose, onS
                         <label className="block text-xs font-bold text-gray-600 mb-1">الباركود</label>
                         <input
                           type="text"
-                          value={pv.barcode}
+                          value={pv.barcode ?? ''}
                           onChange={(e) => updatePrimaryVariant(index, 'barcode', e.target.value)}
                           placeholder="امسح أو اكتب الباركود"
                           className="w-full p-2 border border-gray-300 rounded-lg text-sm"
