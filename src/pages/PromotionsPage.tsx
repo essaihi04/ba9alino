@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useRef } from 'react'
 import { Search, Plus, Trash2, Edit2, Package, X, ChevronDown, Gift, Percent, ShoppingCart } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import SubmitButton from '../components/SubmitButton'
+import { normalizeSearch } from '../utils/searchNormalize'
 
 interface Promotion {
   id: string
@@ -108,7 +109,8 @@ function ProductPicker({
   }, [])
 
   const filtered = products.filter(p => {
-    const matchSearch = !search || p.name_ar.toLowerCase().includes(search.toLowerCase()) || (p.sku || '').toLowerCase().includes(search.toLowerCase())
+    const q = normalizeSearch(search)
+    const matchSearch = !q || normalizeSearch(p.name_ar).includes(q) || normalizeSearch(p.sku).includes(q)
     const matchCat = !catFilter || p.category_id === catFilter
     return matchSearch && matchCat
   })
@@ -304,9 +306,9 @@ export default function PromotionsPage() {
 
   // Produits filtres pour la grille facon caisse
   const gridProducts = useMemo(() => {
-    const q = prodSearch.trim().toLowerCase()
+    const q = normalizeSearch(prodSearch)
     return products.filter((p) => {
-      const matchSearch = !q || p.name_ar.toLowerCase().includes(q) || (p.sku || '').toLowerCase().includes(q)
+      const matchSearch = !q || normalizeSearch(p.name_ar).includes(q) || normalizeSearch(p.sku).includes(q)
       const matchCat = !prodCat || p.category_id === prodCat
       return matchSearch && matchCat
     })
