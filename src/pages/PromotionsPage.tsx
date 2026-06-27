@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, useRef } from 'react'
-import { Search, Plus, Trash2, Edit2, Package, X, ChevronDown } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Search, Plus, Trash2, Edit2, Package, X, Gift } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import SubmitButton from '../components/SubmitButton'
 import { normalizeSearch } from '../utils/searchNormalize'
@@ -82,144 +82,6 @@ const formatDate = (value?: string | null) => {
   return new Date(value).toISOString().split('T')[0]
 }
 
-function ProductPicker({
-  value,
-  onChange,
-  products,
-  categories,
-  placeholder,
-}: {
-  value: string
-  onChange: (id: string) => void
-  products: ProductOption[]
-  categories: Category[]
-  placeholder: string
-}) {
-  const [open, setOpen] = useState(false)
-  const [search, setSearch] = useState('')
-  const [catFilter, setCatFilter] = useState('')
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
-
-  const filtered = products.filter(p => {
-    const q = normalizeSearch(search)
-    const matchSearch = !q || normalizeSearch(p.name_ar).includes(q) || normalizeSearch(p.sku).includes(q)
-    const matchCat = !catFilter || p.category_id === catFilter
-    return matchSearch && matchCat
-  })
-
-  const selected = products.find(p => p.id === value)
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg bg-white hover:border-indigo-400 transition text-right"
-      >
-        {selected ? (
-          <>
-            {selected.image_url ? (
-              <img src={selected.image_url} className="w-8 h-8 rounded object-contain bg-gray-50 flex-shrink-0" />
-            ) : (
-              <div className="w-8 h-8 rounded bg-gray-100 flex items-center justify-center flex-shrink-0">
-                <Package size={14} className="text-gray-400" />
-              </div>
-            )}
-            <span className="flex-1 text-gray-800 text-sm truncate">{selected.name_ar}</span>
-            <button type="button" onClick={e => { e.stopPropagation(); onChange('') }} className="text-gray-400 hover:text-red-500">
-              <X size={14} />
-            </button>
-          </>
-        ) : (
-          <>
-            <span className="flex-1 text-gray-400 text-sm">{placeholder}</span>
-            <ChevronDown size={16} className="text-gray-400" />
-          </>
-        )}
-      </button>
-
-      {open && (
-        <div className="absolute z-50 top-full mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-xl">
-          <div className="p-2 border-b border-gray-100 space-y-2">
-            <div className="relative">
-              <Search size={14} className="absolute right-2 top-2.5 text-gray-400" />
-              <input
-                autoFocus
-                type="text"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="ابحث..."
-                className="w-full pr-7 pl-2 py-1.5 text-sm border border-gray-200 rounded-lg outline-none focus:border-indigo-400"
-              />
-            </div>
-            {categories.length > 0 && (
-              <div className="flex gap-1 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => setCatFilter('')}
-                  className={`px-2 py-0.5 rounded-full text-xs font-medium transition ${
-                    !catFilter ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  الكل
-                </button>
-                {categories.map(c => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => setCatFilter(c.id)}
-                    className={`px-2 py-0.5 rounded-full text-xs font-medium transition ${
-                      catFilter === c.id ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    {c.name_ar}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="max-h-56 overflow-y-auto">
-            {filtered.length === 0 ? (
-              <p className="text-center text-gray-400 text-sm py-4">لا توجد نتائج</p>
-            ) : (
-              filtered.map(p => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => { onChange(p.id); setOpen(false); setSearch('') }}
-                  className={`w-full flex items-center gap-2 px-3 py-2 hover:bg-indigo-50 transition text-right ${
-                    value === p.id ? 'bg-indigo-50' : ''
-                  }`}
-                >
-                  {p.image_url ? (
-                    <img src={p.image_url} className="w-9 h-9 rounded object-contain bg-gray-50 flex-shrink-0" />
-                  ) : (
-                    <div className="w-9 h-9 rounded bg-gray-100 flex items-center justify-center flex-shrink-0">
-                      <Package size={16} className="text-gray-300" />
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-800 truncate">{p.name_ar}</p>
-                    {p.sku && <p className="text-xs text-gray-400">{p.sku}</p>}
-                  </div>
-                </button>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
 export default function PromotionsPage() {
   const [promotions, setPromotions] = useState<Promotion[]>([])
   const [products, setProducts] = useState<ProductOption[]>([])
@@ -231,6 +93,12 @@ export default function PromotionsPage() {
   const [modalSearch, setModalSearch] = useState('')
   const [modalCat, setModalCat] = useState('')
   const [showModal, setShowModal] = useState(false)
+  // Sélection multiple des produits cibles (façon caisse)
+  const [targetProductIds, setTargetProductIds] = useState<string[]>([])
+  // Ce que sélectionne un clic dans la grille : produit cible ou produit cadeau
+  const [gridMode, setGridMode] = useState<'target' | 'gift'>('target')
+  // Pagination de la grille (30 produits par page pour ne pas ralentir)
+  const [modalPage, setModalPage] = useState(1)
   const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(null)
   const [formData, setFormData] = useState<PromotionFormData>({
     title: '',
@@ -303,6 +171,19 @@ export default function PromotionsPage() {
     })
   }, [products, modalSearch, modalCat])
 
+  // Pagination : on n'affiche que 30 produits par page
+  const MODAL_PAGE_SIZE = 30
+  const modalTotalPages = Math.max(1, Math.ceil(modalProducts.length / MODAL_PAGE_SIZE))
+  const pagedModalProducts = useMemo(
+    () => modalProducts.slice((modalPage - 1) * MODAL_PAGE_SIZE, modalPage * MODAL_PAGE_SIZE),
+    [modalProducts, modalPage],
+  )
+
+  // Revenir à la première page quand la recherche/filtre change
+  useEffect(() => {
+    setModalPage(1)
+  }, [modalSearch, modalCat])
+
   const resetForm = () => {
     setFormData({
       title: '',
@@ -321,12 +202,18 @@ export default function PromotionsPage() {
     setEditingPromotion(null)
     setModalSearch('')
     setModalCat('')
+    setTargetProductIds([])
+    setGridMode('target')
+    setModalPage(1)
   }
 
   const openEditPromotion = (promo: Promotion) => {
     setEditingPromotion(promo)
     setModalSearch('')
     setModalCat('')
+    setTargetProductIds(promo.product_id ? [promo.product_id] : [])
+    setGridMode('target')
+    setModalPage(1)
     setFormData({
       title: promo.title || '',
       type: promo.type,
@@ -352,8 +239,8 @@ export default function PromotionsPage() {
       return
     }
 
-    if (formData.scope === 'product' && !formData.product_id) {
-      alert('يرجى اختيار المنتج المستهدف')
+    if (formData.scope === 'product' && targetProductIds.length === 0) {
+      alert('يرجى اختيار منتج واحد على الأقل')
       return
     }
 
@@ -376,11 +263,11 @@ export default function PromotionsPage() {
     if (saving) return
     setSaving(true)
     try {
-      const payload = {
+      const buildPayload = (productId: string | null) => ({
         title: formData.title.trim(),
         type: formData.type,
         scope: formData.scope,
-        product_id: formData.scope === 'product' ? formData.product_id || null : null,
+        product_id: formData.scope === 'product' ? productId : null,
         min_quantity: Number(formData.min_quantity) || 1,
         unit_type: formData.unit_type || null,
         discount_percent: formData.type === 'discount' ? Number(formData.discount_percent) || 0 : null,
@@ -389,12 +276,39 @@ export default function PromotionsPage() {
         is_active: formData.is_active,
         starts_at: formData.starts_at ? new Date(formData.starts_at).toISOString() : null,
         ends_at: formData.ends_at ? new Date(formData.ends_at).toISOString() : null,
-      }
+      })
 
-      const { error } = editingPromotion
-        ? await supabase.from('promotions').update(payload).eq('id', editingPromotion.id)
-        : await supabase.from('promotions').insert([payload])
-      if (error) throw error
+      if (formData.scope === 'global') {
+        const payload = buildPayload(null)
+        const { error } = editingPromotion
+          ? await supabase.from('promotions').update(payload).eq('id', editingPromotion.id)
+          : await supabase.from('promotions').insert([payload])
+        if (error) throw error
+      } else {
+        const targets = Array.from(new Set(targetProductIds))
+        if (editingPromotion) {
+          // On met à jour la promo existante avec le 1er produit et on crée
+          // une promo supplémentaire pour chaque produit ajouté.
+          const [first, ...rest] = targets
+          const { error: upErr } = await supabase
+            .from('promotions')
+            .update(buildPayload(first))
+            .eq('id', editingPromotion.id)
+          if (upErr) throw upErr
+          if (rest.length > 0) {
+            const { error: insErr } = await supabase
+              .from('promotions')
+              .insert(rest.map((id) => buildPayload(id)))
+            if (insErr) throw insErr
+          }
+        } else {
+          // Création : une promo par produit sélectionné
+          const { error } = await supabase
+            .from('promotions')
+            .insert(targets.map((id) => buildPayload(id)))
+          if (error) throw error
+        }
+      }
 
       resetForm()
       setShowModal(false)
@@ -542,7 +456,31 @@ export default function PromotionsPage() {
               {/* DROITE (RTL = en premier) : sélection du produit façon caisse */}
               <div className="md:w-1/2 flex flex-col min-h-0 border-b md:border-b-0 md:border-l border-gray-200 bg-gray-50/50">
                 <div className="p-4 space-y-2 border-b border-gray-100">
-                  <label className="block text-sm font-bold text-gray-700">المنتج المستهدف</label>
+                  {formData.type === 'gift' && (
+                    <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+                      <button
+                        type="button"
+                        onClick={() => setGridMode('target')}
+                        className={`flex-1 text-xs font-bold py-1.5 rounded-md transition ${
+                          gridMode === 'target' ? 'bg-white text-indigo-700 shadow' : 'text-gray-500'
+                        }`}
+                      >
+                        المنتجات المستهدفة ({targetProductIds.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setGridMode('gift')}
+                        className={`flex-1 text-xs font-bold py-1.5 rounded-md transition ${
+                          gridMode === 'gift' ? 'bg-white text-pink-700 shadow' : 'text-gray-500'
+                        }`}
+                      >
+                        منتج الهدية {formData.gift_product_id ? '✓' : ''}
+                      </button>
+                    </div>
+                  )}
+                  <label className="block text-sm font-bold text-gray-700">
+                    {gridMode === 'gift' ? 'اختر منتج الهدية' : 'اختر المنتجات المستهدفة (اختيار متعدد)'}
+                  </label>
                   <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2">
                     <Search size={18} className="text-gray-400" />
                     <input
@@ -568,61 +506,109 @@ export default function PromotionsPage() {
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-3">
-                  {formData.scope === 'global' ? (
+                  {formData.scope === 'global' && gridMode === 'target' ? (
                     <div className="h-full flex flex-col items-center justify-center text-center text-gray-500 gap-2 py-10">
                       <Package size={32} className="text-gray-300" />
                       <p className="text-sm">العرض عام لكل المنتجات</p>
-                      <p className="text-xs text-gray-400">اختر «منتج محدد» في النطاق لتحديد منتج</p>
+                      <p className="text-xs text-gray-400">اختر «منتج محدد» في النطاق لتحديد منتجات</p>
                     </div>
                   ) : modalProducts.length === 0 ? (
                     <p className="text-center text-gray-400 text-sm py-10">لا توجد منتجات</p>
                   ) : (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {modalProducts.map((product) => {
-                        const isSelected = formData.product_id === product.id
-                        return (
-                          <button
-                            key={product.id}
-                            type="button"
-                            onClick={() => setFormData((prev) => ({ ...prev, scope: 'product', product_id: product.id }))}
-                            className={`relative p-1.5 rounded border bg-white transition-all text-right hover:shadow ${
-                              isSelected ? 'border-indigo-600 ring-2 ring-indigo-300' : 'border-gray-200 hover:border-indigo-400'
-                            }`}
-                          >
-                            {isSelected && (
-                              <span className="absolute top-1 right-1 z-10 bg-indigo-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
-                                ✓
-                              </span>
-                            )}
-                            <div className="w-full h-20 mb-1 flex items-center justify-center bg-gray-50 rounded overflow-hidden">
-                              {product.image_url ? (
-                                <img
-                                  src={product.image_url}
-                                  alt={product.name_ar}
-                                  className="w-full h-full object-contain rounded"
-                                  loading="lazy"
-                                  decoding="async"
-                                  onError={(e) => {
-                                    e.currentTarget.style.display = 'none'
-                                    e.currentTarget.parentElement?.classList.add('bg-gray-100')
-                                  }}
-                                />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center bg-gray-100 rounded">
-                                  <Package size={16} className="text-gray-400" />
-                                </div>
+                    <>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {pagedModalProducts.map((product) => {
+                          const isSelected =
+                            gridMode === 'gift'
+                              ? formData.gift_product_id === product.id
+                              : targetProductIds.includes(product.id)
+                          const accent = gridMode === 'gift' ? 'pink' : 'indigo'
+                          const onClick = () => {
+                            if (gridMode === 'gift') {
+                              setFormData((prev) => ({ ...prev, gift_product_id: product.id }))
+                            } else {
+                              setFormData((prev) => ({ ...prev, scope: 'product' }))
+                              setTargetProductIds((prev) =>
+                                prev.includes(product.id)
+                                  ? prev.filter((id) => id !== product.id)
+                                  : [...prev, product.id],
+                              )
+                            }
+                          }
+                          return (
+                            <button
+                              key={product.id}
+                              type="button"
+                              onClick={onClick}
+                              className={`relative p-1.5 rounded border bg-white transition-all text-right hover:shadow ${
+                                isSelected
+                                  ? accent === 'pink'
+                                    ? 'border-pink-600 ring-2 ring-pink-300'
+                                    : 'border-indigo-600 ring-2 ring-indigo-300'
+                                  : 'border-gray-200 hover:border-indigo-400'
+                              }`}
+                            >
+                              {isSelected && (
+                                <span className={`absolute top-1 right-1 z-10 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                                  accent === 'pink' ? 'bg-pink-600' : 'bg-indigo-600'
+                                }`}>
+                                  ✓
+                                </span>
                               )}
-                            </div>
-                            <div className="text-[11px] font-bold text-gray-800 leading-tight line-clamp-2 min-h-[28px]">
-                              {product.name_ar}
-                            </div>
-                            <div className="text-[12px] font-bold text-green-600">
-                              {getDisplayPrice(product).toFixed(2)}
-                            </div>
+                              <div className="w-full h-20 mb-1 flex items-center justify-center bg-gray-50 rounded overflow-hidden">
+                                {product.image_url ? (
+                                  <img
+                                    src={product.image_url}
+                                    alt={product.name_ar}
+                                    className="w-full h-full object-contain rounded"
+                                    loading="lazy"
+                                    decoding="async"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none'
+                                      e.currentTarget.parentElement?.classList.add('bg-gray-100')
+                                    }}
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center bg-gray-100 rounded">
+                                    <Package size={16} className="text-gray-400" />
+                                  </div>
+                                )}
+                              </div>
+                              <div className="text-[11px] font-bold text-gray-800 leading-tight line-clamp-2 min-h-[28px]">
+                                {product.name_ar}
+                              </div>
+                              <div className="text-[12px] font-bold text-green-600">
+                                {getDisplayPrice(product).toFixed(2)}
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </div>
+
+                      {modalTotalPages > 1 && (
+                        <div className="mt-3 flex items-center justify-center gap-2 pb-1">
+                          <button
+                            type="button"
+                            onClick={() => setModalPage((p) => Math.max(1, p - 1))}
+                            disabled={modalPage <= 1}
+                            className="px-3 py-1.5 text-xs rounded border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            السابق
                           </button>
-                        )
-                      })}
-                    </div>
+                          <span className="text-xs font-semibold text-gray-700">
+                            {modalPage} / {modalTotalPages}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setModalPage((p) => Math.min(modalTotalPages, p + 1))}
+                            disabled={modalPage >= modalTotalPages}
+                            className="px-3 py-1.5 text-xs rounded border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            التالي
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -667,11 +653,31 @@ export default function PromotionsPage() {
               </div>
 
               {formData.scope === 'product' && (
-                <div className="bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2 text-sm">
-                  <span className="text-gray-500">المنتج المختار: </span>
-                  <span className="font-bold text-indigo-700">
-                    {formData.product_id ? (productMap.get(formData.product_id) || 'منتج') : 'لم يتم اختيار منتج بعد ←'}
-                  </span>
+                <div className="bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2">
+                  <div className="text-sm text-gray-500 mb-1">
+                    المنتجات المختارة ({targetProductIds.length})
+                  </div>
+                  {targetProductIds.length === 0 ? (
+                    <p className="text-xs text-gray-400">لم يتم اختيار منتجات بعد ← اختر من القائمة</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {targetProductIds.map((id) => (
+                        <span
+                          key={id}
+                          className="inline-flex items-center gap-1 bg-white border border-indigo-200 text-indigo-700 text-xs font-medium px-2 py-1 rounded-full"
+                        >
+                          {productMap.get(id) || 'منتج'}
+                          <button
+                            type="button"
+                            onClick={() => setTargetProductIds((prev) => prev.filter((x) => x !== id))}
+                            className="text-gray-400 hover:text-red-500"
+                          >
+                            <X size={12} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -730,13 +736,18 @@ export default function PromotionsPage() {
                 <div className="space-y-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">منتج الهدية</label>
-                    <ProductPicker
-                      value={formData.gift_product_id}
-                      onChange={(id) => setFormData({ ...formData, gift_product_id: id })}
-                      products={products}
-                      categories={categories}
-                      placeholder="اختر منتج الهدية..."
-                    />
+                    <button
+                      type="button"
+                      onClick={() => setGridMode('gift')}
+                      className={`w-full flex items-center justify-between gap-2 px-3 py-2 border rounded-lg text-right transition ${
+                        gridMode === 'gift' ? 'border-pink-400 bg-pink-50' : 'border-gray-300 bg-white hover:border-pink-300'
+                      }`}
+                    >
+                      <span className={formData.gift_product_id ? 'text-pink-700 font-bold text-sm' : 'text-gray-400 text-sm'}>
+                        {formData.gift_product_id ? (productMap.get(formData.gift_product_id) || 'منتج') : 'اختر منتج الهدية من القائمة ←'}
+                      </span>
+                      <Gift size={16} className="text-pink-500 flex-shrink-0" />
+                    </button>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">كمية الهدية</label>
