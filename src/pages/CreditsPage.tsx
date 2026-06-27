@@ -92,6 +92,17 @@ export default function CreditsPage() {
     loadCredits()
   }, [])
 
+  // Au retour de la caisse, rouvrir automatiquement la fiche dette du client
+  // sur laquelle on travaillait (état conservé via sessionStorage).
+  useEffect(() => {
+    if (loading || credits.length === 0) return
+    const reopenId = sessionStorage.getItem('credits_reopen_client')
+    if (!reopenId) return
+    sessionStorage.removeItem('credits_reopen_client')
+    const client = credits.find(c => String(c.client_id) === reopenId)
+    if (client) handleClientClick(client)
+  }, [loading, credits])
+
   const loadCredits = async () => {
     setLoading(true)
     try {
@@ -487,6 +498,12 @@ export default function CreditsPage() {
     }
 
     sessionStorage.setItem('posInvoiceData', JSON.stringify(posData))
+    // Mémoriser le client dont la fiche dette est ouverte pour rouvrir la même
+    // modale au retour de la caisse (au lieu de revenir à la liste nue).
+    const reopenClientId = selectedClient?.client_id || invoice.client_id || null
+    if (reopenClientId) {
+      sessionStorage.setItem('credits_reopen_client', String(reopenClientId))
+    }
     navigate('/pos')
   }
 
