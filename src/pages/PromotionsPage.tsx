@@ -230,6 +230,9 @@ export default function PromotionsPage() {
   // Filtres de la grille de produits (style caisse)
   const [prodSearch, setProdSearch] = useState('')
   const [prodCat, setProdCat] = useState('')
+  // Filtres de la grille de produits DANS la fenetre d'ajout de promotion
+  const [modalSearch, setModalSearch] = useState('')
+  const [modalCat, setModalCat] = useState('')
   const [showModal, setShowModal] = useState(false)
   const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(null)
   const [formData, setFormData] = useState<PromotionFormData>({
@@ -314,6 +317,16 @@ export default function PromotionsPage() {
     })
   }, [products, prodSearch, prodCat])
 
+  // Produits filtres pour la grille de la fenetre d'ajout de promotion
+  const modalProducts = useMemo(() => {
+    const q = normalizeSearch(modalSearch)
+    return products.filter((p) => {
+      const matchSearch = !q || normalizeSearch(p.name_ar).includes(q) || normalizeSearch(p.sku).includes(q)
+      const matchCat = !modalCat || p.category_id === modalCat
+      return matchSearch && matchCat
+    })
+  }, [products, modalSearch, modalCat])
+
   const resetForm = () => {
     setFormData({
       title: '',
@@ -330,10 +343,14 @@ export default function PromotionsPage() {
       ends_at: '',
     })
     setEditingPromotion(null)
+    setModalSearch('')
+    setModalCat('')
   }
 
   const openEditPromotion = (promo: Promotion) => {
     setEditingPromotion(promo)
+    setModalSearch('')
+    setModalCat('')
     setFormData({
       title: promo.title || '',
       type: promo.type,
@@ -466,7 +483,7 @@ export default function PromotionsPage() {
           <p className="text-gray-500 mt-1">إنشاء عروض حسب الكمية والهدايا</p>
         </div>
         <button
-          onClick={() => setShowModal(true)}
+          onClick={() => { resetForm(); setShowModal(true) }}
           className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-3 rounded-lg hover:bg-indigo-700 transition"
         >
           <Plus size={18} />
@@ -630,8 +647,9 @@ export default function PromotionsPage() {
 
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden">
+            {/* En-tête */}
+            <div className="flex items-center justify-between p-5 border-b border-gray-200">
               <h2 className="text-xl font-bold text-gray-800">
                 {editingPromotion ? 'تعديل العرض' : 'إضافة عرض جديد'}
               </h2>
@@ -647,7 +665,98 @@ export default function PromotionsPage() {
               </button>
             </div>
 
-            <form onSubmit={handleAddPromotion} className="space-y-4">
+            <form onSubmit={handleAddPromotion} className="flex flex-col md:flex-row flex-1 min-h-0">
+              {/* DROITE (RTL = en premier) : sélection du produit façon caisse */}
+              <div className="md:w-1/2 flex flex-col min-h-0 border-b md:border-b-0 md:border-l border-gray-200 bg-gray-50/50">
+                <div className="p-4 space-y-2 border-b border-gray-100">
+                  <label className="block text-sm font-bold text-gray-700">المنتج المستهدف</label>
+                  <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-3 py-2">
+                    <Search size={18} className="text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="ابحث عن منتج..."
+                      value={modalSearch}
+                      onChange={(e) => setModalSearch(e.target.value)}
+                      className="flex-1 bg-transparent outline-none text-gray-800 text-sm"
+                    />
+                  </div>
+                  <select
+                    value={modalCat}
+                    onChange={(e) => setModalCat(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:border-indigo-500 focus:outline-none"
+                  >
+                    <option value="">كل العائلات ({products.length})</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name_ar}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-3">
+                  {formData.scope === 'global' ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center text-gray-500 gap-2 py-10">
+                      <Package size={32} className="text-gray-300" />
+                      <p className="text-sm">العرض عام لكل المنتجات</p>
+                      <p className="text-xs text-gray-400">اختر «منتج محدد» في النطاق لتحديد منتج</p>
+                    </div>
+                  ) : modalProducts.length === 0 ? (
+                    <p className="text-center text-gray-400 text-sm py-10">لا توجد منتجات</p>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {modalProducts.map((product) => {
+                        const isSelected = formData.product_id === product.id
+                        return (
+                          <button
+                            key={product.id}
+                            type="button"
+                            onClick={() => setFormData((prev) => ({ ...prev, scope: 'product', product_id: product.id }))}
+                            className={`relative p-1.5 rounded border bg-white transition-all text-right hover:shadow ${
+                              isSelected ? 'border-indigo-600 ring-2 ring-indigo-300' : 'border-gray-200 hover:border-indigo-400'
+                            }`}
+                          >
+                            {isSelected && (
+                              <span className="absolute top-1 right-1 z-10 bg-indigo-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
+                                ✓
+                              </span>
+                            )}
+                            <div className="w-full h-20 mb-1 flex items-center justify-center bg-gray-50 rounded overflow-hidden">
+                              {product.image_url ? (
+                                <img
+                                  src={product.image_url}
+                                  alt={product.name_ar}
+                                  className="w-full h-full object-contain rounded"
+                                  loading="lazy"
+                                  decoding="async"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none'
+                                    e.currentTarget.parentElement?.classList.add('bg-gray-100')
+                                  }}
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center bg-gray-100 rounded">
+                                  <Package size={16} className="text-gray-400" />
+                                </div>
+                              )}
+                            </div>
+                            <div className="text-[11px] font-bold text-gray-800 leading-tight line-clamp-2 min-h-[28px]">
+                              {product.name_ar}
+                            </div>
+                            <div className="text-[12px] font-bold text-green-600">
+                              {getDisplayPrice(product).toFixed(2)}
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* GAUCHE : détails de la promotion */}
+              <div className="md:w-1/2 flex flex-col min-h-0">
+                <div className="flex-1 overflow-y-auto p-5 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">عنوان العرض</label>
                 <input
@@ -685,15 +794,11 @@ export default function PromotionsPage() {
               </div>
 
               {formData.scope === 'product' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">المنتج المستهدف</label>
-                  <ProductPicker
-                    value={formData.product_id}
-                    onChange={(id) => setFormData({ ...formData, product_id: id })}
-                    products={products}
-                    categories={categories}
-                    placeholder="اختر المنتج المستهدف..."
-                  />
+                <div className="bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2 text-sm">
+                  <span className="text-gray-500">المنتج المختار: </span>
+                  <span className="font-bold text-indigo-700">
+                    {formData.product_id ? (productMap.get(formData.product_id) || 'منتج') : 'لم يتم اختيار منتج بعد ←'}
+                  </span>
                 </div>
               )}
 
@@ -794,24 +899,27 @@ export default function PromotionsPage() {
                 </div>
               </div>
 
-              <div className="flex gap-3 pt-2">
-                <SubmitButton
-                  type="submit"
-                  loading={saving}
-                  className="flex-1 bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition"
-                >
-                  حفظ العرض
-                </SubmitButton>
-                <button
-                  type="button"
-                  onClick={() => {
-                    resetForm()
-                    setShowModal(false)
-                  }}
-                  className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300 transition"
-                >
-                  إلغاء
-                </button>
+                </div>
+
+                <div className="flex gap-3 p-4 border-t border-gray-200">
+                  <SubmitButton
+                    type="submit"
+                    loading={saving}
+                    className="flex-1 bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition"
+                  >
+                    حفظ العرض
+                  </SubmitButton>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      resetForm()
+                      setShowModal(false)
+                    }}
+                    className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg hover:bg-gray-300 transition"
+                  >
+                    إلغاء
+                  </button>
+                </div>
               </div>
             </form>
           </div>
