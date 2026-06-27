@@ -482,6 +482,7 @@ export default function CreditsPage() {
       payment_method: invoice.payment_method || 'cash',
       created_at: invoice.invoice_date || invoice.created_at || new Date().toISOString(),
       is_credit: true,
+      returnTo: '/credits',
       items: posItems
     }
 

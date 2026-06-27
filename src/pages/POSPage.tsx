@@ -265,6 +265,8 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
   const [onHoldInvoices, setOnHoldInvoices] = useState<Invoice[]>([])
   // When editing an order from OrdersPage, return there after the sale
   const [returnToOrdersAfterSale, setReturnToOrdersAfterSale] = useState(false)
+  // Generic origin path (e.g. /credits) to go back to instead of the dashboard
+  const [returnToPath, setReturnToPath] = useState<string | null>(null)
   const [isEditingCreditInvoice, setIsEditingCreditInvoice] = useState(false)
   
   // Informations de l'entreprise pour les factures
@@ -397,6 +399,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         setPaidAmount(data.paid_amount || 0)
         setIsEditingCreditInvoice(Boolean(data.is_credit))
         setReturnToOrdersAfterSale(Boolean(data.returnToOrders))
+        setReturnToPath(typeof data.returnTo === 'string' ? data.returnTo : null)
         sessionStorage.removeItem('posInvoiceData') // Clean up
         
         // Show notification
@@ -3246,7 +3249,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       <div className="flex-1 bg-white rounded-xl shadow-lg p-4 flex flex-col overflow-hidden">
         <div className="flex items-center justify-between mb-3">
           <button
-            onClick={() => navigate(isEmployeeMode ? '/employee/dashboard' : '/')}
+            onClick={() => navigate(returnToPath || (isEmployeeMode ? '/employee/dashboard' : '/'))}
             className="p-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-colors flex items-center gap-2"
           >
             <ArrowRight size={20} className="text-white" />
@@ -4783,6 +4786,10 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
           if (returnToOrdersAfterSale) {
             setReturnToOrdersAfterSale(false)
             navigate('/orders')
+          } else if (returnToPath) {
+            const dest = returnToPath
+            setReturnToPath(null)
+            navigate(dest)
           }
         }}>
           <div className="bg-white rounded-2xl shadow-2xl w-[420px] max-w-[92vw] p-6" onClick={(e) => e.stopPropagation()}>
@@ -4830,6 +4837,10 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
                   if (returnToOrdersAfterSale) {
                     setReturnToOrdersAfterSale(false)
                     navigate('/orders')
+                  } else if (returnToPath) {
+                    const dest = returnToPath
+                    setReturnToPath(null)
+                    navigate(dest)
                   }
                 }}
                 className="w-full bg-red-600 hover:bg-red-700 text-white py-4 rounded-lg font-bold text-lg transition-colors flex items-center justify-center gap-3"
