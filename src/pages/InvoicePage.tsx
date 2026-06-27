@@ -555,10 +555,6 @@ export default function InvoicePage() {
       alert('هذه الفاتورة مقفلة لأن الطلب تم تسليمه وتم دفعه')
       return
     }
-    if (!companyInfo) {
-      alert('يرجى ملء معلومات الشركة أولاً')
-      return
-    }
     let resolvedClientName = invoiceData.clientInfo.name || ''
     if (!resolvedClientName) {
       const fromOrder = order?.client?.company_name_ar || order?.client?.company_name_en
@@ -626,16 +622,16 @@ export default function InvoicePage() {
         client_name: resolvedClientName,
         client_phone: invoiceData.clientInfo.phone,
         client_address: invoiceData.clientInfo.address,
-        company_name: companyInfo.company_name,
-        company_name_ar: companyInfo.company_name_ar,
-        company_address: companyInfo.address,
-        company_address_ar: companyInfo.address_ar,
-        company_phone: companyInfo.phone,
-        company_email: companyInfo.email,
-        company_website: companyInfo.website,
-        company_ice: companyInfo.ice,
-        company_tax_id: companyInfo.tax_id,
-        company_logo_url: companyInfo.logo_url,
+        company_name: companyInfo?.company_name ?? null,
+        company_name_ar: companyInfo?.company_name_ar ?? null,
+        company_address: companyInfo?.address ?? null,
+        company_address_ar: companyInfo?.address_ar ?? null,
+        company_phone: companyInfo?.phone ?? null,
+        company_email: companyInfo?.email ?? null,
+        company_website: companyInfo?.website ?? null,
+        company_ice: companyInfo?.ice ?? null,
+        company_tax_id: companyInfo?.tax_id ?? null,
+        company_logo_url: companyInfo?.logo_url ?? null,
         order_id: (isEditMode ? (loadedInvoice?.order_id || null) : (order?.id || null)),
         order_number: (isEditMode ? (loadedInvoice?.order_number || null) : (order?.order_number || null)),
         subtotal: invoiceData.subtotal,
@@ -678,10 +674,6 @@ export default function InvoicePage() {
     if (savingSale) return
     setSavingSale(true)
     try {
-      if (!companyInfo) {
-        alert('يرجى ملء معلومات الشركة أولاً')
-        return
-      }
       let resolvedClientName = invoiceData.clientInfo.name || ''
       if (!resolvedClientName) {
         const fromOrder = order?.client?.company_name_ar || order?.client?.company_name_en
@@ -739,12 +731,12 @@ export default function InvoicePage() {
         client_name: resolvedClientName,
         client_phone: invoiceData.clientInfo.phone,
         client_address: invoiceData.clientInfo.address,
-        company_name: companyInfo.company_name,
-        company_name_ar: companyInfo.company_name_ar,
-        company_address: companyInfo.address,
-        company_address_ar: companyInfo.address_ar,
-        company_phone: companyInfo.phone,
-        company_email: companyInfo.email,
+        company_name: companyInfo?.company_name ?? null,
+        company_name_ar: companyInfo?.company_name_ar ?? null,
+        company_address: companyInfo?.address ?? null,
+        company_address_ar: companyInfo?.address_ar ?? null,
+        company_phone: companyInfo?.phone ?? null,
+        company_email: companyInfo?.email ?? null,
       }
 
       const invoiceToSave: any = {
