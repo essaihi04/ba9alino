@@ -1884,13 +1884,8 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
   const handleAddClient = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (
-      !clientFormData.company_name_ar.trim() ||
-      !clientFormData.contact_person_name.trim() ||
-      !clientFormData.contact_person_email.trim() ||
-      !clientFormData.contact_person_phone.trim()
-    ) {
-      alert('الرجاء إدخال اسم الشركة واسم جهة الاتصال والبريد الإلكتروني والهاتف')
+    if (!clientFormData.company_name_ar.trim()) {
+      alert('الرجاء إدخال اسم الشركة')
       return
     }
 
