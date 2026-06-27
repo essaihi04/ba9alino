@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from 'react'
-import { Search, Plus, Trash2, Edit2, Package, X, ChevronDown, Gift, Percent, ShoppingCart } from 'lucide-react'
+import { Search, Plus, Trash2, Edit2, Package, X, ChevronDown } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import SubmitButton from '../components/SubmitButton'
 import { normalizeSearch } from '../utils/searchNormalize'
@@ -227,9 +227,6 @@ export default function PromotionsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
-  // Filtres de la grille de produits (style caisse)
-  const [prodSearch, setProdSearch] = useState('')
-  const [prodCat, setProdCat] = useState('')
   // Filtres de la grille de produits DANS la fenetre d'ajout de promotion
   const [modalSearch, setModalSearch] = useState('')
   const [modalCat, setModalCat] = useState('')
@@ -292,30 +289,9 @@ export default function PromotionsPage() {
     return map
   }, [products])
 
-  // Promotion active par produit (pour afficher un badge sur la carte)
-  const promoByProduct = useMemo(() => {
-    const map = new Map<string, Promotion>()
-    promotions.forEach((promo) => {
-      if (promo.scope === 'product' && promo.product_id && promo.is_active) {
-        if (!map.has(promo.product_id)) map.set(promo.product_id, promo)
-      }
-    })
-    return map
-  }, [promotions])
-
   const filteredPromotions = promotions.filter((promo) =>
     promo.title.toLowerCase().includes(searchTerm.toLowerCase())
   )
-
-  // Produits filtres pour la grille facon caisse
-  const gridProducts = useMemo(() => {
-    const q = normalizeSearch(prodSearch)
-    return products.filter((p) => {
-      const matchSearch = !q || normalizeSearch(p.name_ar).includes(q) || normalizeSearch(p.sku).includes(q)
-      const matchCat = !prodCat || p.category_id === prodCat
-      return matchSearch && matchCat
-    })
-  }, [products, prodSearch, prodCat])
 
   // Produits filtres pour la grille de la fenetre d'ajout de promotion
   const modalProducts = useMemo(() => {
@@ -365,24 +341,6 @@ export default function PromotionsPage() {
       starts_at: formatDate(promo.starts_at),
       ends_at: formatDate(promo.ends_at),
     })
-    setShowModal(true)
-  }
-
-  // Clic sur une carte produit (grille facon caisse) : si une promo existe deja
-  // pour ce produit on l'edite, sinon on ouvre le formulaire pre-rempli.
-  const handleProductCardClick = (product: ProductOption) => {
-    const existing = promoByProduct.get(product.id)
-    if (existing) {
-      openEditPromotion(existing)
-      return
-    }
-    resetForm()
-    setFormData((prev) => ({
-      ...prev,
-      title: `عرض ${product.name_ar}`,
-      scope: 'product',
-      product_id: product.id,
-    }))
     setShowModal(true)
   }
 
@@ -502,91 +460,6 @@ export default function PromotionsPage() {
             className="flex-1 bg-transparent outline-none text-gray-800"
           />
         </div>
-      </div>
-
-      {/* Grille de produits façon caisse : cliquer un produit crée/édite sa promo */}
-      <div className="bg-white rounded-xl shadow-md p-4">
-        <div className="flex flex-wrap items-center gap-3 mb-3">
-          <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-            <ShoppingCart size={20} className="text-indigo-600" />
-            المنتجات
-          </h2>
-          <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2 flex-1 min-w-[200px]">
-            <Search size={18} className="text-gray-400" />
-            <input
-              type="text"
-              placeholder="ابحث عن منتج..."
-              value={prodSearch}
-              onChange={(e) => setProdSearch(e.target.value)}
-              className="flex-1 bg-transparent outline-none text-gray-800 text-sm"
-            />
-          </div>
-          <select
-            value={prodCat}
-            onChange={(e) => setProdCat(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:border-indigo-500 focus:outline-none"
-          >
-            <option value="">كل العائلات ({products.length})</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name_ar}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {gridProducts.length === 0 ? (
-          <p className="text-center text-gray-400 text-sm py-6">لا توجد منتجات</p>
-        ) : (
-          <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2 max-h-[420px] overflow-y-auto pr-1">
-            {gridProducts.map((product) => {
-              const promo = promoByProduct.get(product.id)
-              return (
-                <button
-                  key={product.id}
-                  type="button"
-                  onClick={() => handleProductCardClick(product)}
-                  className={`relative p-1.5 rounded border bg-white transition-all text-right hover:shadow ${
-                    promo ? 'border-green-500 ring-1 ring-green-200' : 'border-gray-200 hover:border-indigo-500'
-                  }`}
-                  title={promo ? 'تعديل العرض' : 'إضافة عرض لهذا المنتج'}
-                >
-                  {promo && (
-                    <span className="absolute top-1 right-1 z-10 flex items-center gap-0.5 bg-green-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
-                      {promo.type === 'discount' ? <Percent size={9} /> : <Gift size={9} />}
-                      عرض
-                    </span>
-                  )}
-                  <div className="w-full h-24 mb-1 flex items-center justify-center bg-gray-50 rounded overflow-hidden">
-                    {product.image_url ? (
-                      <img
-                        src={product.image_url}
-                        alt={product.name_ar}
-                        className="w-full h-full object-contain rounded"
-                        loading="lazy"
-                        decoding="async"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none'
-                          e.currentTarget.parentElement?.classList.add('bg-gray-100')
-                        }}
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gray-100 rounded">
-                        <Package size={16} className="text-gray-400" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="text-[11px] font-bold text-gray-800 leading-tight line-clamp-2 min-h-[30px]">
-                    {product.name_ar}
-                  </div>
-                  <div className="text-[12px] font-bold text-green-600">
-                    {getDisplayPrice(product).toFixed(2)}
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-        )}
       </div>
 
       <div className="bg-white rounded-xl shadow-md overflow-hidden">
