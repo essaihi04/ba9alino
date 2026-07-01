@@ -267,6 +267,9 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
   const [returnToOrdersAfterSale, setReturnToOrdersAfterSale] = useState(false)
   // Generic origin path (e.g. /credits) to go back to instead of the dashboard
   const [returnToPath, setReturnToPath] = useState<string | null>(null)
+  // Vendeur d'origine (commande) à utiliser comme employee_id de la facture,
+  // pour que la page des ventes (المبيعات) affiche le bon vendeur.
+  const [orderEmployeeId, setOrderEmployeeId] = useState<string | null>(null)
   const [isEditingCreditInvoice, setIsEditingCreditInvoice] = useState(false)
   
   // Informations de l'entreprise pour les factures
@@ -400,10 +403,16 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
         setIsEditingCreditInvoice(Boolean(data.is_credit))
         setReturnToOrdersAfterSale(Boolean(data.returnToOrders))
         setReturnToPath(typeof data.returnTo === 'string' ? data.returnTo : null)
+        setOrderEmployeeId(data.order_employee_id || null)
         sessionStorage.removeItem('posInvoiceData') // Clean up
-        
-        // Show notification
-        alert(`تم تحميل ${invoiceLines.length} منتجات من الفاتورة للتعديل`)
+
+        if (data.autoOpenPayment) {
+          // Commande livrée : ouvrir directement la fenêtre de paiement/vente
+          setShowConfirmationModal(true)
+        } else {
+          // Show notification
+          alert(`تم تحميل ${invoiceLines.length} منتجات من الفاتورة للتعديل`)
+        }
       } catch (error) {
         console.error('Error loading invoice data:', error)
         sessionStorage.removeItem('posInvoiceData')
@@ -2266,7 +2275,8 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
           : {}),
         paid_amount: currentInvoice.paid_amount,
         cash_session_id: cashSession.id,
-        employee_id: cashSession.employee_id,
+        // Priorité au vendeur d'origine de la commande (le caissier sinon)
+        employee_id: orderEmployeeId || cashSession.employee_id,
         warehouse_id: cashSession.warehouse_id,
         status: currentInvoice.status === 'credit' ? 'draft' :
                 currentInvoice.status === 'partial' ? 'sent' :
@@ -2689,9 +2699,14 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       setShowConfirmationModal(false)
 
       const shouldReturnToOrders = returnToOrdersAfterSale
-      if (!shouldReturnToOrders) {
-        setShowInvoiceModal(true)
-        setShowPrintTypeModal(true)
+      // Toujours proposer l'impression (ticket + facture), y compris pour une
+      // vente issue d'une commande. La navigation de retour vers /orders est
+      // gérée à la fermeture du modal d'impression.
+      setShowInvoiceModal(true)
+      setShowPrintTypeModal(true)
+      if (shouldReturnToOrders) {
+        // Rafraîchir la page commandes au retour
+        try { sessionStorage.removeItem('orders_page_cache') } catch {}
       }
 
       // Réinitialiser pour la prochaine vente
@@ -2699,6 +2714,7 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       setInvoiceNumber('')
       setSelectedClient(null)
       setPaidAmount(0)
+      setOrderEmployeeId(null)
       window.dispatchEvent(new CustomEvent('payment-updated', {
         detail: {
           orderId: currentInvoice.order_id || null,
@@ -2714,12 +2730,8 @@ export default function POSPage({ mode = 'admin' }: POSPageProps) {
       await loadProducts(true)
       await refreshCashSessionSummary(cashSession.id)
 
-      if (shouldReturnToOrders) {
-        setReturnToOrdersAfterSale(false)
-        // Invalidate Orders page cache so it fetches fresh data on mount
-        try { sessionStorage.removeItem('orders_page_cache') } catch {}
-        navigate('/orders')
-      }
+      // NB: le retour vers /orders (returnToOrdersAfterSale) est effectué à la
+      // fermeture du modal d'impression, après impression du ticket/facture.
     } catch (error) {
       console.error('Error:', error)
       alert('❌ حدث خطأ')

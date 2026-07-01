@@ -21,6 +21,7 @@ interface Order {
     city?: string
   }
   employee_id?: string
+  created_by?: string
   employee?: {
     id: string
     name: string
@@ -221,17 +222,8 @@ export default function OrdersPage() {
               setNewStatus(order.status)
               setShowStatusModal(true)
             }}
-            className={`bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700 ${
-              order.status === 'delivered' && order.payment_status === 'paid' 
-                ? 'opacity-50 cursor-not-allowed' 
-                : ''
-            }`}
-            title={
-              order.status === 'delivered' && order.payment_status === 'paid' 
-                ? 'لا يمكن تعديل حالة الطلب المكتمل' 
-                : 'تغيير الحالة'
-            }
-            disabled={order.status === 'delivered' && order.payment_status === 'paid'}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700"
+            title="تغيير الحالة"
           >
             <Edit2 className="w-4 h-4" />
             تغيير الحالة
@@ -290,6 +282,16 @@ export default function OrdersPage() {
             <FileText className="w-4 h-4" />
             فتح الفاتورة
           </button>
+          {order.status !== 'cancelled' && (
+            <button
+              onClick={() => cancelOrder(order)}
+              className="bg-rose-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-rose-800"
+              title="إلغاء الطلب"
+            >
+              <X className="w-4 h-4" />
+              إلغاء الطلب
+            </button>
+          )}
           <button
             onClick={clearSelection}
             className="bg-gray-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-gray-600"
@@ -1486,19 +1488,25 @@ export default function OrdersPage() {
         console.error('Update error:', error)
         throw error
       }
-      
-      await updateStockOnStatusChange(selectedOrder, previousStatus, newStatus as Order['status'])
-      
-      // If order is delivered, show document modal
-      if (newStatus === 'delivered') {
+
+      // Passage à "livré" : on route vers la caisse pour ouvrir la fenêtre de
+      // paiement (ticket + facture). Le stock est déduit par la vente en caisse,
+      // donc on NE déduit PAS ici pour éviter la double déduction.
+      if (newStatus === 'delivered' && previousStatus !== 'delivered') {
+        const orderToSell = selectedOrder
         setShowStatusModal(false)
-        setShowDocumentModal(true)
-      } else {
-        setShowStatusModal(false)
-        setSelectedOrder(null)
         setNewStatus('')
+        try { sessionStorage.removeItem(ORDERS_CACHE_KEY) } catch {}
+        await editOrderInPOS(orderToSell, { autoOpenPayment: true })
+        return
       }
-      
+
+      await updateStockOnStatusChange(selectedOrder, previousStatus, newStatus as Order['status'])
+
+      setShowStatusModal(false)
+      setSelectedOrder(null)
+      setNewStatus('')
+
       fetchOrders(true)
     } catch (error: any) {
       console.error('Error updating order status:', error)
@@ -1955,7 +1963,30 @@ export default function OrdersPage() {
     }
   }
 
-  const editOrderInPOS = async (order: Order) => {
+  const cancelOrder = async (order: Order) => {
+    if (!window.confirm('هل أنت متأكد من إلغاء هذا الطلب؟')) return
+    try {
+      const previousStatus = order.status
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: 'cancelled' })
+        .eq('id', order.id)
+      if (error) throw error
+
+      // Restock si la commande était livrée (sinon aucun impact stock)
+      await updateStockOnStatusChange(order, previousStatus, 'cancelled')
+
+      try { sessionStorage.removeItem(ORDERS_CACHE_KEY) } catch {}
+      clearSelection()
+      fetchOrders(true)
+      alert('✅ تم إلغاء الطلب')
+    } catch (error: any) {
+      console.error('Error cancelling order:', error)
+      alert(`حدث خطأ أثناء إلغاء الطلب: ${error?.message || 'خطأ غير معروف'}`)
+    }
+  }
+
+  const editOrderInPOS = async (order: Order, options?: { autoOpenPayment?: boolean }) => {
     try {
       const items = await loadOrderItemsForAction(order)
       const linkedInvoice = await loadLinkedInvoiceForOrder(order)
@@ -1968,6 +1999,10 @@ export default function OrdersPage() {
         order_id: order.id,
         order_number: order.order_number,
         returnToOrders: true,
+        // Vendeur d'origine de la commande, propagé vers la facture/ventes
+        order_employee_id: order.employee_id || order.created_by || null,
+        // Ouvre directement la fenêtre de paiement de la caisse (commande livrée)
+        autoOpenPayment: !!options?.autoOpenPayment,
         client_id: order.client_id || null,
         client_name: order.client?.company_name_ar || '',
         total_amount: total,
