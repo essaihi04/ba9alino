@@ -340,7 +340,10 @@ export default function InvoicesPage() {
       
       // Récupérer tous les employés et entrepôts en une seule fois
       const [employeesData, warehousesData] = await Promise.all([
-        supabase.from('employees').select('id, name, phone, role, status').eq('status', 'active'),
+        // Pas de filtre statut: cette map sert uniquement à résoudre le nom du
+        // vendeur pour l'affichage. Les commerciaux peuvent ne pas avoir le
+        // statut 'active', ils seraient alors absents et le vendeur non affiché.
+        supabase.from('employees').select('id, name, phone, role, status'),
         supabase.from('warehouses').select('id, name, address, is_active').eq('is_active', true)
       ])
       
