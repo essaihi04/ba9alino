@@ -81,6 +81,9 @@ export default function StockPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<'all' | 'low' | 'out' | 'good'>('all')
+  // Pagination: max 50 produits par page pour éviter de tout rendre d'un coup.
+  const PAGE_SIZE = 50
+  const [page, setPage] = useState(1)
   // Ajustement manuel du stock (stock préexistant / inventaire)
   // Par défaut on affiche TOUS les produits (même ceux encore absents du dépôt,
   // stock 0) afin qu'un produit fraîchement créé dans la page Produits apparaisse
@@ -118,6 +121,11 @@ export default function StockPage() {
       loadWarehouseStock(selectedWarehouse)
     }
   }, [selectedWarehouse])
+
+  // Revenir à la première page quand un filtre/recherche/dépôt change.
+  useEffect(() => {
+    setPage(1)
+  }, [searchTerm, selectedCategory, filterStatus, selectedWarehouse, showAllProducts])
 
   const loadProducts = async () => {
     setLoading(true)
@@ -237,6 +245,12 @@ export default function StockPage() {
     if (filterStatus === 'good') return stock >= 10
     return true
   })
+
+  // Découpage en pages de PAGE_SIZE. On borne la page courante au nombre de
+  // pages disponibles (utile si le filtrage réduit la liste).
+  const totalPages = Math.max(1, Math.ceil(filteredStockData.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+  const pagedStockData = filteredStockData.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
   // Garder uniquement les catégories ayant un nom lisible (Arabe/Latin)
   // et qui contiennent au moins un produit dans la vue actuelle.
@@ -390,12 +404,12 @@ export default function StockPage() {
     })
   }
 
-  const allVisibleSelected = filteredStockData.length > 0 && filteredStockData.every((p) => selectedIds.has(p.id))
+  const allVisibleSelected = pagedStockData.length > 0 && pagedStockData.every((p) => selectedIds.has(p.id))
   const toggleSelectAll = () => {
     if (allVisibleSelected) {
       setSelectedIds(new Set())
     } else {
-      setSelectedIds(new Set(filteredStockData.map((p) => p.id)))
+      setSelectedIds(new Set(pagedStockData.map((p) => p.id)))
     }
   }
 
@@ -824,7 +838,7 @@ export default function StockPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredStockData.map((product: Product) => {
+                {pagedStockData.map((product: Product) => {
                   const stock = getStockForProduct(product)
                   const stockStatus = getStockStatus(stock)
                   const value = stock * (product.cost_price || product.price_a * 0.7)
@@ -907,6 +921,48 @@ export default function StockPage() {
                 })}
               </tbody>
             </table>
+
+            {/* Pagination (50 par page) */}
+            {filteredStockData.length > PAGE_SIZE && (
+              <div className="flex items-center justify-between gap-2 px-3 py-2 border-t border-gray-100 text-xs">
+                <span className="text-gray-600">
+                  عرض {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filteredStockData.length)} من {filteredStockData.length}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setPage(1)}
+                    disabled={currentPage <= 1}
+                    className="px-2 py-1 rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-40"
+                  >
+                    الأولى
+                  </button>
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage <= 1}
+                    className="px-2 py-1 rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-40"
+                  >
+                    السابق
+                  </button>
+                  <span className="px-2 py-1 font-bold text-teal-700 whitespace-nowrap">
+                    {currentPage} / {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage >= totalPages}
+                    className="px-2 py-1 rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-40"
+                  >
+                    التالي
+                  </button>
+                  <button
+                    onClick={() => setPage(totalPages)}
+                    disabled={currentPage >= totalPages}
+                    className="px-2 py-1 rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-40"
+                  >
+                    الأخيرة
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
