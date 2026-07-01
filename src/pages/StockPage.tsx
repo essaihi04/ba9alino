@@ -130,15 +130,28 @@ export default function StockPage() {
   const loadProducts = async () => {
     setLoading(true)
     try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('id, name_ar, name_en, sku, stock, price_a, cost_price, image_url, category_id')
-        .eq('is_active', true)
-        .order('name_ar')
+      // Charger TOUS les produits actifs, comme la page Produits. Supabase limite
+      // une requête à 1000 lignes par défaut : on boucle par tranches pour ne
+      // manquer aucun produit (ancien ou nouveau) au-delà de 1000.
+      const pageSize = 1000
+      let from = 0
+      const all: Product[] = []
+      while (true) {
+        const { data, error } = await supabase
+          .from('products')
+          .select('id, name_ar, name_en, sku, stock, price_a, cost_price, image_url, category_id')
+          .eq('is_active', true)
+          .order('name_ar')
+          .range(from, from + pageSize - 1)
 
-      if (error) throw error
-      
-      setProducts(data || [])
+        if (error) throw error
+        const batch = (data || []) as Product[]
+        all.push(...batch)
+        if (batch.length < pageSize) break
+        from += pageSize
+      }
+
+      setProducts(all)
     } catch (error) {
       console.error('Error loading products:', error)
     } finally {
@@ -187,14 +200,25 @@ export default function StockPage() {
       // Source de vérité par dépôt: la table `warehouse_stock`.
       // (La table `stock` chez ce projet est globale et ne possède pas de colonne
       // warehouse_id; les achats écrivent dans warehouse_stock via un dual-write.)
-      const { data, error } = await supabase
-        .from('warehouse_stock')
-        .select('id, warehouse_id, product_id, quantity')
-        .eq('warehouse_id', warehouseId)
+      // Charger toutes les lignes du dépôt par tranches (limite Supabase = 1000).
+      const pageSize = 1000
+      let from = 0
+      const rows: any[] = []
+      while (true) {
+        const { data, error } = await supabase
+          .from('warehouse_stock')
+          .select('id, warehouse_id, product_id, quantity')
+          .eq('warehouse_id', warehouseId)
+          .range(from, from + pageSize - 1)
 
-      if (error) throw error
+        if (error) throw error
+        const batch = data || []
+        rows.push(...batch)
+        if (batch.length < pageSize) break
+        from += pageSize
+      }
 
-      const aggregated: WarehouseStock[] = (data || []).map((row: any) => ({
+      const aggregated: WarehouseStock[] = rows.map((row: any) => ({
         id: row.id,
         warehouse_id: row.warehouse_id,
         product_id: row.product_id,
