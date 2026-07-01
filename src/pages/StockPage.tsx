@@ -82,7 +82,10 @@ export default function StockPage() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<'all' | 'low' | 'out' | 'good'>('all')
   // Ajustement manuel du stock (stock préexistant / inventaire)
-  const [showAllProducts, setShowAllProducts] = useState(false)
+  // Par défaut on affiche TOUS les produits (même ceux encore absents du dépôt,
+  // stock 0) afin qu'un produit fraîchement créé dans la page Produits apparaisse
+  // immédiatement ici. Décocher la case masque les produits sans ligne warehouse_stock.
+  const [showAllProducts, setShowAllProducts] = useState(true)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [adjustOpen, setAdjustOpen] = useState(false)
   const [adjustTargets, setAdjustTargets] = useState<Product[]>([])
