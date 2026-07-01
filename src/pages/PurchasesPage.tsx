@@ -472,11 +472,10 @@ export default function PurchasesPage() {
 
     switch (form.unit_type) {
       case 'carton':
-        return safeQuantity * unitsPerCarton * weightPerUnit
       case 'paquet':
-        return safeQuantity * weightPerUnit
       case 'sac':
-        return safeQuantity * weightPerUnit
+        // Paquet/sac gérés comme le carton: quantité × unités par paquet × poids/unité
+        return safeQuantity * unitsPerCarton * weightPerUnit
       case 'litre':
       case 'kilo':
       default:
@@ -656,11 +655,13 @@ export default function PurchasesPage() {
                   : 'paquet'
 
             const qtyContained = Number(vData.quantity_contained || 0)
+            // Carton et paquet stockent le nombre d'unités dans quantity_contained
+            const hasUnitsContained = (unitTypeHint === 'carton' || unitTypeHint === 'paquet') && qtyContained > 1
             const preset: Partial<PurchaseLineItem> = {
               unit_type: unitTypeHint,
-              units_per_carton: unitTypeHint === 'carton' && qtyContained > 1 ? Math.round(qtyContained) : null,
-              weight_per_unit: unitTypeHint === 'paquet' && qtyContained > 0 ? qtyContained : null,
-              packaging_mode: unitTypeHint === 'kilo' || unitTypeHint === 'litre' ? 'none' : 'none'
+              units_per_carton: hasUnitsContained ? Math.round(qtyContained) : null,
+              weight_per_unit: null,
+              packaging_mode: 'none'
             }
 
             addProductToInvoice(product, pv, preset)
@@ -728,7 +729,18 @@ export default function PurchasesPage() {
       }
     }
 
-    if ((editForm.unit_type === 'paquet' || editForm.unit_type === 'sac' || editForm.packaging_mode === 'sachet') && (!editForm.weight_per_unit || editForm.weight_per_unit <= 0)) {
+    if (editForm.unit_type === 'paquet' || editForm.unit_type === 'sac') {
+      if (!editForm.units_per_carton || editForm.units_per_carton <= 0) {
+        alert('يرجى إدخال عدد الوحدات في الباكيت/الكيس')
+        return
+      }
+      if (!editForm.weight_per_unit || editForm.weight_per_unit <= 0) {
+        alert('يرجى إدخال الوزن/الكمية لكل وحدة')
+        return
+      }
+    }
+
+    if (editForm.packaging_mode === 'sachet' && (!editForm.weight_per_unit || editForm.weight_per_unit <= 0)) {
       alert('يرجى إدخال الوزن/الكمية لكل كيس/ساشي')
       return
     }
@@ -1357,9 +1369,9 @@ export default function PurchasesPage() {
           // 3) Mettre à jour/Créer la variante correspondant au unit_type
           const baseQtyContained = (unitType === 'kilo' || unitType === 'litre')
             ? 1
-            : (unitType === 'carton'
+            : ((unitType === 'carton' || unitType === 'paquet' || unitType === 'sac')
               ? (item.units_per_carton ?? 1)
-              : ((unitType === 'paquet' || unitType === 'sac') ? (item.weight_per_unit ?? 1) : 1))
+              : 1)
 
           const qtyContained = item.units_per_carton ?? item.weight_per_unit ?? 1
 
@@ -1433,8 +1445,8 @@ export default function PurchasesPage() {
               })
           }
 
-          // 3bis) Si achat بالكرتون، ضمان وجود متغير "وحدة" بتكلفة/مخزون بالوحدة
-          if (unitType === 'carton' && qtyContained > 1) {
+          // 3bis) Si achat بالكرتون/الباكيت/الكيس، ضمان وجود متغير "وحدة" بتكلفة/مخزون بالوحدة
+          if ((unitType === 'carton' || unitType === 'paquet' || unitType === 'sac') && qtyContained > 1) {
             const perUnitCost = qtyContained > 0 ? unitPrice / qtyContained : unitPrice
             const cartonCount = Number(item.quantity) || 0
             let unitVariant: any = null
@@ -1778,10 +1790,9 @@ export default function PurchasesPage() {
 
     switch (unitType) {
       case 'carton':
-        return safeQuantity * unitsPerCarton * weightPerUnit
       case 'paquet':
       case 'sac':
-        return safeQuantity * weightPerUnit
+        return safeQuantity * unitsPerCarton * weightPerUnit
       case 'litre':
       case 'kilo':
       default:
@@ -1904,8 +1915,8 @@ export default function PurchasesPage() {
     // variante principale (kilo/litre en unités de base, sinon en quantité)
     await decVar(unitType, (unitType === 'kilo' || unitType === 'litre') ? baseQty : quantity)
 
-    // dérivée "unité" quand achat par carton
-    if (unitType === 'carton' && unitsPerCarton > 1) {
+    // dérivée "unité" quand achat par carton / paquet / sac
+    if ((unitType === 'carton' || unitType === 'paquet' || unitType === 'sac') && unitsPerCarton > 1) {
       await decVar('unit', quantity * unitsPerCarton)
     }
 
@@ -1993,9 +2004,9 @@ export default function PurchasesPage() {
         const primaryVariantId = newItem.primary_variant_id
         const baseQtyContained = (unitType === 'kilo' || unitType === 'litre')
           ? 1
-          : (unitType === 'carton'
+          : ((unitType === 'carton' || unitType === 'paquet' || unitType === 'sac')
             ? (newItem.units_per_carton ?? 1)
-            : ((unitType === 'paquet' || unitType === 'sac') ? (newItem.weight_per_unit ?? 1) : 1))
+            : 1)
         const qtyContained = newItem.units_per_carton && newItem.units_per_carton > 0
           ? Number(newItem.units_per_carton)
           : (newItem.weight_per_unit && newItem.weight_per_unit > 0 ? Number(newItem.weight_per_unit) : 1)
@@ -2183,8 +2194,8 @@ export default function PurchasesPage() {
           }
         }
 
-        // Variante unité quand achat كرتون
-        if (unitType === 'carton' && qtyContained > 1) {
+        // Variante unité quand achat كرتون/باكيت/كيس
+        if ((unitType === 'carton' || unitType === 'paquet' || unitType === 'sac') && qtyContained > 1) {
           const perUnitCost = qtyContained > 0 ? unitPrice / qtyContained : unitPrice
           let unitVariant: any = null
           {
@@ -2210,7 +2221,8 @@ export default function PurchasesPage() {
             }
           }
 
-          const oldCartonQty = oldItem && (oldItem.unit_type || 'kilo') === 'carton' ? (Number(oldItem.quantity) || 0) : 0
+          const oldUt = oldItem?.unit_type || 'kilo'
+          const oldCartonQty = oldItem && (oldUt === 'carton' || oldUt === 'paquet' || oldUt === 'sac') ? (Number(oldItem.quantity) || 0) : 0
           const newCartonQty = Number(newItem.quantity) || 0
           const perUnitDelta = (newCartonQty - oldCartonQty) * qtyContained
 
@@ -3915,12 +3927,29 @@ export default function PurchasesPage() {
               )}
               {(editForm.unit_type === 'paquet' || editForm.unit_type === 'sac') && (
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1">الوزن/الكمية لكل باكيت/كيس</label>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">عدد الوحدات في الباكيت/الكيس</label>
                   <button
                     type="button"
                     onClick={() =>
                       inputPad.open({
-                        title: 'الوزن/الكمية لكل باكيت/كيس',
+                        title: 'عدد الوحدات في الباكيت/الكيس',
+                        mode: 'number',
+                        dir: 'ltr',
+                        initialValue: (editForm.units_per_carton || 0).toString(),
+                        min: 1,
+                        onConfirm: (v) => setEditForm({ ...editForm, units_per_carton: parseInt(v) || 1 }),
+                      })
+                    }
+                    className="w-full p-2 border rounded-lg text-left"
+                  >
+                    {editForm.units_per_carton || 1}
+                  </button>
+                  <label className="block text-xs font-bold text-gray-700 mb-1 mt-3">الوزن/الكمية لكل وحدة</label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      inputPad.open({
+                        title: 'الوزن/الكمية لكل وحدة داخل الباكيت/الكيس',
                         mode: 'decimal',
                         dir: 'ltr',
                         initialValue: (editForm.weight_per_unit || 0).toString(),
@@ -3943,34 +3972,39 @@ export default function PurchasesPage() {
                 const rawUnitsPerCarton = editForm.units_per_carton || 1
                 const rawPieceWeight = editForm.weight_per_unit || 1
                 const isCartonUnit = editForm.unit_type === 'carton'
+                const isPaquetUnit = editForm.unit_type === 'paquet' || editForm.unit_type === 'sac'
                 const isKiloCarton = (editForm.unit_type === 'kilo' || editForm.unit_type === 'litre') && editForm.packaging_mode === 'carton'
-                const sachetUnits = (editForm.unit_type === 'paquet' || editForm.unit_type === 'sac') ? rawPieceWeight : null
+                const usesPack = isCartonUnit || isPaquetUnit || isKiloCarton
 
-                // فقط عند الكرتون نستخدم قيم الكرتون، غير ذلك نعتبرها 1
-                const unitsPerCarton = (isCartonUnit || isKiloCarton) ? rawUnitsPerCarton : 1
-                const pieceWeight = (isCartonUnit || isKiloCarton) ? rawPieceWeight : 1
-                const cartonWeight = unitsPerCarton * pieceWeight // الوزن/الكمية الإجمالية للكرتون (بـ وحدة الأساس)
+                // Mot de l'emballage (carton / باكيت / كيس) pour les libellés
+                const packWord = isPaquetUnit ? (editForm.unit_type === 'sac' ? 'الكيس' : 'الباكيت') : 'الكرتون'
+                const packCountLabel = isPaquetUnit
+                  ? (editForm.unit_type === 'sac' ? 'عدد الأكياس المشتراة' : 'عدد الباكيتات المشتراة')
+                  : 'عدد الكراتين المشتراة'
 
-                // Calculs spécifiques للكرتون في حالة الشراء بالكيلو مع تعبئة كرتون
-                const totalPieces = isCartonUnit
+                const unitsPerCarton = usesPack ? rawUnitsPerCarton : 1
+                const pieceWeight = usesPack ? rawPieceWeight : 1
+                const cartonWeight = unitsPerCarton * pieceWeight // الوزن/الكمية الإجمالية للعبوة (بـ وحدة الأساس)
+
+                const totalPieces = (isCartonUnit || isPaquetUnit)
                   ? editForm.quantity * unitsPerCarton
-                  : (isKiloCarton && pieceWeight > 0 ? (editForm.quantity / pieceWeight) : (sachetUnits ? editForm.quantity * sachetUnits : editForm.quantity))
+                  : (isKiloCarton && pieceWeight > 0 ? (editForm.quantity / pieceWeight) : editForm.quantity)
 
-                const cartonCount = isCartonUnit
+                const cartonCount = (isCartonUnit || isPaquetUnit)
                   ? editForm.quantity
                   : (isKiloCarton && unitsPerCarton > 0 ? (totalPieces / unitsPerCarton) : null)
 
-                const cartonPrice = isCartonUnit
+                const cartonPrice = (isCartonUnit || isPaquetUnit)
                   ? editForm.unit_price
                   : (isKiloCarton ? editForm.unit_price * cartonWeight : null)
 
-                const unitPriceInsideCarton = isCartonUnit
+                const unitPriceInsideCarton = (isCartonUnit || isPaquetUnit)
                   ? (unitsPerCarton ? editForm.unit_price / unitsPerCarton : null)
                   : (isKiloCarton && unitsPerCarton > 0 ? (cartonPrice ?? 0) / unitsPerCarton : null)
 
                 const costPerCartonUnit = unitPriceInsideCarton ?? baseUnitCost
-                const cartonUnitsDisplay = (isCartonUnit || isKiloCarton) ? unitsPerCarton : null
-                const costLabel = cartonUnitsDisplay ? 'التكلفة لكل وحدة داخل الكرتون:' : 'التكلفة لكل وحدة:'
+                const cartonUnitsDisplay = usesPack ? unitsPerCarton : null
+                const costLabel = cartonUnitsDisplay ? `التكلفة لكل وحدة داخل ${packWord}:` : 'التكلفة لكل وحدة:'
                 const costValue = cartonUnitsDisplay ? costPerCartonUnit : baseUnitCost
 
                 return (
@@ -3981,7 +4015,7 @@ export default function PurchasesPage() {
                       <div className="flex justify-between"><span className="text-gray-600">الكمية الأساسية المضافة:</span><span className="font-bold">{baseQty.toFixed(2)}</span></div>
                       <div className="flex justify-between"><span className="text-gray-600">{costLabel}</span><span className="font-bold">{costValue.toFixed(2)} MAD</span></div>
                       {cartonCount !== null && (
-                        <div className="flex justify-between"><span className="text-gray-600">عدد الكراتين المشتراة:</span><span className="font-bold">{cartonCount}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-600">{packCountLabel}:</span><span className="font-bold">{cartonCount}</span></div>
                       )}
                       {totalPieces !== null && (
                         <div className="flex justify-between"><span className="text-gray-600">إجمالي القطع/الوحدات:</span><span className="font-bold">{totalPieces}</span></div>
@@ -3990,19 +4024,13 @@ export default function PurchasesPage() {
                         <div className="flex justify-between"><span className="text-gray-600">{editForm.unit_type === 'litre' ? 'سعر اللتر:' : 'سعر الكيلو:'}</span><span className="font-bold">{editForm.unit_price.toFixed(2)} MAD</span></div>
                       )}
                       {cartonUnitsDisplay && cartonPrice !== null && (
-                        <div className="flex justify-between"><span className="text-gray-600">سعر الكرتون:</span><span className="font-bold">{cartonPrice.toFixed(2)} MAD</span></div>
+                        <div className="flex justify-between"><span className="text-gray-600">سعر {packWord}:</span><span className="font-bold">{cartonPrice.toFixed(2)} MAD</span></div>
                       )}
                       {cartonUnitsDisplay && (
-                        <div className="flex justify-between"><span className="text-gray-600">عدد الوحدات في الكرتون:</span><span className="font-bold">{cartonUnitsDisplay}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-600">عدد الوحدات في {packWord}:</span><span className="font-bold">{cartonUnitsDisplay}</span></div>
                       )}
                       {cartonUnitsDisplay && unitPriceInsideCarton !== null && (
-                        <div className="flex justify-between"><span className="text-gray-600">سعر الوحدة داخل الكرتون:</span><span className="font-bold">{unitPriceInsideCarton.toFixed(3)} MAD</span></div>
-                      )}
-                      {sachetUnits && (
-                        <div className="flex justify-between"><span className="text-gray-600">سعر الكيس/الساشي:</span><span className="font-bold">{editForm.unit_price.toFixed(2)} MAD</span></div>
-                      )}
-                      {sachetUnits && (
-                        <div className="flex justify-between"><span className="text-gray-600">الكمية لكل كيس/ساشي:</span><span className="font-bold">{sachetUnits}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-600">سعر الوحدة داخل {packWord}:</span><span className="font-bold">{unitPriceInsideCarton.toFixed(3)} MAD</span></div>
                       )}
                     </div>
                   </div>
