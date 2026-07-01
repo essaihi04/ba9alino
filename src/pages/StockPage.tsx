@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Search, Package, TrendingUp, TrendingDown, AlertTriangle, Building, CheckCircle, Plus, Minus, X, Pencil, ShoppingCart } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useInputPad } from '../components/useInputPad'
+import { matchesSearch } from '../utils/searchNormalize'
 
 // Mêmes unités d'achat que la page Achats (PurchasesPage)
 type UnitType = 'kilo' | 'litre' | 'carton' | 'paquet' | 'sac' | 'unit'
@@ -263,8 +264,10 @@ export default function StockPage() {
     ? (showAllProducts ? products : products.filter(p => warehouseStockByProduct[p.id] !== undefined))
     : products
   const filteredStockData = currentStockData.filter(product =>
-    product.name_ar?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.sku?.toLowerCase().includes(searchTerm.toLowerCase())
+    // Recherche normalisée (arabe: أ/إ/آ -> ا, etc.) comme la page Produits,
+    // sinon "اكوافينا" ne trouve pas "أكوافينا".
+    matchesSearch(product.name_ar, searchTerm) ||
+    matchesSearch(product.sku, searchTerm)
   ).filter(product => {
     if (selectedCategory && product.category_id !== selectedCategory) return false
 
