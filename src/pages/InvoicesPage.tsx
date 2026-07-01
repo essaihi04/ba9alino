@@ -350,6 +350,24 @@ export default function InvoicesPage() {
       // Créer des maps pour un accès rapide
       const employeeMap = new Map((employeesData.data || []).map(emp => [emp.id, emp]))
       const warehouseMap = new Map((warehousesData.data || []).map(wh => [wh.id, wh]))
+
+      // Résoudre le vendeur comme la page des commandes : pour une facture liée à
+      // une commande, le vendeur est celui de la commande (employee_id || created_by),
+      // et non le caissier qui a encaissé la vente.
+      const orderIds = [...new Set(
+        (invoicesData || []).map((inv: any) => inv.order_id).filter(Boolean)
+      )]
+      const orderVendeurMap = new Map<string, string>()
+      if (orderIds.length > 0) {
+        const { data: ordersData } = await supabase
+          .from('orders')
+          .select('id, employee_id, created_by')
+          .in('id', orderIds)
+        ;(ordersData || []).forEach((o: any) => {
+          const vid = o.employee_id || o.created_by
+          if (vid) orderVendeurMap.set(o.id, vid)
+        })
+      }
       
       // Enrichir les factures avec les données + recompute paid/remaining/status from payments
       const enrichedInvoices = (invoicesData || []).map((invoice: any) => {
@@ -385,7 +403,10 @@ export default function InvoicesPage() {
           remaining_amount: computedRemaining,
           payment_method: latestPayment?.payment_method || null,
           payment_status: finalPaymentStatus,
-          employee: invoice.employee_id ? employeeMap.get(invoice.employee_id) || null : null,
+          employee: (() => {
+            const vendeurId = (invoice.order_id && orderVendeurMap.get(invoice.order_id)) || invoice.employee_id
+            return vendeurId ? employeeMap.get(vendeurId) || null : null
+          })(),
           warehouse: invoice.warehouse_id ? warehouseMap.get(invoice.warehouse_id) || null : null,
         }
       })
