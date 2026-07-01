@@ -142,6 +142,10 @@ export default function StockPage() {
           .select('id, name_ar, name_en, sku, stock, price_a, cost_price, image_url, category_id')
           .eq('is_active', true)
           .order('name_ar')
+          // Clé de tri unique en second: sans elle, la pagination .range() par
+          // tranches de 1000 peut sauter/dupliquer des lignes quand des name_ar
+          // sont à égalité (produits manquants dans la liste).
+          .order('id', { ascending: true })
           .range(from, from + pageSize - 1)
 
         if (error) throw error
@@ -209,6 +213,8 @@ export default function StockPage() {
           .from('warehouse_stock')
           .select('id, warehouse_id, product_id, quantity')
           .eq('warehouse_id', warehouseId)
+          // Ordre stable obligatoire pour une pagination .range() fiable.
+          .order('id', { ascending: true })
           .range(from, from + pageSize - 1)
 
         if (error) throw error

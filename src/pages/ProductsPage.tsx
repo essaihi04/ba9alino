@@ -320,6 +320,9 @@ export default function ProductsPage() {
           .from('products')
           .select('id, name_ar, sku, cost_price, price_a, price_b, price_c, price_d, price_e, stock, category_id, image_url, created_at, weight, weight_unit, is_active')
           .order('name_ar', { ascending: true })
+          // Tiebreaker unique: évite les lignes sautées/dupliquées en pagination
+          // .range() quand des name_ar sont à égalité (au-delà de 1000 produits).
+          .order('id', { ascending: true })
           .range(from, from + pageSize - 1)
         if (!showInactive) productsQuery = productsQuery.eq('is_active', true)
         const { data: page, error: pageError } = await productsQuery
@@ -343,6 +346,9 @@ export default function ProductsPage() {
             .from('product_variants')
             .select('product_id, primary_variant_id, unit_type, quantity_contained, stock')
             .eq('is_active', true)
+            // Ordre stable pour une pagination .range() fiable (sinon variantes
+            // manquantes => stock "unités" faussé sur certains produits).
+            .order('id', { ascending: true })
             .range(varFrom, varFrom + varPageSize - 1)
           if (varErr) { console.warn('Error loading product variants:', varErr); break }
           if (!varPage || varPage.length === 0) break
